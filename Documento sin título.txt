@@ -1,0 +1,2076 @@
+﻿Sí. Y esta vez lo plantearía como una empresa tecnológica completa, no simplemente como “crear un lenguaje”.
+
+
+La idea sería construir AXIOM SYSTEMS desde cero, con una base tecnológica propia y, encima de ella, un ecosistema capaz de producir software de muchos tipos.
+
+
+🧬 AXIOM SYSTEMS — MASTER ROADMAP
+
+
+> Visión: construir desde cero una infraestructura tecnológica propia: lenguaje → compilador → runtime → librerías → motores → herramientas → plataformas → sistemas operativos → ecosistema.
+
+
+Capital inicial: 0 €
+
+
+Estrategia: construir primero lo mínimo que nos permita construir lo siguiente. Nada de intentar crear Apple/Microsoft/Unity/Linux entero en el día 1.
+
+
+
+
+
+
+
+
+---
+
+
+0. LA VISIÓN COMPLETA
+
+
+La arquitectura conceptual sería:
+
+
+AXIOM SYSTEMS
+                              │
+                    ┌─────────┴─────────┐
+                    │                   │
+               AXIOM LANGUAGE       AXIOM CORE
+                    │                   │
+               COMPILER            RUNTIME
+                    │                   │
+                    └─────────┬─────────┘
+                              │
+                       AXIOM PLATFORM
+                              │
+        ┌─────────────┬───────┼────────┬─────────────┐
+        │             │       │        │             │
+     AXIOM OS      AXIOM     AXIOM   AXIOM       AXIOM
+                   ENGINE    STUDIO  CLOUD       AI
+        │             │       │        │             │
+        └─────────────┴───────┼────────┴─────────────┘
+                              │
+                       SOFTWARE ECOSYSTEM
+                              │
+       ┌──────────┬──────────┼──────────┬───────────┐
+       │          │          │          │           │
+    GAMES       APPS       WEB       SERVERS      AI
+       │          │          │          │           │
+       └──────────┴──────────┴──────────┴───────────┘
+
+
+Pero hay una regla fundamental:
+
+
+No construiremos todo simultáneamente.
+
+
+Cada capa debe hacer posible la siguiente.
+
+
+
+
+---
+
+
+FASE 1 — FUNDACIÓN DE AXIOM SYSTEMS
+
+
+Objetivo
+
+
+Crear la identidad y arquitectura de la empresa.
+
+
+Crear
+
+
+Nombre: AXIOM SYSTEMS
+
+
+Arquitectura tecnológica
+
+
+Filosofía del lenguaje
+
+
+Filosofía del ecosistema
+
+
+Repositorios
+
+
+Sistema de versiones
+
+
+Documentación
+
+
+Licencias
+
+
+Estándares de código
+
+
+Roadmap público/privado
+
+
+Sistema de contribuciones
+
+
+CI/CD
+
+
+Testing
+
+
+
+
+Resultado
+
+
+Tendremos una organización tecnológica real, aunque inicialmente sea solamente tú + yo + herramientas gratuitas.
+
+
+
+
+---
+
+
+FASE 2 — AXIOM LANGUAGE
+
+
+Aquí empieza el núcleo.
+
+
+Nuestro lenguaje sería:
+
+
+AXIOM
+
+
+Un lenguaje diseñado para poder utilizarse en:
+
+
+aplicaciones
+
+
+videojuegos
+
+
+servidores
+
+
+herramientas
+
+
+sistemas
+
+
+gráficos
+
+
+IA
+
+
+automatización
+
+
+web
+
+
+sistemas operativos
+
+
+dispositivos
+
+
+
+
+Diseñaríamos
+
+
+Sintaxis
+
+
+fn main() {
+    print("Hello AXIOM")
+}
+
+
+Pero la sintaxis final la diseñaremos nosotros.
+
+
+Sistema de tipos
+
+
+integers
+
+
+floats
+
+
+booleans
+
+
+strings
+
+
+arrays
+
+
+objects
+
+
+structs
+
+
+enums
+
+
+generics
+
+
+optionals
+
+
+errors
+
+
+references
+
+
+
+
+Funciones
+
+
+fn calculate(a: Int, b: Int) -> Int {
+    return a + b
+}
+
+
+Concurrencia
+
+
+async
+
+
+await
+
+
+threads
+
+
+tasks
+
+
+actors
+
+
+channels
+
+
+
+
+Memoria
+
+
+Una de las decisiones más importantes:
+
+
+seguridad + rendimiento.
+
+
+Podríamos investigar un modelo inspirado en conceptos de:
+
+
+Rust
+
+
+Swift
+
+
+C++
+
+
+Go
+
+
+funcional
+
+
+
+
+pero diseñado específicamente para AXIOM.
+
+
+
+
+---
+
+
+FASE 3 — AXIOM LEXER
+
+
+El código:
+
+
+fn main() {
+    print("Hello")
+}
+
+
+debe convertirse en tokens.
+
+
+FN
+IDENTIFIER
+LPAREN
+RPAREN
+LBRACE
+IDENTIFIER
+STRING
+RBRACE
+
+
+Construiremos:
+
+
+lexer
+
+
+tokenizer
+
+
+errores léxicos
+
+
+posiciones
+
+
+source maps
+
+
+
+
+
+
+---
+
+
+FASE 4 — AXIOM PARSER
+
+
+Convertiremos los tokens en un árbol.
+
+
+Program
+ └── Function
+      ├── name: main
+      └── body
+           └── Call
+                └── print
+
+
+Crearíamos:
+
+
+AST
+
+
+parser
+
+
+grammar
+
+
+errores
+
+
+recovery
+
+
+
+
+
+
+---
+
+
+FASE 5 — AXIOM SEMANTIC ENGINE
+
+
+Aquí el lenguaje empieza a entender realmente qué significa el código.
+
+
+Implementaremos:
+
+
+type checking
+
+
+scopes
+
+
+symbol tables
+
+
+name resolution
+
+
+imports
+
+
+generics
+
+
+inference
+
+
+errores inteligentes
+
+
+
+
+
+
+---
+
+
+FASE 6 — AXIOM IR
+
+
+Este punto es crítico.
+
+
+No queremos que AXIOM dependa eternamente de una arquitectura concreta.
+
+
+Crearíamos:
+
+
+AXIOM IR
+
+
+Una representación intermedia.
+
+
+AXIOM
+   ↓
+AST
+   ↓
+AXIOM IR
+   ↓
+Backend
+
+
+Esto permitiría posteriormente generar:
+
+
+x86
+
+
+ARM
+
+
+WebAssembly
+
+
+GPU
+
+
+otras arquitecturas
+
+
+
+
+
+
+---
+
+
+FASE 7 — AXIOM COMPILER
+
+
+Ahora creamos el compilador real.
+
+
+archivo.ax
+      ↓
+Lexer
+      ↓
+Parser
+      ↓
+AST
+      ↓
+Semantic Analysis
+      ↓
+AXIOM IR
+      ↓
+Optimization
+      ↓
+Machine Code
+
+
+Objetivos
+
+
+compilación rápida
+
+
+errores claros
+
+
+optimizaciones
+
+
+builds reproducibles
+
+
+cross compilation
+
+
+
+
+
+
+---
+
+
+FASE 8 — AXIOM RUNTIME
+
+
+El lenguaje necesita un entorno de ejecución.
+
+
+Construiremos:
+
+
+AXIOM Runtime
+
+
+Responsable de:
+
+
+memoria
+
+
+procesos
+
+
+threads
+
+
+async
+
+
+I/O
+
+
+networking
+
+
+timers
+
+
+errores
+
+
+runtime reflection
+
+
+gestión de recursos
+
+
+
+
+
+
+---
+
+
+FASE 9 — AXIOM STANDARD LIBRARY
+
+
+El lenguaje sin librerías no sirve de mucho.
+
+
+Construiremos:
+
+
+axiom.std
+axiom.io
+axiom.fs
+axiom.net
+axiom.http
+axiom.crypto
+axiom.math
+axiom.time
+axiom.collections
+axiom.concurrent
+axiom.process
+axiom.system
+
+
+
+
+---
+
+
+FASE 10 — AXIOM PACKAGE MANAGER
+
+
+Crearemos:
+
+
+AXIOM PKG
+
+
+Algo conceptualmente parecido a:
+
+
+npm
+cargo
+pip
+swift package manager
+
+
+Permitirá:
+
+
+axiom add networking
+axiom add graphics
+axiom add database
+
+
+Y tendremos nuestro repositorio:
+
+
+AXIOM Registry
+
+
+
+
+---
+
+
+FASE 11 — AXIOM CLI
+
+
+Una herramienta única.
+
+
+axiom new
+axiom build
+axiom run
+axiom test
+axiom debug
+axiom package
+axiom publish
+axiom deploy
+
+
+La idea es que el desarrollador pueda vivir prácticamente dentro del ecosistema AXIOM.
+
+
+
+
+---
+
+
+FASE 12 — AXIOM IDE
+
+
+Después construiremos:
+
+
+AXIOM STUDIO
+
+
+Nuestro entorno de desarrollo.
+
+
+Incluyendo:
+
+
+editor
+
+
+autocompletado
+
+
+debugger
+
+
+profiler
+
+
+terminal
+
+
+package manager
+
+
+Git
+
+
+testing
+
+
+documentación
+
+
+visual tools
+
+
+
+
+
+
+---
+
+
+FASE 13 — AXIOM CORE
+
+
+Aquí comienza algo todavía más importante.
+
+
+Crearíamos una capa común:
+
+
+AXIOM CORE
+
+
+El núcleo compartido por todo el ecosistema.
+
+
+Memory
+Math
+Types
+Events
+Tasks
+Resources
+Serialization
+Networking
+Security
+Graphics abstraction
+Audio abstraction
+Input
+Storage
+
+
+
+
+---
+
+
+FASE 14 — AXIOM ENGINE
+
+
+Aquí aparece el famoso “motor”.
+
+
+Pero no será únicamente un motor de videojuegos.
+
+
+Será un:
+
+
+GENERAL PURPOSE SOFTWARE ENGINE
+
+
+Capaz de manejar:
+
+
+gráficos
+
+
+UI
+
+
+audio
+
+
+física
+
+
+escenas
+
+
+recursos
+
+
+eventos
+
+
+networking
+
+
+simulación
+
+
+aplicaciones
+
+
+
+
+
+
+---
+
+
+FASE 15 — AXIOM GRAPHICS
+
+
+Crearíamos nuestra abstracción gráfica.
+
+
+AXIOM GRAPHICS
+       │
+ ┌─────┼─────┐
+ │     │     │
+GPU   2D     3D
+
+
+Con:
+
+
+renderer
+
+
+shaders
+
+
+textures
+
+
+meshes
+
+
+materials
+
+
+lighting
+
+
+cameras
+
+
+particles
+
+
+post-processing
+
+
+
+
+Y posteriormente soporte para diferentes APIs gráficas.
+
+
+
+
+---
+
+
+FASE 16 — AXIOM PHYSICS
+
+
+Motor físico:
+
+
+collision
+
+
+rigid bodies
+
+
+constraints
+
+
+forces
+
+
+particles
+
+
+simulation
+
+
+raycasting
+
+
+
+
+
+
+---
+
+
+FASE 17 — AXIOM AUDIO
+
+
+Sistema de:
+
+
+música
+
+
+sonidos
+
+
+efectos
+
+
+3D audio
+
+
+mixing
+
+
+streaming
+
+
+
+
+
+
+---
+
+
+FASE 18 — AXIOM UI
+
+
+Un sistema universal de interfaces.
+
+
+AXIOM UI
+   │
+   ├── Desktop
+   ├── Mobile
+   ├── Web
+   ├── Games
+   └── Embedded
+
+
+
+
+---
+
+
+FASE 19 — AXIOM GAME ENGINE
+
+
+Ahora sí:
+
+
+AXIOM GAME ENGINE
+
+
+Con:
+
+
+editor
+
+
+scenes
+
+
+entities
+
+
+components
+
+
+scripting
+
+
+animation
+
+
+physics
+
+
+audio
+
+
+networking
+
+
+multiplayer
+
+
+assets
+
+
+particles
+
+
+terrain
+
+
+lighting
+
+
+
+
+Competiría conceptualmente con motores como Unity/Unreal/Godot.
+
+
+Pero esto sería una consecuencia del ecosistema, no nuestro punto de partida.
+
+
+
+
+---
+
+
+FASE 20 — AXIOM APP ENGINE
+
+
+El mismo ecosistema para aplicaciones.
+
+
+Permitiría crear:
+
+
+aplicaciones desktop
+
+
+móviles
+
+
+herramientas
+
+
+dashboards
+
+
+software empresarial
+
+
+aplicaciones multimedia
+
+
+
+
+
+
+---
+
+
+FASE 21 — AXIOM WEB
+
+
+Construiremos herramientas para crear aplicaciones web.
+
+
+AXIOM
+  ↓
+AXIOM WEB
+  ↓
+Frontend + Backend
+
+
+Incluyendo:
+
+
+HTTP
+
+
+APIs
+
+
+WebSockets
+
+
+SSR
+
+
+frontend
+
+
+backend
+
+
+databases
+
+
+authentication
+
+
+
+
+
+
+---
+
+
+FASE 22 — AXIOM SERVER
+
+
+Un framework backend.
+
+
+route("/users") {
+    return users
+}
+
+
+Con:
+
+
+APIs
+
+
+authentication
+
+
+databases
+
+
+caching
+
+
+queues
+
+
+workers
+
+
+microservices
+
+
+
+
+
+
+---
+
+
+FASE 23 — AXIOM DATABASE
+
+
+No necesariamente construiremos una base de datos gigantesca al principio.
+
+
+Primero:
+
+
+AXIOM DATA
+
+
+Abstracción unificada para:
+
+
+SQL
+
+
+NoSQL
+
+
+files
+
+
+cache
+
+
+local storage
+
+
+
+
+Y posteriormente podríamos desarrollar:
+
+
+AXIOM DB
+
+
+Nuestra propia base de datos.
+
+
+
+
+---
+
+
+FASE 24 — AXIOM CLOUD
+
+
+Cuando el ecosistema madure:
+
+
+AXIOM CLOUD
+
+
+Para:
+
+
+deploy
+
+
+hosting
+
+
+databases
+
+
+containers
+
+
+functions
+
+
+storage
+
+
+networking
+
+
+monitoring
+
+
+
+
+Conceptualmente:
+
+
+axiom deploy
+
+
+y la aplicación se despliega.
+
+
+
+
+---
+
+
+FASE 25 — AXIOM AI
+
+
+Aquí entra la inteligencia artificial.
+
+
+AXIOM AI
+
+
+No significa necesariamente entrenar un modelo gigante desde cero.
+
+
+Primero crearíamos infraestructura para:
+
+
+inferencia
+
+
+agentes
+
+
+embeddings
+
+
+vector search
+
+
+modelos locales
+
+
+APIs
+
+
+workflows
+
+
+AI tools
+
+
+
+
+Y eventualmente:
+
+
+AXIOM AI RUNTIME
+
+
+Para ejecutar modelos optimizados.
+
+
+
+
+---
+
+
+FASE 26 — AXIOM COMPUTE
+
+
+Una capa de computación común.
+
+
+CPU
+GPU
+NPU
+ACCELERATORS
+
+
+El objetivo:
+
+
+escribir una vez y ejecutar en diferentes hardware.
+
+
+
+
+---
+
+
+FASE 27 — AXIOM OS
+
+
+Aquí entramos en territorio extremadamente ambicioso.
+
+
+Crearíamos:
+
+
+AXIOM OS
+
+
+Pero no empezaríamos intentando crear un Windows/macOS completo.
+
+
+Primero:
+
+
+Boot
+ ↓
+Kernel
+ ↓
+Memory
+ ↓
+Processes
+ ↓
+Filesystem
+ ↓
+Drivers
+ ↓
+Networking
+ ↓
+Userspace
+
+
+
+
+---
+
+
+FASE 28 — AXIOM KERNEL
+
+
+Nuestro kernel.
+
+
+Componentes:
+
+
+scheduler
+
+
+memory management
+
+
+processes
+
+
+threads
+
+
+IPC
+
+
+filesystem interface
+
+
+device management
+
+
+security
+
+
+
+
+
+
+---
+
+
+FASE 29 — AXIOM HARDWARE ABSTRACTION
+
+
+Crearíamos una capa:
+
+
+AXIOM HAL
+
+
+Para abstraer hardware.
+
+
+AXIOM
+  ↓
+HAL
+  ↓
+CPU / GPU / Devices
+
+
+
+
+---
+
+
+FASE 30 — AXIOM SECURITY
+
+
+Sistema de seguridad transversal.
+
+
+AXIOM SECURITY
+
+
+Incluyendo:
+
+
+sandboxing
+
+
+permissions
+
+
+encryption
+
+
+identity
+
+
+secure boot
+
+
+process isolation
+
+
+secrets
+
+
+authentication
+
+
+
+
+La seguridad estaría integrada desde la arquitectura, no añadida al final.
+
+
+
+
+---
+
+
+FASE 31 — AXIOM DESKTOP
+
+
+Encima del OS:
+
+
+AXIOM DESKTOP
+
+
+Con:
+
+
+ventanas
+
+
+aplicaciones
+
+
+filesystem
+
+
+terminal
+
+
+settings
+
+
+notifications
+
+
+user accounts
+
+
+
+
+
+
+---
+
+
+FASE 32 — AXIOM MOBILE
+
+
+Posteriormente:
+
+
+AXIOM MOBILE
+
+
+Una plataforma móvil basada en el ecosistema AXIOM.
+
+
+
+
+---
+
+
+FASE 33 — AXIOM DEVICES
+
+
+Y eventualmente:
+
+
+AXIOM
+ ├── Desktop
+ ├── Mobile
+ ├── Server
+ ├── Embedded
+ ├── Automotive
+ ├── IoT
+ └── Gaming
+
+
+
+
+---
+
+
+FASE 34 — AXIOM STUDIO
+
+
+Una suite completa.
+
+
+No solamente IDE.
+
+
+Podría contener:
+
+
+AXIOM CODE
+
+
+IDE.
+
+
+AXIOM DESIGN
+
+
+Diseño UI.
+
+
+AXIOM GAME
+
+
+Game development.
+
+
+AXIOM DATA
+
+
+Bases de datos.
+
+
+AXIOM AI
+
+
+IA.
+
+
+AXIOM CLOUD
+
+
+Cloud/deployment.
+
+
+AXIOM SYSTEM
+
+
+Herramientas de OS.
+
+
+
+
+---
+
+
+FASE 35 — AXIOM MARKETPLACE
+
+
+Un ecosistema de terceros.
+
+
+Desarrolladores podrían publicar:
+
+
+librerías
+
+
+plugins
+
+
+juegos
+
+
+aplicaciones
+
+
+componentes
+
+
+templates
+
+
+herramientas
+
+
+assets
+
+
+
+
+
+
+---
+
+
+FASE 36 — AXIOM ACCOUNT
+
+
+Una identidad única.
+
+
+AXIOM ACCOUNT
+      │
+ ┌────┼─────────┐
+ │    │         │
+Code Cloud    Store
+ │    │         │
+Games Apps    AI
+
+
+
+
+---
+
+
+FASE 37 — AXIOM CLOUD IDENTITY
+
+
+Servicios compartidos:
+
+
+authentication
+
+
+identity
+
+
+sync
+
+
+storage
+
+
+notifications
+
+
+analytics
+
+
+
+
+
+
+---
+
+
+FASE 38 — AXIOM DEVELOPER PLATFORM
+
+
+Portal para desarrolladores.
+
+
+developers.axiom
+
+
+Con:
+
+
+documentación
+
+
+SDK
+
+
+APIs
+
+
+packages
+
+
+analytics
+
+
+deployment
+
+
+marketplace
+
+
+community
+
+
+
+
+
+
+---
+
+
+FASE 39 — AXIOM ECOSYSTEM
+
+
+En este punto ya no estaríamos hablando de un único producto.
+
+
+Tendríamos:
+
+
+AXIOM SYSTEMS
+                         │
+       ┌─────────────────┼─────────────────┐
+       │                 │                 │
+   SOFTWARE          PLATFORM          HARDWARE
+       │                 │                 │
+   AXIOM LANG       AXIOM CLOUD       AXIOM OS
+   AXIOM ENGINE     AXIOM AI          AXIOM HAL
+   AXIOM STUDIO     AXIOM DATA        DEVICES
+       │                 │
+       └─────────────────┘
+
+
+
+
+---
+
+
+FASE 40 — AXIOM MARKET
+
+
+Aquí empieza el componente empresarial.
+
+
+Podríamos monetizar:
+
+
+Developer tools
+
+
+Suscripción.
+
+
+Cloud
+
+
+Pago por uso.
+
+
+Marketplace
+
+
+Comisión.
+
+
+Enterprise
+
+
+Licencias/servicios.
+
+
+AI
+
+
+Pago por uso.
+
+
+Hosting
+
+
+Pago mensual.
+
+
+Gaming
+
+
+Marketplace/comisiones.
+
+
+
+
+---
+
+
+FASE 41 — AXIOM ENTERPRISE
+
+
+Crearíamos productos para empresas:
+
+
+infraestructura
+
+
+seguridad
+
+
+cloud
+
+
+analytics
+
+
+development
+
+
+AI
+
+
+deployment
+
+
+
+
+
+
+---
+
+
+FASE 42 — AXIOM RESEARCH
+
+
+Una división de investigación.
+
+
+Investigar:
+
+
+nuevos compiladores
+
+
+sistemas distribuidos
+
+
+IA
+
+
+hardware
+
+
+gráficos
+
+
+computación paralela
+
+
+nuevos modelos de programación
+
+
+
+
+
+
+---
+
+
+FASE 43 — AXIOM HARDWARE
+
+
+Solo cuando tenga sentido.
+
+
+Podríamos desarrollar hardware propio:
+
+
+AXIOM DEVICE
+     ↓
+AXIOM CHIP
+     ↓
+AXIOM OS
+     ↓
+AXIOM SOFTWARE
+
+
+Pero esta fase sería muchísimo más adelante.
+
+
+
+
+---
+
+
+🧠 LA ARQUITECTURA FINAL
+
+
+El objetivo final podría ser algo así:
+
+
+AXIOM SYSTEMS
+                              │
+                    ┌─────────┴─────────┐
+                    │                   │
+                 AXIOM OS          AXIOM CLOUD
+                    │                   │
+                    └─────────┬─────────┘
+                              │
+                         AXIOM CORE
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+          AXIOM LANG      AXIOM RUNTIME    AXIOM AI
+              │               │               │
+              └───────────────┼───────────────┘
+                              │
+                       AXIOM ENGINE
+                              │
+       ┌──────────────┬───────┼────────┬──────────────┐
+       │              │       │        │              │
+     GAMES          APPS     WEB     SERVERS       DEVICES
+       │              │       │        │              │
+       └──────────────┴───────┼────────┴──────────────┘
+                              │
+                       AXIOM MARKET
+                              │
+                     DEVELOPERS / USERS
+
+
+
+
+---
+
+
+🔥 PERO HAY ALGO MUY IMPORTANTE
+
+
+No quiero venderte humo con esto.
+
+
+No vamos a crear todo esto mañana.
+
+
+Ni siquiera una empresa con cientos de ingenieros podría desarrollar simultáneamente un lenguaje, compilador, kernel, OS, cloud, GPU stack, game engine y ecosistema completo.
+
+
+La estrategia inteligente sería:
+
+
+0 €
+ │
+ ▼
+AXIOM LANGUAGE
+ │
+ ▼
+COMPILER
+ │
+ ▼
+RUNTIME
+ │
+ ▼
+STANDARD LIBRARY
+ │
+ ▼
+CLI + PACKAGE MANAGER
+ │
+ ▼
+AXIOM CORE
+ │
+ ▼
+ENGINE
+ │
+ ├──────► GAMES
+ ├──────► APPS
+ ├──────► WEB
+ └──────► TOOLS
+ │
+ ▼
+STUDIO
+ │
+ ▼
+CLOUD
+ │
+ ▼
+AI
+ │
+ ▼
+OS
+ │
+ ▼
+HARDWARE
+ │
+ ▼
+ECOSYSTEM
+
+
+🎯 Nuestro primer objetivo real
+
+
+No sería “crear AXIOM OS”.
+
+
+Sería conseguir esto:
+
+
+hello.ax
+      ↓
+axiom build
+      ↓
+programa ejecutable
+      ↓
+axiom run
+      ↓
+"Hello World"
+
+
+Después:
+
+
+AXIOM
+ ↓
+crear una aplicación
+ ↓
+crear una interfaz
+ ↓
+crear un juego
+ ↓
+crear un servidor
+ ↓
+crear una herramienta
+
+
+Y entonces tendríamos algo importantísimo:
+
+
+una tecnología propia que permite construir otras tecnologías.
+
+
+Ese sería el verdadero nacimiento de AXIOM SYSTEMS.
+
+
+Y a partir de ahí, cada nueva pieza que construyamos debería servir para hacer más fácil construir la siguiente. Esa es la propiedad que puede convertir el proyecto de una colección de productos en un auténtico ecosistema tecnológico.
