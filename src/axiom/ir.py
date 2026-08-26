@@ -1,0 +1,63 @@
+"""Portable intermediate representation for the initial AXIOM compiler."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from .ast import Binary, BooleanLiteral, Expression, IntegerLiteral, Let, Program, StringLiteral, Variable
+
+IRValue = Expression | str | int | bool
+
+
+@dataclass(frozen=True)
+class PrintInstruction:
+    value: IRValue
+
+
+@dataclass(frozen=True)
+class LetInstruction:
+    name: str
+    value: IRValue
+
+
+@dataclass(frozen=True)
+class IRProgram:
+    instructions: list[PrintInstruction]
+
+    def render(self) -> str:
+        lines = ["AXIOM-IR 0.1"]
+        for instruction in self.instructions:
+            if isinstance(instruction, LetInstruction):
+                lines.append(f"LET {instruction.name} = {_render_expression(instruction.value)}")
+            else:
+                lines.append(f"PRINT {_render_expression(instruction.value)}")
+        return "\n".join(lines) + "\n"
+
+
+def lower(program: Program) -> IRProgram:
+    instructions = []
+    for function in program.functions:
+        if function.name == "main":
+            for statement in function.body:
+                if isinstance(statement, Let):
+                    instructions.append(LetInstruction(statement.name, statement.value))
+                else:
+                    instructions.append(PrintInstruction(statement.arguments[0]))
+    return IRProgram(instructions)
+
+
+def _render_expression(expression: IRValue) -> str:
+    if isinstance(expression, StringLiteral):
+        return repr(expression.value)
+    if isinstance(expression, IntegerLiteral):
+        return str(expression.value)
+    if isinstance(expression, BooleanLiteral):
+        return str(expression.value).lower()
+    if isinstance(expression, Variable):
+        return expression.name
+    if hasattr(expression, "name") and hasattr(expression, "arguments"):
+        arguments = ", ".join(_render_expression(argument) for argument in expression.arguments)
+        return f"{expression.name}({arguments})"
+    if isinstance(expression, Binary):
+        return f"{_render_expression(expression.left)} {expression.operator} {_render_expression(expression.right)}"
+    return repr(expression)
