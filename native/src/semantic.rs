@@ -14,17 +14,15 @@ pub fn analyze(program: &Program) -> Result<(), SemanticError> {
             message: "program must define 'main'".into(),
         })?;
 
+    let mut variables = std::collections::HashSet::new();
     for statement in &main.body {
         match statement {
+            Statement::Let { name, value } => {
+                check_expression(value, &variables)?;
+                variables.insert(name);
+            }
             Statement::Call(call) if call.name == "print" && call.arguments.len() == 1 => {
-                if !matches!(
-                    call.arguments[0],
-                    Expression::String(_) | Expression::Integer(_) | Expression::Boolean(_)
-                ) {
-                    return Err(SemanticError {
-                        message: "print expects a literal argument".into(),
-                    });
-                }
+                check_expression(&call.arguments[0], &variables)?;
             }
             Statement::Call(call) if call.name == "print" => {
                 return Err(SemanticError {
@@ -39,6 +37,24 @@ pub fn analyze(program: &Program) -> Result<(), SemanticError> {
         }
     }
     Ok(())
+}
+
+fn check_expression(
+    expression: &Expression,
+    variables: &std::collections::HashSet<&String>,
+) -> Result<(), SemanticError> {
+    match expression {
+        Expression::Variable(name) if !variables.iter().any(|value| value.as_str() == name) => {
+            Err(SemanticError {
+                message: format!("unknown variable '{name}'"),
+            })
+        }
+        Expression::Binary { left, right, .. } => {
+            check_expression(left, variables)?;
+            check_expression(right, variables)
+        }
+        _ => Ok(()),
+    }
 }
 
 #[cfg(test)]

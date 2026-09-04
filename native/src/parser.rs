@@ -14,6 +14,7 @@ pub struct Function {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
     Call(Call),
+    Let { name: String, value: Expression },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +28,17 @@ pub enum Expression {
     String(String),
     Integer(i64),
     Boolean(bool),
+    Variable(String),
+    Binary {
+        left: Box<Expression>,
+        operator: BinaryOperator,
+        right: Box<Expression>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinaryOperator {
+    Add,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,13 +84,28 @@ impl Parser {
             if self.check(TokenKind::Eof) {
                 return Err(self.error("expected '}'"));
             }
-            body.push(self.call()?);
+            body.push(self.statement()?);
             if self.check(TokenKind::Semicolon) {
                 self.position += 1;
             }
         }
         self.consume(TokenKind::RBrace, "expected '}'")?;
         Ok(Function { name, body })
+    }
+
+    fn statement(&mut self) -> Result<Statement, ParseError> {
+        if self.check(TokenKind::Let) {
+            self.position += 1;
+            let name = self
+                .consume(TokenKind::Identifier, "expected variable name")?
+                .lexeme;
+            self.consume(TokenKind::Equal, "expected '='")?;
+            return Ok(Statement::Let {
+                name,
+                value: self.expression()?,
+            });
+        }
+        self.call()
     }
 
     fn call(&mut self) -> Result<Statement, ParseError> {
@@ -95,6 +122,19 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.primary()?;
+        while self.check(TokenKind::Plus) {
+            self.position += 1;
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator: BinaryOperator::Add,
+                right: Box::new(self.primary()?),
+            };
+        }
+        Ok(expression)
+    }
+
+    fn primary(&mut self) -> Result<Expression, ParseError> {
         let token = self.current();
         match token.kind {
             TokenKind::String => Ok(Expression::String(
@@ -105,6 +145,7 @@ impl Parser {
             )),
             TokenKind::True => Ok(Expression::Boolean(true)),
             TokenKind::False => Ok(Expression::Boolean(false)),
+            TokenKind::Identifier => Ok(Expression::Variable(token.lexeme.clone())),
             _ => Err(self.error("expected literal")),
         }
         .inspect(|_| self.position += 1)
