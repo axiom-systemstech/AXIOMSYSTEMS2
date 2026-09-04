@@ -19,6 +19,7 @@ pub enum Instruction {
         else_body: Vec<Instruction>,
     },
     While {
+        condition: Vec<Instruction>,
         body: Vec<Instruction>,
     },
 }
@@ -99,8 +100,9 @@ fn lower_block(statements: &[Statement]) -> Vec<Instruction> {
                 body
             }
             Statement::While { condition, body } => {
-                let mut instructions = lower_expression(condition);
+                let mut instructions = Vec::new();
                 instructions.push(Instruction::While {
+                    condition: lower_expression(condition),
                     body: lower_block(body),
                 });
                 instructions

@@ -64,9 +64,9 @@ fn main() -> ExitCode {
                 })
         }) {
             Ok(program) => {
-                let lowered = axiom_native::ir::lower_program(&program);
+                let artifact = axiom_native::vm::build_artifact(&program);
                 println!("build ok: {path}");
-                println!("functions: {}", lowered.functions.len());
+                println!("artifact bytes: {}", artifact.len());
                 ExitCode::SUCCESS
             }
             Err(error) => {
@@ -77,13 +77,30 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
-        "run" => match axiom_native::runtime::run(&source) {
-            Ok(output) => {
-                print!("{output}");
-                ExitCode::SUCCESS
-            }
+        "run" => match axiom_native::parser::parse(&source).and_then(|program| {
+            axiom_native::semantic::analyze(&program)
+                .map(|_| program)
+                .map_err(|error| axiom_native::parser::ParseError {
+                    message: error.message,
+                    line: 0,
+                    column: 0,
+                })
+        }) {
+            Ok(program) => match axiom_native::vm::execute_program(&program) {
+                Ok(output) => {
+                    print!("{output}");
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("error: {}", error.message);
+                    ExitCode::from(1)
+                }
+            },
             Err(error) => {
-                eprintln!("error: {}", error.message);
+                eprintln!(
+                    "error: {} at {}:{}",
+                    error.message, error.line, error.column
+                );
                 ExitCode::from(1)
             }
         },
