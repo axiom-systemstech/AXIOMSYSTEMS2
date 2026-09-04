@@ -72,6 +72,15 @@ fn check_block(
                 variables.insert(name.clone());
             }
             Statement::Return(value) => check_expression(value, variables, functions)?,
+            Statement::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                check_expression(condition, variables, functions)?;
+                check_block(then_body, &mut variables.clone(), functions)?;
+                check_block(else_body, &mut variables.clone(), functions)?;
+            }
             Statement::Call(call) if call.name == "print" && call.arguments.len() == 1 => {
                 check_expression(&call.arguments[0], variables, functions)?;
             }

@@ -15,8 +15,16 @@ pub struct Function {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
     Call(Call),
-    Let { name: String, value: Expression },
+    Let {
+        name: String,
+        value: Expression,
+    },
     Return(Expression),
+    If {
+        condition: Expression,
+        then_body: Vec<Statement>,
+        else_body: Vec<Statement>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,6 +50,7 @@ pub enum Expression {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {
     Add,
+    Greater,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,18 +104,7 @@ impl Parser {
             }
         }
         self.consume(TokenKind::RParen, "expected ')'")?;
-        self.consume(TokenKind::LBrace, "expected '{'")?;
-        let mut body = Vec::new();
-        while !self.check(TokenKind::RBrace) {
-            if self.check(TokenKind::Eof) {
-                return Err(self.error("expected '}'"));
-            }
-            body.push(self.statement()?);
-            if self.check(TokenKind::Semicolon) {
-                self.position += 1;
-            }
-        }
-        self.consume(TokenKind::RBrace, "expected '}'")?;
+        let body = self.block()?;
         Ok(Function {
             name,
             parameters,
@@ -115,6 +113,22 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
+        if self.check(TokenKind::If) {
+            self.position += 1;
+            let condition = self.expression()?;
+            let then_body = self.block()?;
+            let else_body = if self.check(TokenKind::Else) {
+                self.position += 1;
+                self.block()?
+            } else {
+                Vec::new()
+            };
+            return Ok(Statement::If {
+                condition,
+                then_body,
+                else_body,
+            });
+        }
         if self.check(TokenKind::Let) {
             self.position += 1;
             let name = self
@@ -131,6 +145,22 @@ impl Parser {
             return Ok(Statement::Return(self.expression()?));
         }
         self.call()
+    }
+
+    fn block(&mut self) -> Result<Vec<Statement>, ParseError> {
+        self.consume(TokenKind::LBrace, "expected '{'")?;
+        let mut body = Vec::new();
+        while !self.check(TokenKind::RBrace) {
+            if self.check(TokenKind::Eof) {
+                return Err(self.error("expected '}'"));
+            }
+            body.push(self.statement()?);
+            if self.check(TokenKind::Semicolon) {
+                self.position += 1;
+            }
+        }
+        self.consume(TokenKind::RBrace, "expected '}'")?;
+        Ok(body)
     }
 
     fn call(&mut self) -> Result<Statement, ParseError> {
@@ -157,6 +187,14 @@ impl Parser {
             expression = Expression::Binary {
                 left: Box::new(expression),
                 operator: BinaryOperator::Add,
+                right: Box::new(self.primary()?),
+            };
+        }
+        if self.check(TokenKind::Greater) {
+            self.position += 1;
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator: BinaryOperator::Greater,
                 right: Box::new(self.primary()?),
             };
         }

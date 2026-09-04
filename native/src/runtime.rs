@@ -61,6 +61,67 @@ fn invoke(
             Statement::Return(value) => {
                 return Ok(Some(evaluate(value, &variables, functions, output)?))
             }
+            Statement::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                let branch = if evaluate(condition, &variables, functions, output)? == "true" {
+                    then_body
+                } else {
+                    else_body
+                };
+                if let Some(value) = execute_block(branch, &mut variables, functions, output)? {
+                    return Ok(Some(value));
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn execute_block(
+    statements: &[Statement],
+    variables: &mut std::collections::HashMap<String, String>,
+    functions: &[crate::parser::Function],
+    output: &mut String,
+) -> Result<Option<String>, RuntimeError> {
+    for statement in statements {
+        match statement {
+            Statement::Let { name, value } => {
+                let evaluated = evaluate(value, variables, functions, output)?;
+                variables.insert(name.clone(), evaluated);
+            }
+            Statement::Return(value) => {
+                return Ok(Some(evaluate(value, variables, functions, output)?))
+            }
+            Statement::Call(call) if call.name == "print" => {
+                let value = evaluate(&call.arguments[0], variables, functions, output)?;
+                output.push_str(&value);
+                output.push('\n');
+            }
+            Statement::Call(call) => {
+                let arguments = call
+                    .arguments
+                    .iter()
+                    .map(|argument| evaluate(argument, variables, functions, output))
+                    .collect::<Result<Vec<_>, _>>()?;
+                invoke(&call.name, arguments, functions, output)?;
+            }
+            Statement::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                let branch = if evaluate(condition, variables, functions, output)? == "true" {
+                    then_body
+                } else {
+                    else_body
+                };
+                if let Some(value) = execute_block(branch, variables, functions, output)? {
+                    return Ok(Some(value));
+                }
+            }
         }
     }
     Ok(None)
@@ -79,7 +140,11 @@ fn evaluate(
         Expression::Variable(name) => variables.get(name).cloned().ok_or_else(|| RuntimeError {
             message: format!("unknown variable '{name}'"),
         }),
-        Expression::Binary { left, right, .. } => {
+        Expression::Binary {
+            left,
+            right,
+            operator: crate::parser::BinaryOperator::Add,
+        } => {
             let left = evaluate(left, variables, functions, output)?
                 .parse::<i64>()
                 .map_err(|_| RuntimeError {
@@ -91,6 +156,23 @@ fn evaluate(
                     message: "+ expects integers".into(),
                 })?;
             Ok((left + right).to_string())
+        }
+        Expression::Binary {
+            left,
+            right,
+            operator: crate::parser::BinaryOperator::Greater,
+        } => {
+            let left = evaluate(left, variables, functions, output)?
+                .parse::<i64>()
+                .map_err(|_| RuntimeError {
+                    message: "> expects integers".into(),
+                })?;
+            let right = evaluate(right, variables, functions, output)?
+                .parse::<i64>()
+                .map_err(|_| RuntimeError {
+                    message: "> expects integers".into(),
+                })?;
+            Ok((left > right).to_string())
         }
         Expression::Call(call) => {
             let arguments = call
@@ -138,6 +220,14 @@ mod tests {
         assert_eq!(
             run("fn add(a, b) { return a + b } fn main() { print(add(20, 22)) }").unwrap(),
             "42\n"
+        );
+    }
+
+    #[test]
+    fn runs_if_else_with_comparison() {
+        assert_eq!(
+            run("fn main() { if 2 > 1 { print(\"yes\") } else { print(\"no\") } }").unwrap(),
+            "yes\n"
         );
     }
 }
