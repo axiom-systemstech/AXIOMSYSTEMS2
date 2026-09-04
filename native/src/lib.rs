@@ -1,3 +1,5 @@
+pub mod parser;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
     Fn,
