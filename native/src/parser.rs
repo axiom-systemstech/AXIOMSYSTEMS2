@@ -25,6 +25,14 @@ pub enum Statement {
         then_body: Vec<Statement>,
         else_body: Vec<Statement>,
     },
+    Assign {
+        name: String,
+        value: Expression,
+    },
+    While {
+        condition: Expression,
+        body: Vec<Statement>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,6 +59,7 @@ pub enum Expression {
 pub enum BinaryOperator {
     Add,
     Greater,
+    Equal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,6 +138,12 @@ impl Parser {
                 else_body,
             });
         }
+        if self.check(TokenKind::While) {
+            self.position += 1;
+            let condition = self.expression()?;
+            let body = self.block()?;
+            return Ok(Statement::While { condition, body });
+        }
         if self.check(TokenKind::Let) {
             self.position += 1;
             let name = self
@@ -143,6 +158,19 @@ impl Parser {
         if self.check(TokenKind::Return) {
             self.position += 1;
             return Ok(Statement::Return(self.expression()?));
+        }
+        if self.check(TokenKind::Identifier)
+            && self
+                .tokens
+                .get(self.position + 1)
+                .is_some_and(|token| token.kind == TokenKind::Equal)
+        {
+            let name = self.current().lexeme.clone();
+            self.position += 2;
+            return Ok(Statement::Assign {
+                name,
+                value: self.expression()?,
+            });
         }
         self.call()
     }
@@ -195,6 +223,14 @@ impl Parser {
             expression = Expression::Binary {
                 left: Box::new(expression),
                 operator: BinaryOperator::Greater,
+                right: Box::new(self.primary()?),
+            };
+        }
+        if self.check(TokenKind::EqualEqual) {
+            self.position += 1;
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator: BinaryOperator::Equal,
                 right: Box::new(self.primary()?),
             };
         }

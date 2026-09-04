@@ -75,6 +75,17 @@ fn invoke(
                     return Ok(Some(value));
                 }
             }
+            Statement::Assign { name, value } => {
+                let evaluated = evaluate(value, &variables, functions, output)?;
+                variables.insert(name.clone(), evaluated);
+            }
+            Statement::While { condition, body } => {
+                while evaluate(condition, &variables, functions, output)? == "true" {
+                    if let Some(value) = execute_block(body, &mut variables, functions, output)? {
+                        return Ok(Some(value));
+                    }
+                }
+            }
         }
     }
     Ok(None)
@@ -120,6 +131,17 @@ fn execute_block(
                 };
                 if let Some(value) = execute_block(branch, variables, functions, output)? {
                     return Ok(Some(value));
+                }
+            }
+            Statement::Assign { name, value } => {
+                let evaluated = evaluate(value, variables, functions, output)?;
+                variables.insert(name.clone(), evaluated);
+            }
+            Statement::While { condition, body } => {
+                while evaluate(condition, variables, functions, output)? == "true" {
+                    if let Some(value) = execute_block(body, variables, functions, output)? {
+                        return Ok(Some(value));
+                    }
                 }
             }
         }
@@ -174,6 +196,13 @@ fn evaluate(
                 })?;
             Ok((left > right).to_string())
         }
+        Expression::Binary {
+            left,
+            right,
+            operator: crate::parser::BinaryOperator::Equal,
+        } => Ok((evaluate(left, variables, functions, output)?
+            == evaluate(right, variables, functions, output)?)
+        .to_string()),
         Expression::Call(call) => {
             let arguments = call
                 .arguments
@@ -228,6 +257,17 @@ mod tests {
         assert_eq!(
             run("fn main() { if 2 > 1 { print(\"yes\") } else { print(\"no\") } }").unwrap(),
             "yes\n"
+        );
+    }
+
+    #[test]
+    fn runs_while_with_assignment() {
+        assert_eq!(
+            run(
+                "fn main() { let count = 0; while count == 0 { print(count); count = count + 1 } }"
+            )
+            .unwrap(),
+            "0\n"
         );
     }
 }

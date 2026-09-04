@@ -81,6 +81,18 @@ fn check_block(
                 check_block(then_body, &mut variables.clone(), functions)?;
                 check_block(else_body, &mut variables.clone(), functions)?;
             }
+            Statement::While { condition, body } => {
+                check_expression(condition, variables, functions)?;
+                check_block(body, &mut variables.clone(), functions)?;
+            }
+            Statement::Assign { name, value } => {
+                if !variables.contains(name) {
+                    return Err(SemanticError {
+                        message: format!("unknown variable '{name}'"),
+                    });
+                }
+                check_expression(value, variables, functions)?;
+            }
             Statement::Call(call) if call.name == "print" && call.arguments.len() == 1 => {
                 check_expression(&call.arguments[0], variables, functions)?;
             }
