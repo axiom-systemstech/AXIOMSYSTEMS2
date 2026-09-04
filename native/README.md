@@ -15,3 +15,11 @@ axiom_native::runtime::run("fn main() { print(\"Hello AXIOM\") }")?;
 ```bash
 cargo test --manifest-path native/Cargo.toml
 ```
+
+Build and use the native CLI:
+
+```bash
+cargo build --manifest-path native/Cargo.toml
+native/target/debug/axiom check examples/hello.ax
+native/target/debug/axiom run examples/hello.ax
+```
