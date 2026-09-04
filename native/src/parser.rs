@@ -52,6 +52,10 @@ pub enum Expression {
         operator: BinaryOperator,
         right: Box<Expression>,
     },
+    Unary {
+        operator: UnaryOperator,
+        operand: Box<Expression>,
+    },
     Call(Call),
 }
 
@@ -63,6 +67,13 @@ pub enum BinaryOperator {
     Divide,
     Greater,
     Equal,
+    And,
+    Or,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnaryOperator {
+    Not,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -212,6 +223,62 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
+        self.or()
+    }
+
+    fn or(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.and()?;
+        while self.check(TokenKind::Or) {
+            self.position += 1;
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator: BinaryOperator::Or,
+                right: Box::new(self.and()?),
+            };
+        }
+        Ok(expression)
+    }
+
+    fn and(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.equality()?;
+        while self.check(TokenKind::And) {
+            self.position += 1;
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator: BinaryOperator::And,
+                right: Box::new(self.equality()?),
+            };
+        }
+        Ok(expression)
+    }
+
+    fn equality(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.comparison()?;
+        while self.check(TokenKind::EqualEqual) {
+            self.position += 1;
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator: BinaryOperator::Equal,
+                right: Box::new(self.comparison()?),
+            };
+        }
+        Ok(expression)
+    }
+
+    fn comparison(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.term()?;
+        while self.check(TokenKind::Greater) {
+            self.position += 1;
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator: BinaryOperator::Greater,
+                right: Box::new(self.term()?),
+            };
+        }
+        Ok(expression)
+    }
+
+    fn term(&mut self) -> Result<Expression, ParseError> {
         let mut expression = self.factor()?;
         while self.check(TokenKind::Plus) || self.check(TokenKind::Minus) {
             let operator = if self.check(TokenKind::Plus) {
@@ -226,27 +293,11 @@ impl Parser {
                 right: Box::new(self.factor()?),
             };
         }
-        if self.check(TokenKind::Greater) {
-            self.position += 1;
-            expression = Expression::Binary {
-                left: Box::new(expression),
-                operator: BinaryOperator::Greater,
-                right: Box::new(self.factor()?),
-            };
-        }
-        if self.check(TokenKind::EqualEqual) {
-            self.position += 1;
-            expression = Expression::Binary {
-                left: Box::new(expression),
-                operator: BinaryOperator::Equal,
-                right: Box::new(self.factor()?),
-            };
-        }
         Ok(expression)
     }
 
     fn factor(&mut self) -> Result<Expression, ParseError> {
-        let mut expression = self.primary()?;
+        let mut expression = self.unary()?;
         while self.check(TokenKind::Star) || self.check(TokenKind::Slash) {
             let operator = if self.check(TokenKind::Star) {
                 BinaryOperator::Multiply
@@ -257,10 +308,21 @@ impl Parser {
             expression = Expression::Binary {
                 left: Box::new(expression),
                 operator,
-                right: Box::new(self.primary()?),
+                right: Box::new(self.unary()?),
             };
         }
         Ok(expression)
+    }
+
+    fn unary(&mut self) -> Result<Expression, ParseError> {
+        if self.check(TokenKind::Bang) {
+            self.position += 1;
+            return Ok(Expression::Unary {
+                operator: UnaryOperator::Not,
+                operand: Box::new(self.unary()?),
+            });
+        }
+        self.primary()
     }
 
     fn primary(&mut self) -> Result<Expression, ParseError> {

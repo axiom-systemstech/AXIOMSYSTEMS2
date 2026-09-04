@@ -230,6 +230,24 @@ fn evaluate(
         } => Ok((evaluate(left, variables, functions, output)?
             == evaluate(right, variables, functions, output)?)
         .to_string()),
+        Expression::Binary {
+            left,
+            right,
+            operator: crate::parser::BinaryOperator::And,
+        } => Ok((evaluate(left, variables, functions, output)? == "true"
+            && evaluate(right, variables, functions, output)? == "true")
+            .to_string()),
+        Expression::Binary {
+            left,
+            right,
+            operator: crate::parser::BinaryOperator::Or,
+        } => Ok((evaluate(left, variables, functions, output)? == "true"
+            || evaluate(right, variables, functions, output)? == "true")
+            .to_string()),
+        Expression::Unary {
+            operator: crate::parser::UnaryOperator::Not,
+            operand,
+        } => Ok((evaluate(operand, variables, functions, output)? != "true").to_string()),
         Expression::Call(call) => {
             let arguments = call
                 .arguments
@@ -321,6 +339,14 @@ mod tests {
         assert_eq!(
             run("fn main() { print(4 / 0) }").unwrap_err().message,
             "division by zero"
+        );
+    }
+
+    #[test]
+    fn runs_boolean_operators() {
+        assert_eq!(
+            run("fn main() { print(!false && true || false) }").unwrap(),
+            "true\n"
         );
     }
 }
