@@ -1,0 +1,4 @@
+AXIOM_ARTIFACT_V1
+FUNCTION:main
+PARAMS:0
+INSTR:PushString:Hello AXIOM;Print

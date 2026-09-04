@@ -178,9 +178,26 @@ pub fn build_artifact(program: &Program) -> String {
 }
 
 pub fn write_artifact_file(path: &std::path::Path, program: &Program) -> Result<std::path::PathBuf, VmError> {
+    let out_path = path.with_extension("axm");
+    write_artifact_file_with_target(path, Some(&out_path), program)
+}
+
+pub fn write_artifact_file_with_target(
+    source_path: &std::path::Path,
+    target_path: Option<&std::path::Path>,
+    program: &Program,
+) -> Result<std::path::PathBuf, VmError> {
     let artifact = compile_program(program);
     let serialized = artifact.serialize();
-    let out_path = path.with_extension("axm");
+    let out_path = target_path
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| source_path.with_extension("axm"));
+    let parent = out_path.parent().unwrap_or_else(|| std::path::Path::new("."));
+    if !parent.exists() {
+        std::fs::create_dir_all(parent).map_err(|error| VmError {
+            message: format!("cannot create artifact directory '{}': {error}", parent.display()),
+        })?;
+    }
     std::fs::write(&out_path, &serialized).map_err(|error| VmError {
         message: format!("cannot write artifact '{}': {error}", out_path.display()),
     })?;
@@ -629,5 +646,32 @@ mod tests {
         let decoded = Artifact::deserialize(&encoded).unwrap();
         let output = execute_artifact(&decoded).unwrap();
         assert_eq!(output, "42\n");
+    }
+
+    #[test]
+    fn executes_compiled_function_calls() {
+        let program = parse(
+            "fn add(a: Int, b: Int) -> Int { return a + b } fn main() { print(add(20, 22)) }",
+        )
+        .unwrap();
+        let artifact = compile_program(&program);
+        let encoded = artifact.serialize();
+        let decoded = Artifact::deserialize(&encoded).unwrap();
+        let output = execute_artifact(&decoded).unwrap();
+        assert_eq!(output, "42\n");
+    }
+
+    #[test]
+    fn writes_artifact_to_custom_output_path() {
+        let program = parse("fn main() { print(42) }").unwrap();
+        let temp_dir = std::env::temp_dir().join(format!("axiom-artifact-{}", std::process::id()));
+        let output = temp_dir.join("custom-output.axm");
+        let written = write_artifact_file_with_target(std::path::Path::new("examples/hello.ax"), Some(&output), &program).unwrap();
+        assert_eq!(written, output);
+        assert!(output.exists());
+        let bytes = std::fs::read_to_string(&output).unwrap();
+        assert!(bytes.starts_with("AXIOM_ARTIFACT_V1"));
+        std::fs::remove_file(output).ok();
+        std::fs::remove_dir_all(temp_dir).ok();
     }
 }

@@ -24,6 +24,11 @@ fn main() -> ExitCode {
         eprintln!("error: expected a source file");
         return ExitCode::from(2);
     };
+    let output_path = if command == "build" {
+        arguments.next()
+    } else {
+        None
+    };
 
     let source = match fs::read_to_string(&path) {
         Ok(source) => source,
@@ -65,7 +70,8 @@ fn main() -> ExitCode {
                 })
         }) {
             Ok(program) => {
-                let output_path = match axiom_native::vm::write_artifact_file(Path::new(&path), &program) {
+                let target = output_path.as_deref().map(Path::new);
+                let output_path = match axiom_native::vm::write_artifact_file_with_target(Path::new(&path), target, &program) {
                     Ok(path) => path,
                     Err(error) => {
                         eprintln!("error: {}", error.message);
