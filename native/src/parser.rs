@@ -185,7 +185,11 @@ impl Parser {
             let then_body = self.block()?;
             let else_body = if self.check(TokenKind::Else) {
                 self.position += 1;
-                self.block()?
+                if self.check(TokenKind::If) {
+                    vec![self.statement()?]
+                } else {
+                    self.block()?
+                }
             } else {
                 Vec::new()
             };

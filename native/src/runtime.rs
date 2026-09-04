@@ -330,6 +330,17 @@ mod tests {
     }
 
     #[test]
+    fn runs_else_if_chains() {
+        assert_eq!(
+            run(
+                "fn main() { let value = 2; if value == 1 { print(\"one\") } else if value == 2 { print(\"two\") } else { print(\"other\") } }"
+            )
+            .unwrap(),
+            "two\n"
+        );
+    }
+
+    #[test]
     fn runs_arithmetic_operators() {
         assert_eq!(run("fn main() { print(2 + 3 * 4 - 2) }").unwrap(), "12\n");
     }
