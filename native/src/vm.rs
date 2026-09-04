@@ -156,8 +156,35 @@ pub fn execute_program(program: &Program) -> Result<String, VmError> {
     Ok(machine.output)
 }
 
+pub fn execute_artifact(artifact: &Artifact) -> Result<String, VmError> {
+    let functions = artifact
+        .functions
+        .iter()
+        .cloned()
+        .map(|function| LoweredFunction {
+            name: function.name,
+            parameters: function.parameters,
+            return_type: None,
+            instructions: function.instructions,
+        })
+        .collect();
+    let mut machine = Machine::new(functions);
+    machine.call_function("main", Vec::new())?;
+    Ok(machine.output)
+}
+
 pub fn build_artifact(program: &Program) -> String {
     compile_program(program).serialize()
+}
+
+pub fn write_artifact_file(path: &std::path::Path, program: &Program) -> Result<std::path::PathBuf, VmError> {
+    let artifact = compile_program(program);
+    let serialized = artifact.serialize();
+    let out_path = path.with_extension("axm");
+    std::fs::write(&out_path, &serialized).map_err(|error| VmError {
+        message: format!("cannot write artifact '{}': {error}", out_path.display()),
+    })?;
+    Ok(out_path)
 }
 
 struct Machine {
@@ -592,5 +619,15 @@ mod tests {
         let decoded = Artifact::deserialize(&encoded).unwrap();
         assert_eq!(decoded.functions[0].name, "main");
         assert!(!decoded.functions[0].instructions.is_empty());
+    }
+
+    #[test]
+    fn executes_deserialized_artifact() {
+        let program = parse("fn main() { print(42) }").unwrap();
+        let artifact = compile_program(&program);
+        let encoded = artifact.serialize();
+        let decoded = Artifact::deserialize(&encoded).unwrap();
+        let output = execute_artifact(&decoded).unwrap();
+        assert_eq!(output, "42\n");
     }
 }
