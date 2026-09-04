@@ -54,6 +54,29 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        "build" => match axiom_native::parser::parse(&source).and_then(|program| {
+            axiom_native::semantic::analyze(&program)
+                .map(|_| program)
+                .map_err(|error| axiom_native::parser::ParseError {
+                    message: error.message,
+                    line: 0,
+                    column: 0,
+                })
+        }) {
+            Ok(program) => {
+                let lowered = axiom_native::ir::lower_program(&program);
+                println!("build ok: {path}");
+                println!("functions: {}", lowered.functions.len());
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!(
+                    "error: {} at {}:{}",
+                    error.message, error.line, error.column
+                );
+                ExitCode::from(1)
+            }
+        },
         "run" => match axiom_native::runtime::run(&source) {
             Ok(output) => {
                 print!("{output}");
@@ -74,5 +97,5 @@ fn main() -> ExitCode {
 
 fn print_help() {
     println!("AXIOM native compiler");
-    println!("Usage: axiom <check|run> <source.ax>");
+    println!("Usage: axiom <check|build|run> <source.ax>");
 }
