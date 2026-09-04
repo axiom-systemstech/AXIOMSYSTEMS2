@@ -58,6 +58,9 @@ pub enum Expression {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {
     Add,
+    Subtract,
+    Multiply,
+    Divide,
     Greater,
     Equal,
 }
@@ -209,13 +212,18 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
-        let mut expression = self.primary()?;
-        while self.check(TokenKind::Plus) {
+        let mut expression = self.factor()?;
+        while self.check(TokenKind::Plus) || self.check(TokenKind::Minus) {
+            let operator = if self.check(TokenKind::Plus) {
+                BinaryOperator::Add
+            } else {
+                BinaryOperator::Subtract
+            };
             self.position += 1;
             expression = Expression::Binary {
                 left: Box::new(expression),
-                operator: BinaryOperator::Add,
-                right: Box::new(self.primary()?),
+                operator,
+                right: Box::new(self.factor()?),
             };
         }
         if self.check(TokenKind::Greater) {
@@ -223,7 +231,7 @@ impl Parser {
             expression = Expression::Binary {
                 left: Box::new(expression),
                 operator: BinaryOperator::Greater,
-                right: Box::new(self.primary()?),
+                right: Box::new(self.factor()?),
             };
         }
         if self.check(TokenKind::EqualEqual) {
@@ -231,6 +239,24 @@ impl Parser {
             expression = Expression::Binary {
                 left: Box::new(expression),
                 operator: BinaryOperator::Equal,
+                right: Box::new(self.factor()?),
+            };
+        }
+        Ok(expression)
+    }
+
+    fn factor(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.primary()?;
+        while self.check(TokenKind::Star) || self.check(TokenKind::Slash) {
+            let operator = if self.check(TokenKind::Star) {
+                BinaryOperator::Multiply
+            } else {
+                BinaryOperator::Divide
+            };
+            self.position += 1;
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator,
                 right: Box::new(self.primary()?),
             };
         }

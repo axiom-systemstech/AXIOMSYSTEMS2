@@ -182,6 +182,33 @@ fn evaluate(
         Expression::Binary {
             left,
             right,
+            operator: crate::parser::BinaryOperator::Subtract,
+        } => Ok((integer(left, variables, functions, output)?
+            - integer(right, variables, functions, output)?)
+        .to_string()),
+        Expression::Binary {
+            left,
+            right,
+            operator: crate::parser::BinaryOperator::Multiply,
+        } => Ok((integer(left, variables, functions, output)?
+            * integer(right, variables, functions, output)?)
+        .to_string()),
+        Expression::Binary {
+            left,
+            right,
+            operator: crate::parser::BinaryOperator::Divide,
+        } => {
+            let divisor = integer(right, variables, functions, output)?;
+            if divisor == 0 {
+                return Err(RuntimeError {
+                    message: "division by zero".into(),
+                });
+            }
+            Ok((integer(left, variables, functions, output)? / divisor).to_string())
+        }
+        Expression::Binary {
+            left,
+            right,
             operator: crate::parser::BinaryOperator::Greater,
         } => {
             let left = evaluate(left, variables, functions, output)?
@@ -214,6 +241,19 @@ fn evaluate(
             })
         }
     }
+}
+
+fn integer(
+    expression: &Expression,
+    variables: &std::collections::HashMap<String, String>,
+    functions: &[crate::parser::Function],
+    output: &mut String,
+) -> Result<i64, RuntimeError> {
+    evaluate(expression, variables, functions, output)?
+        .parse::<i64>()
+        .map_err(|_| RuntimeError {
+            message: "arithmetic operators expect integers".into(),
+        })
 }
 
 #[cfg(test)]
@@ -268,6 +308,19 @@ mod tests {
             )
             .unwrap(),
             "0\n"
+        );
+    }
+
+    #[test]
+    fn runs_arithmetic_operators() {
+        assert_eq!(run("fn main() { print(2 + 3 * 4 - 2) }").unwrap(), "12\n");
+    }
+
+    #[test]
+    fn rejects_division_by_zero() {
+        assert_eq!(
+            run("fn main() { print(4 / 0) }").unwrap_err().message,
+            "division by zero"
         );
     }
 }
