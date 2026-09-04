@@ -17,34 +17,60 @@ pub fn run(source: &str) -> Result<String, RuntimeError> {
 }
 
 pub fn execute(program: &Program) -> Result<String, RuntimeError> {
-    let main = program
-        .functions
-        .iter()
-        .find(|function| function.name == "main")
-        .ok_or_else(|| RuntimeError {
-            message: "program must define 'main'".into(),
-        })?;
     let mut output = String::new();
+    let functions = &program.functions;
+    invoke("main", Vec::new(), functions, &mut output)?;
+    Ok(output)
+}
+
+fn invoke(
+    name: &str,
+    arguments: Vec<String>,
+    functions: &[crate::parser::Function],
+    output: &mut String,
+) -> Result<Option<String>, RuntimeError> {
+    let function = functions
+        .iter()
+        .find(|function| function.name == name)
+        .ok_or_else(|| RuntimeError {
+            message: format!("unknown function '{name}'"),
+        })?;
     let mut variables = std::collections::HashMap::new();
-    for statement in &main.body {
+    for (parameter, value) in function.parameters.iter().zip(arguments) {
+        variables.insert(parameter.clone(), value);
+    }
+    for statement in &function.body {
         match statement {
             Statement::Let { name, value } => {
-                variables.insert(name.clone(), evaluate(value, &variables)?);
+                let evaluated = evaluate(value, &variables, functions, output)?;
+                variables.insert(name.clone(), evaluated);
             }
             Statement::Call(call) if call.name == "print" => {
-                let value = evaluate(&call.arguments[0], &variables)?;
+                let value = evaluate(&call.arguments[0], &variables, functions, output)?;
                 output.push_str(&value);
                 output.push('\n');
             }
-            Statement::Call(_) => {}
+            Statement::Call(call) => {
+                let arguments = call
+                    .arguments
+                    .iter()
+                    .map(|argument| evaluate(argument, &variables, functions, output))
+                    .collect::<Result<Vec<_>, _>>()?;
+                invoke(&call.name, arguments, functions, output)?;
+            }
+            Statement::Return(value) => {
+                return Ok(Some(evaluate(value, &variables, functions, output)?))
+            }
         }
     }
-    Ok(output)
+    Ok(None)
 }
 
 fn evaluate(
     expression: &Expression,
     variables: &std::collections::HashMap<String, String>,
+    functions: &[crate::parser::Function],
+    output: &mut String,
 ) -> Result<String, RuntimeError> {
     match expression {
         Expression::String(value) => Ok(value.clone()),
@@ -54,17 +80,27 @@ fn evaluate(
             message: format!("unknown variable '{name}'"),
         }),
         Expression::Binary { left, right, .. } => {
-            let left = evaluate(left, variables)?
+            let left = evaluate(left, variables, functions, output)?
                 .parse::<i64>()
                 .map_err(|_| RuntimeError {
                     message: "+ expects integers".into(),
                 })?;
-            let right = evaluate(right, variables)?
+            let right = evaluate(right, variables, functions, output)?
                 .parse::<i64>()
                 .map_err(|_| RuntimeError {
                     message: "+ expects integers".into(),
                 })?;
             Ok((left + right).to_string())
+        }
+        Expression::Call(call) => {
+            let arguments = call
+                .arguments
+                .iter()
+                .map(|argument| evaluate(argument, variables, functions, output))
+                .collect::<Result<Vec<_>, _>>()?;
+            invoke(&call.name, arguments, functions, output)?.ok_or_else(|| RuntimeError {
+                message: format!("function '{}' returned no value", call.name),
+            })
         }
     }
 }
@@ -93,6 +129,14 @@ mod tests {
     fn runs_variable_and_addition() {
         assert_eq!(
             run("fn main() { let total = 20 + 22; print(total) }").unwrap(),
+            "42\n"
+        );
+    }
+
+    #[test]
+    fn runs_function_with_parameters_and_return() {
+        assert_eq!(
+            run("fn add(a, b) { return a + b } fn main() { print(add(20, 22)) }").unwrap(),
             "42\n"
         );
     }

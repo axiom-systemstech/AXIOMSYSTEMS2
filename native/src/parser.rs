@@ -8,6 +8,7 @@ pub struct Program {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Function {
     pub name: String,
+    pub parameters: Vec<String>,
     pub body: Vec<Statement>,
 }
 
@@ -15,6 +16,7 @@ pub struct Function {
 pub enum Statement {
     Call(Call),
     Let { name: String, value: Expression },
+    Return(Expression),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,6 +36,7 @@ pub enum Expression {
         operator: BinaryOperator,
         right: Box<Expression>,
     },
+    Call(Call),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,6 +80,20 @@ impl Parser {
             .consume(TokenKind::Identifier, "expected function name")?
             .lexeme;
         self.consume(TokenKind::LParen, "expected '('")?;
+        let mut parameters = Vec::new();
+        if !self.check(TokenKind::RParen) {
+            parameters.push(
+                self.consume(TokenKind::Identifier, "expected parameter name")?
+                    .lexeme,
+            );
+            while self.check(TokenKind::Comma) {
+                self.position += 1;
+                parameters.push(
+                    self.consume(TokenKind::Identifier, "expected parameter name")?
+                        .lexeme,
+                );
+            }
+        }
         self.consume(TokenKind::RParen, "expected ')'")?;
         self.consume(TokenKind::LBrace, "expected '{'")?;
         let mut body = Vec::new();
@@ -90,7 +107,11 @@ impl Parser {
             }
         }
         self.consume(TokenKind::RBrace, "expected '}'")?;
-        Ok(Function { name, body })
+        Ok(Function {
+            name,
+            parameters,
+            body,
+        })
     }
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
@@ -105,6 +126,10 @@ impl Parser {
                 value: self.expression()?,
             });
         }
+        if self.check(TokenKind::Return) {
+            self.position += 1;
+            return Ok(Statement::Return(self.expression()?));
+        }
         self.call()
     }
 
@@ -116,6 +141,10 @@ impl Parser {
         let mut arguments = Vec::new();
         if !self.check(TokenKind::RParen) {
             arguments.push(self.expression()?);
+            while self.check(TokenKind::Comma) {
+                self.position += 1;
+                arguments.push(self.expression()?);
+            }
         }
         self.consume(TokenKind::RParen, "expected ')'")?;
         Ok(Statement::Call(Call { name, arguments }))
@@ -135,20 +164,49 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expression, ParseError> {
-        let token = self.current();
+        let token = self.current().clone();
         match token.kind {
-            TokenKind::String => Ok(Expression::String(
-                token.lexeme[1..token.lexeme.len() - 1].to_owned(),
-            )),
-            TokenKind::Integer => Ok(Expression::Integer(
-                token.lexeme.parse().expect("lexer emitted integer"),
-            )),
-            TokenKind::True => Ok(Expression::Boolean(true)),
-            TokenKind::False => Ok(Expression::Boolean(false)),
-            TokenKind::Identifier => Ok(Expression::Variable(token.lexeme.clone())),
+            TokenKind::String => {
+                self.position += 1;
+                Ok(Expression::String(
+                    token.lexeme[1..token.lexeme.len() - 1].to_owned(),
+                ))
+            }
+            TokenKind::Integer => {
+                self.position += 1;
+                Ok(Expression::Integer(
+                    token.lexeme.parse().expect("lexer emitted integer"),
+                ))
+            }
+            TokenKind::True => {
+                self.position += 1;
+                Ok(Expression::Boolean(true))
+            }
+            TokenKind::False => {
+                self.position += 1;
+                Ok(Expression::Boolean(false))
+            }
+            TokenKind::Identifier => {
+                let name = token.lexeme.clone();
+                self.position += 1;
+                if self.check(TokenKind::LParen) {
+                    self.position += 1;
+                    let mut arguments = Vec::new();
+                    if !self.check(TokenKind::RParen) {
+                        arguments.push(self.expression()?);
+                        while self.check(TokenKind::Comma) {
+                            self.position += 1;
+                            arguments.push(self.expression()?);
+                        }
+                    }
+                    self.consume(TokenKind::RParen, "expected ')'")?;
+                    Ok(Expression::Call(Call { name, arguments }))
+                } else {
+                    Ok(Expression::Variable(name))
+                }
+            }
             _ => Err(self.error("expected literal")),
         }
-        .inspect(|_| self.position += 1)
     }
 
     fn consume(&mut self, kind: TokenKind, message: &str) -> Result<Token, ParseError> {

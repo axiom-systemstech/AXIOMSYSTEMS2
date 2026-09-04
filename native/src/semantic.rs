@@ -14,47 +14,87 @@ pub fn analyze(program: &Program) -> Result<(), SemanticError> {
             message: "program must define 'main'".into(),
         })?;
 
+    let functions = &program.functions;
     let mut variables = std::collections::HashSet::new();
-    for statement in &main.body {
-        match statement {
-            Statement::Let { name, value } => {
-                check_expression(value, &variables)?;
-                variables.insert(name);
-            }
-            Statement::Call(call) if call.name == "print" && call.arguments.len() == 1 => {
-                check_expression(&call.arguments[0], &variables)?;
-            }
-            Statement::Call(call) if call.name == "print" => {
-                return Err(SemanticError {
-                    message: "print expects exactly one argument".into(),
-                });
-            }
-            Statement::Call(call) => {
-                return Err(SemanticError {
-                    message: format!("unknown function '{}'", call.name),
-                });
-            }
-        }
+    for parameter in &main.parameters {
+        variables.insert(parameter.clone());
     }
-    Ok(())
+    check_block(&main.body, &mut variables, functions)
 }
 
 fn check_expression(
     expression: &Expression,
-    variables: &std::collections::HashSet<&String>,
+    variables: &std::collections::HashSet<String>,
+    functions: &[crate::parser::Function],
 ) -> Result<(), SemanticError> {
     match expression {
-        Expression::Variable(name) if !variables.iter().any(|value| value.as_str() == name) => {
-            Err(SemanticError {
-                message: format!("unknown variable '{name}'"),
-            })
-        }
+        Expression::Variable(name) if !variables.contains(name) => Err(SemanticError {
+            message: format!("unknown variable '{name}'"),
+        }),
         Expression::Binary { left, right, .. } => {
-            check_expression(left, variables)?;
-            check_expression(right, variables)
+            check_expression(left, variables, functions)?;
+            check_expression(right, variables, functions)
+        }
+        Expression::Call(call) => {
+            let function = functions
+                .iter()
+                .find(|function| function.name == call.name)
+                .ok_or_else(|| SemanticError {
+                    message: format!("unknown function '{}'", call.name),
+                })?;
+            if call.arguments.len() != function.parameters.len() {
+                return Err(SemanticError {
+                    message: format!(
+                        "function '{}' expects {} arguments",
+                        call.name,
+                        function.parameters.len()
+                    ),
+                });
+            }
+            for argument in &call.arguments {
+                check_expression(argument, variables, functions)?;
+            }
+            Ok(())
         }
         _ => Ok(()),
     }
+}
+
+fn check_block(
+    statements: &[Statement],
+    variables: &mut std::collections::HashSet<String>,
+    functions: &[crate::parser::Function],
+) -> Result<(), SemanticError> {
+    for statement in statements {
+        match statement {
+            Statement::Let { name, value } => {
+                check_expression(value, variables, functions)?;
+                variables.insert(name.clone());
+            }
+            Statement::Return(value) => check_expression(value, variables, functions)?,
+            Statement::Call(call) if call.name == "print" && call.arguments.len() == 1 => {
+                check_expression(&call.arguments[0], variables, functions)?;
+            }
+            Statement::Call(call) => {
+                let function = functions
+                    .iter()
+                    .find(|function| function.name == call.name)
+                    .ok_or_else(|| SemanticError {
+                        message: format!("unknown function '{}'", call.name),
+                    })?;
+                if call.arguments.len() != function.parameters.len() {
+                    return Err(SemanticError {
+                        message: format!(
+                            "function '{}' expects {} arguments",
+                            call.name,
+                            function.parameters.len()
+                        ),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
