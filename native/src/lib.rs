@@ -1,4 +1,5 @@
 pub mod parser;
+pub mod runtime;
 pub mod semantic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
