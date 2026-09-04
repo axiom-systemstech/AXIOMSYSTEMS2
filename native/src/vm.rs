@@ -8,6 +8,7 @@ pub enum Value {
     Int(i64),
     Bool(bool),
     String(String),
+    Array(Vec<Value>),
 }
 
 impl Value {
@@ -28,6 +29,15 @@ impl Value {
             }),
         }
     }
+
+    fn as_array(&self) -> Result<&[Value], VmError> {
+        match self {
+            Value::Array(values) => Ok(values),
+            _ => Err(VmError {
+                message: "expected Array value".into(),
+            }),
+        }
+    }
 }
 
 impl std::fmt::Display for Value {
@@ -36,6 +46,14 @@ impl std::fmt::Display for Value {
             Value::Int(value) => write!(formatter, "{value}"),
             Value::Bool(value) => write!(formatter, "{value}"),
             Value::String(value) => write!(formatter, "{value}"),
+            Value::Array(values) => {
+                let rendered = values
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(formatter, "[{rendered}]")
+            }
         }
     }
 }
@@ -101,11 +119,9 @@ impl Artifact {
                 let param_line = lines.next().ok_or_else(|| VmError {
                     message: format!("missing parameter for '{name}'"),
                 })?;
-                let value = param_line
-                    .strip_prefix("PARAM:")
-                    .ok_or_else(|| VmError {
-                        message: format!("invalid parameter entry for '{name}'"),
-                    })?;
+                let value = param_line.strip_prefix("PARAM:").ok_or_else(|| VmError {
+                    message: format!("invalid parameter entry for '{name}'"),
+                })?;
                 parameters.push(unescape_string(value));
             }
 
@@ -177,7 +193,10 @@ pub fn build_artifact(program: &Program) -> String {
     compile_program(program).serialize()
 }
 
-pub fn write_artifact_file(path: &std::path::Path, program: &Program) -> Result<std::path::PathBuf, VmError> {
+pub fn write_artifact_file(
+    path: &std::path::Path,
+    program: &Program,
+) -> Result<std::path::PathBuf, VmError> {
     let out_path = path.with_extension("axm");
     write_artifact_file_with_target(path, Some(&out_path), program)
 }
@@ -192,10 +211,15 @@ pub fn write_artifact_file_with_target(
     let out_path = target_path
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| source_path.with_extension("axm"));
-    let parent = out_path.parent().unwrap_or_else(|| std::path::Path::new("."));
+    let parent = out_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."));
     if !parent.exists() {
         std::fs::create_dir_all(parent).map_err(|error| VmError {
-            message: format!("cannot create artifact directory '{}': {error}", parent.display()),
+            message: format!(
+                "cannot create artifact directory '{}': {error}",
+                parent.display()
+            ),
         })?;
     }
     std::fs::write(&out_path, &serialized).map_err(|error| VmError {
@@ -219,7 +243,11 @@ impl Machine {
         }
     }
 
-    fn call_function(&mut self, name: &str, arguments: Vec<Value>) -> Result<Option<Value>, VmError> {
+    fn call_function(
+        &mut self,
+        name: &str,
+        arguments: Vec<Value>,
+    ) -> Result<Option<Value>, VmError> {
         let function = self
             .functions
             .iter()
@@ -249,17 +277,22 @@ impl Machine {
                 Instruction::PushBool(value) => self.stack.push(Value::Bool(*value)),
                 Instruction::PushString(value) => self.stack.push(Value::String(value.clone())),
                 Instruction::LoadVariable(name) => {
-                    let value = locals
-                        .get(name)
-                        .cloned()
-                        .ok_or_else(|| VmError {
-                            message: format!("unknown variable '{name}'"),
-                        })?;
+                    let value = locals.get(name).cloned().ok_or_else(|| VmError {
+                        message: format!("unknown variable '{name}'"),
+                    })?;
                     self.stack.push(value);
                 }
                 Instruction::StoreVariable(name) => {
                     let value = self.pop_stack()?;
                     locals.insert(name.clone(), value);
+                }
+                Instruction::MakeArray { length } => {
+                    let mut values = Vec::with_capacity(*length);
+                    for _ in 0..*length {
+                        values.push(self.pop_stack()?);
+                    }
+                    values.reverse();
+                    self.stack.push(Value::Array(values));
                 }
                 Instruction::Binary { op } => {
                     let right = self.pop_stack()?;
@@ -291,7 +324,21 @@ impl Machine {
                     };
                     self.stack.push(result);
                 }
-                Instruction::Call { name, argument_count } => {
+                Instruction::Index => {
+                    let index = self.pop_stack()?.as_int()?;
+                    let array = self.pop_stack()?;
+                    let values = array.as_array()?;
+                    if index < 0 || index >= values.len() as i64 {
+                        return Err(VmError {
+                            message: "index out of bounds".into(),
+                        });
+                    }
+                    self.stack.push(values[index as usize].clone());
+                }
+                Instruction::Call {
+                    name,
+                    argument_count,
+                } => {
                     let mut arguments = Vec::with_capacity(*argument_count);
                     for _ in 0..*argument_count {
                         arguments.push(self.pop_stack()?);
@@ -321,18 +368,16 @@ impl Machine {
                         return Ok(Some(value));
                     }
                 }
-                Instruction::While { condition, body } => {
-                    loop {
-                        self.execute_block(condition, locals)?;
-                        let condition_value = self.pop_stack()?.as_bool()?;
-                        if !condition_value {
-                            break;
-                        }
-                        if let Some(value) = self.execute_block(body, locals)? {
-                            return Ok(Some(value));
-                        }
+                Instruction::While { condition, body } => loop {
+                    self.execute_block(condition, locals)?;
+                    let condition_value = self.pop_stack()?.as_bool()?;
+                    if !condition_value {
+                        break;
                     }
-                }
+                    if let Some(value) = self.execute_block(body, locals)? {
+                        return Ok(Some(value));
+                    }
+                },
             }
             index += 1;
         }
@@ -370,22 +415,40 @@ fn decode_sequence(raw: &str) -> Result<Vec<Instruction>, VmError> {
 fn encode_instruction(instruction: &Instruction) -> String {
     match instruction {
         Instruction::PushInt(value) => format!("PushInt:{value}"),
-        Instruction::PushBool(value) => format!("PushBool:{}", if *value { "true" } else { "false" }),
+        Instruction::PushBool(value) => {
+            format!("PushBool:{}", if *value { "true" } else { "false" })
+        }
         Instruction::PushString(value) => format!("PushString:{}", escape_string(value)),
         Instruction::LoadVariable(name) => format!("LoadVariable:{}", escape_string(name)),
         Instruction::StoreVariable(name) => format!("StoreVariable:{}", escape_string(name)),
+        Instruction::MakeArray { length } => format!("MakeArray:{length}"),
         Instruction::Binary { op } => format!("Binary:{}", encode_binary(op)),
         Instruction::Unary { op } => format!("Unary:{}", encode_unary(op)),
-        Instruction::Call { name, argument_count } => {
+        Instruction::Call {
+            name,
+            argument_count,
+        } => {
             format!("Call:{}|{}", escape_string(name), argument_count)
         }
+        Instruction::Index => "Index".to_string(),
         Instruction::Print => "Print".to_string(),
         Instruction::Return => "Return".to_string(),
-        Instruction::If { then_body, else_body } => {
-            format!("If[{}][{}]", encode_sequence(then_body), encode_sequence(else_body))
+        Instruction::If {
+            then_body,
+            else_body,
+        } => {
+            format!(
+                "If[{}][{}]",
+                encode_sequence(then_body),
+                encode_sequence(else_body)
+            )
         }
         Instruction::While { condition, body } => {
-            format!("While[{}][{}]", encode_sequence(condition), encode_sequence(body))
+            format!(
+                "While[{}][{}]",
+                encode_sequence(condition),
+                encode_sequence(body)
+            )
         }
     }
 }
@@ -397,6 +460,9 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
     if token == "Return" {
         return Ok(Instruction::Return);
     }
+    if token == "Index" {
+        return Ok(Instruction::Index);
+    }
     if let Some(value) = token.strip_prefix("PushInt:") {
         let value = value.parse::<i64>().map_err(|_| VmError {
             message: format!("invalid integer literal '{value}'"),
@@ -407,9 +473,11 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
         let value = match value {
             "true" => true,
             "false" => false,
-            _ => return Err(VmError {
-                message: format!("invalid boolean literal '{value}'"),
-            }),
+            _ => {
+                return Err(VmError {
+                    message: format!("invalid boolean literal '{value}'"),
+                })
+            }
         };
         return Ok(Instruction::PushBool(value));
     }
@@ -422,11 +490,21 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
     if let Some(name) = token.strip_prefix("StoreVariable:") {
         return Ok(Instruction::StoreVariable(unescape_string(name)));
     }
+    if let Some(raw) = token.strip_prefix("MakeArray:") {
+        let length = raw.parse::<usize>().map_err(|_| VmError {
+            message: format!("invalid array length '{raw}'"),
+        })?;
+        return Ok(Instruction::MakeArray { length });
+    }
     if let Some(raw) = token.strip_prefix("Binary:") {
-        return Ok(Instruction::Binary { op: decode_binary(raw)? });
+        return Ok(Instruction::Binary {
+            op: decode_binary(raw)?,
+        });
     }
     if let Some(raw) = token.strip_prefix("Unary:") {
-        return Ok(Instruction::Unary { op: decode_unary(raw)? });
+        return Ok(Instruction::Unary {
+            op: decode_unary(raw)?,
+        });
     }
     if let Some(raw) = token.strip_prefix("Call:") {
         let parts = split_escaped(raw, '|');
@@ -666,7 +744,12 @@ mod tests {
         let program = parse("fn main() { print(42) }").unwrap();
         let temp_dir = std::env::temp_dir().join(format!("axiom-artifact-{}", std::process::id()));
         let output = temp_dir.join("custom-output.axm");
-        let written = write_artifact_file_with_target(std::path::Path::new("examples/hello.ax"), Some(&output), &program).unwrap();
+        let written = write_artifact_file_with_target(
+            std::path::Path::new("examples/hello.ax"),
+            Some(&output),
+            &program,
+        )
+        .unwrap();
         assert_eq!(written, output);
         assert!(output.exists());
         let bytes = std::fs::read_to_string(&output).unwrap();

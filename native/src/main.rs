@@ -71,7 +71,11 @@ fn main() -> ExitCode {
         }) {
             Ok(program) => {
                 let target = output_path.as_deref().map(Path::new);
-                let output_path = match axiom_native::vm::write_artifact_file_with_target(Path::new(&path), target, &program) {
+                let output_path = match axiom_native::vm::write_artifact_file_with_target(
+                    Path::new(&path),
+                    target,
+                    &program,
+                ) {
                     Ok(path) => path,
                     Err(error) => {
                         eprintln!("error: {}", error.message);

@@ -159,6 +159,13 @@ fn evaluate(
         Expression::String(value) => Ok(value.clone()),
         Expression::Integer(value) => Ok(value.to_string()),
         Expression::Boolean(value) => Ok(value.to_string()),
+        Expression::Array(values) => {
+            let items = values
+                .iter()
+                .map(|value| evaluate(value, variables, functions, output))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(format!("[{}]", items.join(", ")))
+        }
         Expression::Variable(name) => variables.get(name).cloned().ok_or_else(|| RuntimeError {
             message: format!("unknown variable '{name}'"),
         }),
@@ -248,6 +255,20 @@ fn evaluate(
             operator: crate::parser::UnaryOperator::Not,
             operand,
         } => Ok((evaluate(operand, variables, functions, output)? != "true").to_string()),
+        Expression::Index { target, index } => {
+            let target_value = evaluate(target, variables, functions, output)?;
+            let index_value = evaluate(index, variables, functions, output)?;
+            let index = index_value.parse::<i64>().map_err(|_| RuntimeError {
+                message: "array index requires Int".into(),
+            })?;
+            let target = parse_array_literal(&target_value)?;
+            if index < 0 || index >= target.len() as i64 {
+                return Err(RuntimeError {
+                    message: "index out of bounds".into(),
+                });
+            }
+            Ok(target[index as usize].clone())
+        }
         Expression::Call(call) => {
             let arguments = call
                 .arguments
@@ -272,6 +293,26 @@ fn integer(
         .map_err(|_| RuntimeError {
             message: "arithmetic operators expect integers".into(),
         })
+}
+
+fn parse_array_literal(value: &str) -> Result<Vec<String>, RuntimeError> {
+    let trimmed = value.trim();
+    if trimmed == "[]" {
+        return Ok(Vec::new());
+    }
+    if !trimmed.starts_with('[') || !trimmed.ends_with(']') {
+        return Err(RuntimeError {
+            message: "expected array literal".into(),
+        });
+    }
+    let inner = &trimmed[1..trimmed.len() - 1];
+    if inner.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(inner
+        .split(',')
+        .map(|entry| entry.trim().to_string())
+        .collect())
 }
 
 #[cfg(test)]
@@ -337,6 +378,14 @@ mod tests {
             )
             .unwrap(),
             "two\n"
+        );
+    }
+
+    #[test]
+    fn runs_array_literal_and_indexing() {
+        assert_eq!(
+            run("fn main() { let values = [10, 20, 30]; print(values[1]) }").unwrap(),
+            "20\n"
         );
     }
 

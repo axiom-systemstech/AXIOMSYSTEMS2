@@ -19,11 +19,12 @@ pub struct Parameter {
     pub type_name: Option<Type>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     Int,
     Bool,
     String,
+    Array(Box<Type>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +63,7 @@ pub enum Expression {
     Integer(i64),
     Boolean(bool),
     Variable(String),
+    Array(Vec<Expression>),
     Binary {
         left: Box<Expression>,
         operator: BinaryOperator,
@@ -72,6 +74,10 @@ pub enum Expression {
         operand: Box<Expression>,
     },
     Call(Call),
+    Index {
+        target: Box<Expression>,
+        index: Box<Expression>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -417,9 +423,30 @@ impl Parser {
                     }
                     self.consume(TokenKind::RParen, "expected ')'")?;
                     Ok(Expression::Call(Call { name, arguments }))
+                } else if self.check(TokenKind::LBracket) {
+                    self.position += 1;
+                    let index = self.expression()?;
+                    self.consume(TokenKind::RBracket, "expected ']'")?;
+                    Ok(Expression::Index {
+                        target: Box::new(Expression::Variable(name)),
+                        index: Box::new(index),
+                    })
                 } else {
                     Ok(Expression::Variable(name))
                 }
+            }
+            TokenKind::LBracket => {
+                self.position += 1;
+                let mut elements = Vec::new();
+                if !self.check(TokenKind::RBracket) {
+                    elements.push(self.expression()?);
+                    while self.check(TokenKind::Comma) {
+                        self.position += 1;
+                        elements.push(self.expression()?);
+                    }
+                }
+                self.consume(TokenKind::RBracket, "expected ']'")?;
+                Ok(Expression::Array(elements))
             }
             _ => Err(self.error("expected literal")),
         }

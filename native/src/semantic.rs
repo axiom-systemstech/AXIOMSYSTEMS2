@@ -24,13 +24,13 @@ pub fn analyze(program: &Program) -> Result<(), SemanticError> {
 fn check_function(function: &Function, functions: &[Function]) -> Result<(), SemanticError> {
     let mut variables = std::collections::HashMap::new();
     for Parameter { name, type_name } in &function.parameters {
-        variables.insert(name.clone(), *type_name);
+        variables.insert(name.clone(), type_name.clone());
     }
     check_block(
         &function.body,
         &mut variables,
         functions,
-        function.return_type,
+        function.return_type.clone(),
     )
 }
 
@@ -43,7 +43,25 @@ fn check_expression(
         Expression::String(_) => Ok(Some(Type::String)),
         Expression::Integer(_) => Ok(Some(Type::Int)),
         Expression::Boolean(_) => Ok(Some(Type::Bool)),
-        Expression::Variable(name) => variables.get(name).copied().ok_or_else(|| SemanticError {
+        Expression::Array(elements) => {
+            let mut inferred: Option<Type> = None;
+            for element in elements {
+                let element_type = check_expression(element, variables, functions)?;
+                if let Some(element_type) = element_type {
+                    if let Some(current) = inferred.as_ref() {
+                        if *current != element_type {
+                            return Err(SemanticError {
+                                message: "array elements must share the same type".into(),
+                            });
+                        }
+                    } else {
+                        inferred = Some(element_type);
+                    }
+                }
+            }
+            Ok(inferred.map(|value| Type::Array(Box::new(value))))
+        }
+        Expression::Variable(name) => variables.get(name).cloned().ok_or_else(|| SemanticError {
             message: format!("unknown variable '{name}'"),
         }),
         Expression::Binary {
@@ -91,6 +109,21 @@ fn check_expression(
             }
             Ok(Some(Type::Bool))
         }
+        Expression::Index { target, index } => {
+            let target_type = check_expression(target, variables, functions)?;
+            let index_type = check_expression(index, variables, functions)?;
+            if index_type.is_some() && index_type != Some(Type::Int) {
+                return Err(SemanticError {
+                    message: "array index requires Int".into(),
+                });
+            }
+            match target_type {
+                Some(Type::Array(inner)) => Ok(Some(*inner)),
+                _ => Err(SemanticError {
+                    message: "index requires an array".into(),
+                }),
+            }
+        }
         Expression::Call(call) => {
             let function = functions
                 .iter()
@@ -118,7 +151,7 @@ fn check_expression(
                     });
                 }
             }
-            Ok(function.return_type)
+            Ok(function.return_type.clone())
         }
     }
 }
@@ -138,12 +171,12 @@ fn check_block(
                     ..
                 } = statement
                 {
-                    if value_type.is_some() && value_type != Some(*declared) {
+                    if value_type.is_some() && value_type != Some(declared.clone()) {
                         return Err(SemanticError {
                             message: format!("variable '{name}' has incompatible type"),
                         });
                     }
-                    variables.insert(name.clone(), Some(*declared));
+                    variables.insert(name.clone(), Some(declared.clone()));
                 } else {
                     variables.insert(name.clone(), value_type);
                 }
@@ -162,15 +195,25 @@ fn check_block(
                 else_body,
             } => {
                 require_bool(check_expression(condition, variables, functions)?)?;
-                check_block(then_body, &mut variables.clone(), functions, return_type)?;
-                check_block(else_body, &mut variables.clone(), functions, return_type)?;
+                check_block(
+                    then_body,
+                    &mut variables.clone(),
+                    functions,
+                    return_type.clone(),
+                )?;
+                check_block(
+                    else_body,
+                    &mut variables.clone(),
+                    functions,
+                    return_type.clone(),
+                )?;
             }
             Statement::While { condition, body } => {
                 require_bool(check_expression(condition, variables, functions)?)?;
-                check_block(body, &mut variables.clone(), functions, return_type)?;
+                check_block(body, &mut variables.clone(), functions, return_type.clone())?;
             }
             Statement::Assign { name, value } => {
-                let existing = variables.get(name).copied().ok_or_else(|| SemanticError {
+                let existing = variables.get(name).cloned().ok_or_else(|| SemanticError {
                     message: format!("unknown variable '{name}'"),
                 })?;
                 let value_type = check_expression(value, variables, functions)?;
@@ -197,7 +240,8 @@ fn require_types(
     expected: Type,
     operation: &str,
 ) -> Result<(), SemanticError> {
-    if (left.is_some() && left != Some(expected)) || (right.is_some() && right != Some(expected)) {
+    let expected = Some(expected);
+    if (left.is_some() && left != expected) || (right.is_some() && right != expected) {
         return Err(SemanticError {
             message: format!("{operation} require {:?}", expected),
         });

@@ -1,6 +1,4 @@
-use crate::parser::{
-    BinaryOperator, Expression, Program, Statement, Type, UnaryOperator,
-};
+use crate::parser::{BinaryOperator, Expression, Program, Statement, Type, UnaryOperator};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
@@ -9,9 +7,20 @@ pub enum Instruction {
     PushString(String),
     LoadVariable(String),
     StoreVariable(String),
-    Binary { op: BinaryOperator },
-    Unary { op: UnaryOperator },
-    Call { name: String, argument_count: usize },
+    MakeArray {
+        length: usize,
+    },
+    Binary {
+        op: BinaryOperator,
+    },
+    Unary {
+        op: UnaryOperator,
+    },
+    Call {
+        name: String,
+        argument_count: usize,
+    },
+    Index,
     Print,
     Return,
     If {
@@ -44,8 +53,12 @@ pub fn lower_program(program: &Program) -> LoweredProgram {
             .iter()
             .map(|function| LoweredFunction {
                 name: function.name.clone(),
-                parameters: function.parameters.iter().map(|parameter| parameter.name.clone()).collect(),
-                return_type: function.return_type,
+                parameters: function
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.name.clone())
+                    .collect(),
+                return_type: function.return_type.clone(),
                 instructions: lower_block(&function.body),
             })
             .collect(),
@@ -117,8 +130,22 @@ fn lower_expression(expression: &Expression) -> Vec<Instruction> {
         Expression::String(value) => vec![Instruction::PushString(value.clone())],
         Expression::Integer(value) => vec![Instruction::PushInt(*value)],
         Expression::Boolean(value) => vec![Instruction::PushBool(*value)],
+        Expression::Array(values) => {
+            let mut instructions = Vec::new();
+            for value in values {
+                instructions.extend(lower_expression(value));
+            }
+            instructions.push(Instruction::MakeArray {
+                length: values.len(),
+            });
+            instructions
+        }
         Expression::Variable(name) => vec![Instruction::LoadVariable(name.clone())],
-        Expression::Binary { left, operator, right } => {
+        Expression::Binary {
+            left,
+            operator,
+            right,
+        } => {
             let mut instructions = lower_expression(left);
             instructions.extend(lower_expression(right));
             instructions.push(Instruction::Binary { op: *operator });
@@ -127,6 +154,12 @@ fn lower_expression(expression: &Expression) -> Vec<Instruction> {
         Expression::Unary { operator, operand } => {
             let mut instructions = lower_expression(operand);
             instructions.push(Instruction::Unary { op: *operator });
+            instructions
+        }
+        Expression::Index { target, index } => {
+            let mut instructions = lower_expression(target);
+            instructions.extend(lower_expression(index));
+            instructions.push(Instruction::Index);
             instructions
         }
         Expression::Call(call) => {
