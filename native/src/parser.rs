@@ -8,8 +8,22 @@ pub struct Program {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Function {
     pub name: String,
-    pub parameters: Vec<String>,
+    pub parameters: Vec<Parameter>,
+    pub return_type: Option<Type>,
     pub body: Vec<Statement>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Parameter {
+    pub name: String,
+    pub type_name: Option<Type>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Type {
+    Int,
+    Bool,
+    String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,6 +31,7 @@ pub enum Statement {
     Call(Call),
     Let {
         name: String,
+        type_name: Option<Type>,
         value: Expression,
     },
     Return(Expression),
@@ -114,25 +129,53 @@ impl Parser {
         self.consume(TokenKind::LParen, "expected '('")?;
         let mut parameters = Vec::new();
         if !self.check(TokenKind::RParen) {
-            parameters.push(
-                self.consume(TokenKind::Identifier, "expected parameter name")?
-                    .lexeme,
-            );
+            parameters.push(self.parameter()?);
             while self.check(TokenKind::Comma) {
                 self.position += 1;
-                parameters.push(
-                    self.consume(TokenKind::Identifier, "expected parameter name")?
-                        .lexeme,
-                );
+                parameters.push(self.parameter()?);
             }
         }
         self.consume(TokenKind::RParen, "expected ')'")?;
+        let return_type = if self.check(TokenKind::Arrow) {
+            self.position += 1;
+            Some(self.type_name()?)
+        } else {
+            None
+        };
         let body = self.block()?;
         Ok(Function {
             name,
             parameters,
+            return_type,
             body,
         })
+    }
+
+    fn parameter(&mut self) -> Result<Parameter, ParseError> {
+        let name = self
+            .consume(TokenKind::Identifier, "expected parameter name")?
+            .lexeme;
+        let type_name = if self.check(TokenKind::Colon) {
+            self.position += 1;
+            Some(self.type_name()?)
+        } else {
+            None
+        };
+        Ok(Parameter { name, type_name })
+    }
+
+    fn type_name(&mut self) -> Result<Type, ParseError> {
+        let token = self.consume(TokenKind::Identifier, "expected type name")?;
+        match token.lexeme.as_str() {
+            "Int" => Ok(Type::Int),
+            "Bool" => Ok(Type::Bool),
+            "String" => Ok(Type::String),
+            _ => Err(ParseError {
+                message: format!("unknown type '{}'", token.lexeme),
+                line: token.line,
+                column: token.column,
+            }),
+        }
     }
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
@@ -163,9 +206,16 @@ impl Parser {
             let name = self
                 .consume(TokenKind::Identifier, "expected variable name")?
                 .lexeme;
+            let type_name = if self.check(TokenKind::Colon) {
+                self.position += 1;
+                Some(self.type_name()?)
+            } else {
+                None
+            };
             self.consume(TokenKind::Equal, "expected '='")?;
             return Ok(Statement::Let {
                 name,
+                type_name,
                 value: self.expression()?,
             });
         }
@@ -424,5 +474,21 @@ mod tests {
         let error = parse("fn main()").unwrap_err();
         assert_eq!(error.message, "expected '{'");
         assert_eq!(error.line, 1);
+    }
+
+    #[test]
+    fn parses_explicit_types() {
+        let program = parse("fn add(a: Int, b: Int) -> Int { return a + b }").unwrap();
+        assert_eq!(
+            program.functions[0].parameters[0].type_name,
+            Some(Type::Int)
+        );
+        assert_eq!(program.functions[0].return_type, Some(Type::Int));
+    }
+
+    #[test]
+    fn rejects_unknown_type() {
+        let error = parse("fn main(value: Any) { print(value) }").unwrap_err();
+        assert_eq!(error.message, "unknown type 'Any'");
     }
 }

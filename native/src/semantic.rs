@@ -17,7 +17,7 @@ pub fn analyze(program: &Program) -> Result<(), SemanticError> {
     let functions = &program.functions;
     let mut variables = std::collections::HashSet::new();
     for parameter in &main.parameters {
-        variables.insert(parameter.clone());
+        variables.insert(parameter.name.clone());
     }
     check_block(&main.body, &mut variables, functions)
 }
@@ -67,7 +67,7 @@ fn check_block(
 ) -> Result<(), SemanticError> {
     for statement in statements {
         match statement {
-            Statement::Let { name, value } => {
+            Statement::Let { name, value, .. } => {
                 check_expression(value, variables, functions)?;
                 variables.insert(name.clone());
             }

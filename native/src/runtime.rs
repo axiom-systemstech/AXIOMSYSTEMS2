@@ -37,11 +37,11 @@ fn invoke(
         })?;
     let mut variables = std::collections::HashMap::new();
     for (parameter, value) in function.parameters.iter().zip(arguments) {
-        variables.insert(parameter.clone(), value);
+        variables.insert(parameter.name.clone(), value);
     }
     for statement in &function.body {
         match statement {
-            Statement::Let { name, value } => {
+            Statement::Let { name, value, .. } => {
                 let evaluated = evaluate(value, &variables, functions, output)?;
                 variables.insert(name.clone(), evaluated);
             }
@@ -99,7 +99,7 @@ fn execute_block(
 ) -> Result<Option<String>, RuntimeError> {
     for statement in statements {
         match statement {
-            Statement::Let { name, value } => {
+            Statement::Let { name, value, .. } => {
                 let evaluated = evaluate(value, variables, functions, output)?;
                 variables.insert(name.clone(), evaluated);
             }
@@ -347,6 +347,14 @@ mod tests {
         assert_eq!(
             run("fn main() { print(!false && true || false) }").unwrap(),
             "true\n"
+        );
+    }
+
+    #[test]
+    fn runs_typed_function_syntax() {
+        assert_eq!(
+            run("fn add(a: Int, b: Int) -> Int { return a + b } fn main() { let total: Int = add(20, 22); print(total) }").unwrap(),
+            "42\n"
         );
     }
 }
