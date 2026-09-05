@@ -5,17 +5,24 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
-from .ir import IRProgram, LetInstruction, SetInstruction
+from .ir import IRProgram, IfInstruction, LetInstruction, SetInstruction
 
 
 def execute(program: IRProgram, emit: Callable[[str], None] = print) -> None:
     """Execute an IR program using the host output function."""
     variables = {}
-    for instruction in program.instructions:
+    _execute_block(program.instructions, variables, emit)
+
+
+def _execute_block(instructions, variables, emit):
+    for instruction in instructions:
         if isinstance(instruction, LetInstruction):
             variables[instruction.name] = _evaluate(instruction.value, variables)
         elif isinstance(instruction, SetInstruction):
             _assign(instruction.target, _evaluate(instruction.value, variables), variables)
+        elif isinstance(instruction, IfInstruction):
+            branch = instruction.then_body if _evaluate(instruction.condition, variables) else instruction.else_body
+            _execute_block(branch, variables, emit)
         else:
             value = _evaluate(instruction.value, variables)
             emit(str(value).lower() if isinstance(value, bool) else str(value))

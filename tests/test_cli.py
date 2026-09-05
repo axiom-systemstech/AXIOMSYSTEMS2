@@ -1,7 +1,7 @@
 from axiom.cli import main
 from axiom.ast import BooleanLiteral, Call, Function, IntegerLiteral, Program, StringLiteral
 from axiom.ast import Variable
-from axiom.ir import IRProgram, PrintInstruction, SetInstruction, lower
+from axiom.ir import IRProgram, IfInstruction, LetInstruction, PrintInstruction, SetInstruction, lower
 from axiom.lexer import LexError, TokenKind, lex
 from axiom.parser import ParseError, parse
 from axiom.runtime import execute
@@ -146,6 +146,40 @@ def test_ir_runtime_executes_set_instruction():
         output.append,
     )
     assert output == ["42"]
+
+
+def test_ir_renders_and_executes_if_else():
+    program = parse('fn main() { if 2 < 3 { print("yes") } else { print("no") } }')
+    assert lower(program).render() == (
+        "AXIOM-IR 0.1\n"
+        "IF 2 < 3\n"
+        "  PRINT 'yes'\n"
+        "ELSE\n"
+        "  PRINT 'no'\n"
+        "END\n"
+    )
+    output = []
+    execute(lower(program), output.append)
+    assert output == ["yes"]
+
+
+def test_ir_if_branch_can_mutate_shared_state():
+    output = []
+    execute(
+        IRProgram(
+            [
+                LetInstruction("value", IntegerLiteral(1)),
+                IfInstruction(
+                    BooleanLiteral(True),
+                    [SetInstruction(Variable("value"), IntegerLiteral(2))],
+                    [],
+                ),
+                PrintInstruction(Variable("value")),
+            ]
+        ),
+        output.append,
+    )
+    assert output == ["2"]
 
 
 def test_build_writes_python_ir_for_arrays(tmp_path, capsys):

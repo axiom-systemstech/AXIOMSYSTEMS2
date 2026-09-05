@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Expression, Index, IntegerLiteral, Let, Program, StringLiteral, Unary, Variable
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Expression, If, Index, IntegerLiteral, Let, Program, StringLiteral, Unary, Variable
 
 IRValue = Expression | str | int | bool
 
@@ -26,7 +26,14 @@ class SetInstruction:
     value: IRValue
 
 
-Instruction = PrintInstruction | LetInstruction | SetInstruction
+@dataclass(frozen=True)
+class IfInstruction:
+    condition: IRValue
+    then_body: list["Instruction"]
+    else_body: list["Instruction"]
+
+
+Instruction = PrintInstruction | LetInstruction | SetInstruction | IfInstruction
 
 
 @dataclass(frozen=True)
@@ -35,16 +42,7 @@ class IRProgram:
 
     def render(self) -> str:
         lines = ["AXIOM-IR 0.1"]
-        for instruction in self.instructions:
-            if isinstance(instruction, LetInstruction):
-                lines.append(f"LET {instruction.name} = {_render_expression(instruction.value)}")
-            elif isinstance(instruction, SetInstruction):
-                lines.append(
-                    f"SET {_render_expression(instruction.target)} = "
-                    f"{_render_expression(instruction.value)}"
-                )
-            else:
-                lines.append(f"PRINT {_render_expression(instruction.value)}")
+        _render_block(self.instructions, lines, 0)
         return "\n".join(lines) + "\n"
 
 
@@ -52,14 +50,49 @@ def lower(program: Program) -> IRProgram:
     instructions = []
     for function in program.functions:
         if function.name == "main":
-            for statement in function.body:
-                if isinstance(statement, Let):
-                    instructions.append(LetInstruction(statement.name, statement.value))
-                elif isinstance(statement, Assign):
-                    instructions.append(SetInstruction(statement.target, statement.value))
-                else:
-                    instructions.append(PrintInstruction(statement.arguments[0]))
+            instructions.extend(_lower_block(function.body))
     return IRProgram(instructions)
+
+
+def _lower_block(statements) -> list[Instruction]:
+    instructions = []
+    for statement in statements:
+        if isinstance(statement, Let):
+            instructions.append(LetInstruction(statement.name, statement.value))
+        elif isinstance(statement, Assign):
+            instructions.append(SetInstruction(statement.target, statement.value))
+        elif isinstance(statement, If):
+            instructions.append(
+                IfInstruction(
+                    statement.condition,
+                    _lower_block(statement.then_body),
+                    _lower_block(statement.else_body),
+                )
+            )
+        else:
+            instructions.append(PrintInstruction(statement.arguments[0]))
+    return instructions
+
+
+def _render_block(instructions: list[Instruction], lines: list[str], depth: int) -> None:
+    prefix = "  " * depth
+    for instruction in instructions:
+        if isinstance(instruction, LetInstruction):
+            lines.append(f"{prefix}LET {instruction.name} = {_render_expression(instruction.value)}")
+        elif isinstance(instruction, SetInstruction):
+            lines.append(
+                f"{prefix}SET {_render_expression(instruction.target)} = "
+                f"{_render_expression(instruction.value)}"
+            )
+        elif isinstance(instruction, IfInstruction):
+            lines.append(f"{prefix}IF {_render_expression(instruction.condition)}")
+            _render_block(instruction.then_body, lines, depth + 1)
+            if instruction.else_body:
+                lines.append(f"{prefix}ELSE")
+                _render_block(instruction.else_body, lines, depth + 1)
+            lines.append(f"{prefix}END")
+        else:
+            lines.append(f"{prefix}PRINT {_render_expression(instruction.value)}")
 
 
 def _render_expression(expression: IRValue) -> str:
