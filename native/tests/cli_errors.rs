@@ -81,6 +81,47 @@ fn build_writes_custom_artifact_and_run_executes_it() {
 }
 
 #[test]
+fn float_arithmetic_runs_in_source_and_compiled_artifact() {
+    let source_path = temp_path("float_source.ax");
+    let artifact_path = temp_path("float_output.axm");
+    std::fs::write(
+        &source_path,
+        "fn main() { let value: Float = 1.5 + 2.5; print(value); print(value / 2.0) }",
+    )
+    .unwrap();
+
+    let source_run = run_axiom(&["run", source_path.to_str().unwrap()]);
+    assert!(
+        source_run.status.success(),
+        "source run failed: {}",
+        String::from_utf8_lossy(&source_run.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&source_run.stdout), "4.0\n2.0\n");
+
+    let build = run_axiom(&[
+        "build",
+        source_path.to_str().unwrap(),
+        artifact_path.to_str().unwrap(),
+    ]);
+    assert!(
+        build.status.success(),
+        "build failed: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let artifact_run = run_axiom(&["run", artifact_path.to_str().unwrap()]);
+    assert!(
+        artifact_run.status.success(),
+        "artifact run failed: {}",
+        String::from_utf8_lossy(&artifact_run.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&artifact_run.stdout), "4.0\n2.0\n");
+
+    let _ = std::fs::remove_file(source_path);
+    let _ = std::fs::remove_file(artifact_path);
+}
+
+#[test]
 fn less_than_runs_in_source_and_compiled_artifact() {
     let source_path = temp_path("less_than_source.ax");
     let artifact_path = temp_path("less_than_output.axm");
