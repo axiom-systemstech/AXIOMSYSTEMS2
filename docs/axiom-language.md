@@ -28,3 +28,20 @@ justifiquen.
   lexing.
 - La sintaxis prioriza una curva de aprendizaje corta sin renunciar a
   compilación nativa y ejecución rápida.
+
+## Estructuras de control
+
+La rama condicional ya admite encadenamientos de `else if`:
+
+```axiom
+fn main() {
+    let value: Int = 2
+    if value == 1 {
+        print("one")
+    } else if value == 2 {
+        print("two")
+    } else {
+        print("other")
+    }
+}
+```
