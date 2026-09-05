@@ -101,8 +101,16 @@ def _evaluate(expression, variables, functions=None, emit=print):
         return _evaluate(expression.left, variables, functions, emit) + _evaluate(expression.right, variables, functions, emit)
     if isinstance(expression, Binary) and expression.operator == ">":
         return _evaluate(expression.left, variables, functions, emit) > _evaluate(expression.right, variables, functions, emit)
+    if isinstance(expression, Binary) and expression.operator == ">=":
+        return _evaluate(expression.left, variables, functions, emit) >= _evaluate(expression.right, variables, functions, emit)
+    if isinstance(expression, Binary) and expression.operator == "<":
+        return _evaluate(expression.left, variables, functions, emit) < _evaluate(expression.right, variables, functions, emit)
+    if isinstance(expression, Binary) and expression.operator == "<=":
+        return _evaluate(expression.left, variables, functions, emit) <= _evaluate(expression.right, variables, functions, emit)
     if isinstance(expression, Binary) and expression.operator == "==":
         return _evaluate(expression.left, variables, functions, emit) == _evaluate(expression.right, variables, functions, emit)
+    if isinstance(expression, Binary) and expression.operator == "!=":
+        return _evaluate(expression.left, variables, functions, emit) != _evaluate(expression.right, variables, functions, emit)
     if isinstance(expression, Binary) and expression.operator == "-":
         return _evaluate(expression.left, variables, functions, emit) - _evaluate(expression.right, variables, functions, emit)
     if isinstance(expression, Binary) and expression.operator == "*":

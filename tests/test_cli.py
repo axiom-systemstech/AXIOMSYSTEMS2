@@ -211,3 +211,13 @@ def test_runtime_executes_nested_array_assignment(tmp_path, capsys):
     )
     assert main(["run", str(source)]) == 0
     assert capsys.readouterr().out == "99\n"
+
+
+def test_runtime_executes_all_integer_comparisons(tmp_path, capsys):
+    source = tmp_path / "comparisons.ax"
+    source.write_text(
+        "fn main() { if 2 != 3 { print(1) } if 2 < 3 { print(2) } if 3 <= 3 { print(3) } if 3 >= 3 { print(4) } }",
+        encoding="utf-8",
+    )
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "1\n2\n3\n4\n"

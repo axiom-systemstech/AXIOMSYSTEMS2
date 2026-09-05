@@ -31,13 +31,17 @@ class TokenKind(Enum):
     COMMA = auto()
     ARROW = auto()
     GREATER = auto()
+    GREATER_EQUAL = auto()
     EQUAL_EQUAL = auto()
+    NOT_EQUAL = auto()
     MINUS = auto()
     STAR = auto()
     SLASH = auto()
     BANG = auto()
     AND = auto()
     OR = auto()
+    LESS = auto()
+    LESS_EQUAL = auto()
     EOF = auto()
 
 
@@ -92,6 +96,21 @@ def lex(source: str) -> list[Token]:
             index += 2
             column += 2
             continue
+        if source.startswith("!=", index):
+            tokens.append(Token(TokenKind.NOT_EQUAL, "!=", token_line, token_column))
+            index += 2
+            column += 2
+            continue
+        if source.startswith(">=", index):
+            tokens.append(Token(TokenKind.GREATER_EQUAL, ">=", token_line, token_column))
+            index += 2
+            column += 2
+            continue
+        if source.startswith("<=", index):
+            tokens.append(Token(TokenKind.LESS_EQUAL, "<=", token_line, token_column))
+            index += 2
+            column += 2
+            continue
         if source.startswith("&&", index):
             tokens.append(Token(TokenKind.AND, "&&", token_line, token_column))
             index += 2
@@ -115,6 +134,7 @@ def lex(source: str) -> list[Token]:
             "+": TokenKind.PLUS,
             ",": TokenKind.COMMA,
             ">": TokenKind.GREATER,
+            "<": TokenKind.LESS,
             "-": TokenKind.MINUS,
             "*": TokenKind.STAR,
             "/": TokenKind.SLASH,

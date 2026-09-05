@@ -137,16 +137,23 @@ class Parser:
 
     def _equality(self):
         expression = self._comparison()
-        while self._check(TokenKind.EQUAL_EQUAL):
+        while self._check(TokenKind.EQUAL_EQUAL) or self._check(TokenKind.NOT_EQUAL):
+            operator = self._current().lexeme
             self.position += 1
-            expression = Binary(expression, "==", self._comparison())
+            expression = Binary(expression, operator, self._comparison())
         return expression
 
     def _comparison(self):
         expression = self._term()
-        while self._check(TokenKind.GREATER):
+        while (
+            self._check(TokenKind.GREATER)
+            or self._check(TokenKind.GREATER_EQUAL)
+            or self._check(TokenKind.LESS)
+            or self._check(TokenKind.LESS_EQUAL)
+        ):
+            operator = self._current().lexeme
             self.position += 1
-            expression = Binary(expression, ">", self._term())
+            expression = Binary(expression, operator, self._term())
         return expression
 
     def _term(self):

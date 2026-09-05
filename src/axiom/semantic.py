@@ -176,9 +176,9 @@ def _expression_type(expression, variables: dict[str, str], signatures) -> str:
         right_type = _expression_type(expression.right, variables, signatures)
         if expression.operator == "+" and left_type == right_type == "Int":
             return "Int"
-        if expression.operator == ">" and left_type == right_type == "Int":
+        if expression.operator in {">", ">=", "<", "<="} and left_type == right_type == "Int":
             return "Bool"
-        if expression.operator == "==" and left_type == right_type:
+        if expression.operator in {"==", "!="} and left_type == right_type:
             return "Bool"
         if expression.operator in {"-", "*", "/"} and left_type == right_type == "Int":
             return "Int"
