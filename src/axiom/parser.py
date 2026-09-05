@@ -211,7 +211,7 @@ class Parser:
 
     def _factor(self):
         expression = self._unary()
-        while self._check(TokenKind.STAR) or self._check(TokenKind.SLASH):
+        while self._check(TokenKind.STAR) or self._check(TokenKind.SLASH) or self._check(TokenKind.PERCENT):
             operator = self._current().lexeme
             self.position += 1
             expression = Binary(expression, operator, self._unary())

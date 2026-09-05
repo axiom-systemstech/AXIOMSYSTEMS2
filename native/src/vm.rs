@@ -403,6 +403,16 @@ impl Machine {
                                 }
                             }
                         }
+                        BinaryOperator::Modulo => {
+                            let left = left.as_int()?;
+                            let right = right.as_int()?;
+                            if right == 0 {
+                                return Err(VmError {
+                                    message: "division by zero".into(),
+                                });
+                            }
+                            Value::Int(left % right)
+                        }
                         BinaryOperator::Greater => {
                             Value::Bool(compare_numeric(&left, &right, |left, right| left > right)?)
                         }
@@ -765,6 +775,7 @@ fn encode_binary(op: &BinaryOperator) -> String {
         BinaryOperator::Subtract => "Subtract".to_string(),
         BinaryOperator::Multiply => "Multiply".to_string(),
         BinaryOperator::Divide => "Divide".to_string(),
+        BinaryOperator::Modulo => "Modulo".to_string(),
         BinaryOperator::Greater => "Greater".to_string(),
         BinaryOperator::GreaterEqual => "GreaterEqual".to_string(),
         BinaryOperator::Less => "Less".to_string(),
@@ -782,6 +793,7 @@ fn decode_binary(value: &str) -> Result<BinaryOperator, VmError> {
         "Subtract" => Ok(BinaryOperator::Subtract),
         "Multiply" => Ok(BinaryOperator::Multiply),
         "Divide" => Ok(BinaryOperator::Divide),
+        "Modulo" => Ok(BinaryOperator::Modulo),
         "Greater" => Ok(BinaryOperator::Greater),
         "GreaterEqual" => Ok(BinaryOperator::GreaterEqual),
         "Less" => Ok(BinaryOperator::Less),
@@ -956,6 +968,14 @@ mod tests {
         let program = parse("fn main() { let total: Int = 20 + 22; print(total) }").unwrap();
         let output = execute_program(&program).unwrap();
         assert_eq!(output, "42\n");
+    }
+
+    #[test]
+    fn executes_compiled_integer_remainder() {
+        let program = parse("fn main() { print(17 % 5) }").unwrap();
+        let artifact = compile_program(&program);
+        let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
+        assert_eq!(execute_artifact(&decoded).unwrap(), "2\n");
     }
 
     #[test]

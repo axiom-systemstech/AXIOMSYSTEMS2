@@ -40,6 +40,7 @@ class TokenKind(Enum):
     NOT_EQUAL = auto()
     MINUS = auto()
     STAR = auto()
+    PERCENT = auto()
     SLASH = auto()
     BANG = auto()
     AND = auto()
@@ -141,6 +142,7 @@ def lex(source: str) -> list[Token]:
             "<": TokenKind.LESS,
             "-": TokenKind.MINUS,
             "*": TokenKind.STAR,
+            "%": TokenKind.PERCENT,
             "/": TokenKind.SLASH,
             "!": TokenKind.BANG,
         }

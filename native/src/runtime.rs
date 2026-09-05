@@ -375,6 +375,20 @@ fn evaluate(
         Expression::Binary {
             left,
             right,
+            operator: crate::parser::BinaryOperator::Modulo,
+        } => {
+            let left = integer(left, variables, functions, output)?;
+            let right = integer(right, variables, functions, output)?;
+            if right == 0 {
+                return Err(RuntimeError {
+                    message: "division by zero".into(),
+                });
+            }
+            Ok((left % right).to_string())
+        }
+        Expression::Binary {
+            left,
+            right,
             operator: crate::parser::BinaryOperator::Greater,
         } => {
             let left = evaluate(left, variables, functions, output)?
@@ -745,6 +759,11 @@ mod tests {
     #[test]
     fn runs_arithmetic_operators() {
         assert_eq!(run("fn main() { print(2 + 3 * 4 - 2) }").unwrap(), "12\n");
+    }
+
+    #[test]
+    fn runs_integer_remainder() {
+        assert_eq!(run("fn main() { print(17 % 5) }").unwrap(), "2\n");
     }
 
     #[test]

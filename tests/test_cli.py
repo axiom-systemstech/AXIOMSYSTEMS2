@@ -409,6 +409,13 @@ def test_runtime_executes_float_arithmetic(tmp_path, capsys):
     assert capsys.readouterr().out == "4.0\n2.0\n"
 
 
+def test_runtime_executes_integer_remainder(tmp_path, capsys):
+    source = tmp_path / "remainder.ax"
+    source.write_text("fn main() { print(17 % 5) }", encoding="utf-8")
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "2\n"
+
+
 def test_runtime_reports_float_division_by_zero(tmp_path, capsys):
     source = tmp_path / "float_zero.ax"
     source.write_text("fn main() { print(1.0 / 0.0) }", encoding="utf-8")

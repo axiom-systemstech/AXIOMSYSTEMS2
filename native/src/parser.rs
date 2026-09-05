@@ -96,6 +96,7 @@ pub enum BinaryOperator {
     Subtract,
     Multiply,
     Divide,
+    Modulo,
     Greater,
     GreaterEqual,
     Less,
@@ -455,9 +456,14 @@ impl Parser {
 
     fn factor(&mut self) -> Result<Expression, ParseError> {
         let mut expression = self.unary()?;
-        while self.check(TokenKind::Star) || self.check(TokenKind::Slash) {
+        while self.check(TokenKind::Star)
+            || self.check(TokenKind::Slash)
+            || self.check(TokenKind::Percent)
+        {
             let operator = if self.check(TokenKind::Star) {
                 BinaryOperator::Multiply
+            } else if self.check(TokenKind::Percent) {
+                BinaryOperator::Modulo
             } else {
                 BinaryOperator::Divide
             };

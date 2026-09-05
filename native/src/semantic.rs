@@ -40,10 +40,7 @@ fn check_function(function: &Function, functions: &[Function]) -> Result<(), Sem
             .any(|statement| matches!(statement, Statement::Return(_)))
     {
         return Err(SemanticError {
-            message: format!(
-                "function '{}' must return a value",
-                function.name
-            ),
+            message: format!("function '{}' must return a value", function.name),
         });
     }
     Ok(())
@@ -114,6 +111,10 @@ fn check_expression(
                                 .into(),
                         })
                     }
+                }
+                BinaryOperator::Modulo => {
+                    require_types(left_type, right_type, Type::Int, "modulo operator")?;
+                    Ok(Some(Type::Int))
                 }
                 BinaryOperator::Greater
                 | BinaryOperator::GreaterEqual
@@ -429,10 +430,9 @@ mod tests {
 
     #[test]
     fn rejects_declared_return_without_return_statement() {
-        let error = analyze(
-            &parse("fn answer() -> Int { print(1) } fn main() { print(0) }").unwrap(),
-        )
-        .unwrap_err();
+        let error =
+            analyze(&parse("fn answer() -> Int { print(1) } fn main() { print(0) }").unwrap())
+                .unwrap_err();
         assert_eq!(error.message, "function 'answer' must return a value");
     }
 

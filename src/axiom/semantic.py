@@ -214,6 +214,8 @@ def _expression_type(expression, variables: dict[str, str], signatures) -> str:
         right_type = _expression_type(expression.right, variables, signatures)
         if expression.operator in {"+", "-", "*", "/"} and left_type == right_type in {"Int", "Float"}:
             return left_type
+        if expression.operator == "%" and left_type == right_type == "Int":
+            return "Int"
         if expression.operator == "+" and left_type == right_type == "String":
             return "String"
         if expression.operator in {">", ">=", "<", "<="} and left_type == right_type in {"Int", "Float"}:

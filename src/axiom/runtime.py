@@ -224,6 +224,12 @@ def _evaluate(expression, variables, functions=None, emit=print):
         if right == 0:
             raise RuntimeError("division by zero")
         return left // right if isinstance(left, int) and isinstance(right, int) else left / right
+    if isinstance(expression, Binary) and expression.operator == "%":
+        left = _evaluate(expression.left, variables, functions, emit)
+        right = _evaluate(expression.right, variables, functions, emit)
+        if right == 0:
+            raise RuntimeError("division by zero")
+        return left % right
     if isinstance(expression, Binary) and expression.operator == "&&":
         return _evaluate(expression.left, variables, functions, emit) and _evaluate(expression.right, variables, functions, emit)
     if isinstance(expression, Binary) and expression.operator == "||":
