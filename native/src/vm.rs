@@ -335,6 +335,20 @@ impl Machine {
                     }
                     self.stack.push(values[index as usize].clone());
                 }
+                Instruction::StoreIndex => {
+                    let value = self.pop_stack()?;
+                    let index = self.pop_stack()?.as_int()?;
+                    let array = self.pop_stack()?;
+                    let values = array.as_array()?.to_vec();
+                    if index < 0 || index >= values.len() as i64 {
+                        return Err(VmError {
+                            message: "index out of bounds".into(),
+                        });
+                    }
+                    let mut updated = values;
+                    updated[index as usize] = value;
+                    self.stack.push(Value::Array(updated));
+                }
                 Instruction::Call {
                     name,
                     argument_count,
@@ -431,6 +445,7 @@ fn encode_instruction(instruction: &Instruction) -> String {
             format!("Call:{}|{}", escape_string(name), argument_count)
         }
         Instruction::Index => "Index".to_string(),
+        Instruction::StoreIndex => "StoreIndex".to_string(),
         Instruction::Print => "Print".to_string(),
         Instruction::Return => "Return".to_string(),
         Instruction::If {
@@ -462,6 +477,9 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
     }
     if token == "Index" {
         return Ok(Instruction::Index);
+    }
+    if token == "StoreIndex" {
+        return Ok(Instruction::StoreIndex);
     }
     if let Some(value) = token.strip_prefix("PushInt:") {
         let value = value.parse::<i64>().map_err(|_| VmError {

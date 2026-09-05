@@ -75,9 +75,9 @@ fn invoke(
                     return Ok(Some(value));
                 }
             }
-            Statement::Assign { name, value } => {
+            Statement::Assign { target, value } => {
                 let evaluated = evaluate(value, &variables, functions, output)?;
-                variables.insert(name.clone(), evaluated);
+                assign_target(target, evaluated, &mut variables, functions, output)?;
             }
             Statement::While { condition, body } => {
                 while evaluate(condition, &variables, functions, output)? == "true" {
@@ -133,9 +133,9 @@ fn execute_block(
                     return Ok(Some(value));
                 }
             }
-            Statement::Assign { name, value } => {
+            Statement::Assign { target, value } => {
                 let evaluated = evaluate(value, variables, functions, output)?;
-                variables.insert(name.clone(), evaluated);
+                assign_target(target, evaluated, variables, functions, output)?;
             }
             Statement::While { condition, body } => {
                 while evaluate(condition, variables, functions, output)? == "true" {
@@ -147,6 +147,43 @@ fn execute_block(
         }
     }
     Ok(None)
+}
+
+fn assign_target(
+    target: &Expression,
+    value: String,
+    variables: &mut std::collections::HashMap<String, String>,
+    functions: &[crate::parser::Function],
+    output: &mut String,
+) -> Result<(), RuntimeError> {
+    match target {
+        Expression::Variable(name) => {
+            variables.insert(name.clone(), value);
+            Ok(())
+        }
+        Expression::Index { target, index } => {
+            let target_value = evaluate(target, variables, functions, output)?;
+            let index = integer(index, variables, functions, output)?;
+            let mut elements = parse_array_literal(&target_value)?;
+            if index < 0 || index >= elements.len() as i64 {
+                return Err(RuntimeError {
+                    message: "index out of bounds".into(),
+                });
+            }
+            elements[index as usize] = value;
+            let updated = format!("[{}]", elements.join(", "));
+            match &**target {
+                Expression::Variable(name) => {
+                    variables.insert(name.clone(), updated);
+                    Ok(())
+                }
+                _ => assign_target(target, updated, variables, functions, output),
+            }
+        }
+        _ => Err(RuntimeError {
+            message: "invalid assignment target".into(),
+        }),
+    }
 }
 
 fn evaluate(
@@ -421,6 +458,15 @@ mod tests {
         assert_eq!(
             run("fn main() { let values = [10, 20, 30]; print(values[1]) }").unwrap(),
             "20\n"
+        );
+    }
+
+    #[test]
+    fn runs_indexed_assignment() {
+        assert_eq!(
+            run("fn main() { let values = [10, 20, 30]; values[1] = 99; print(values[1]) }")
+                .unwrap(),
+            "99\n"
         );
     }
 

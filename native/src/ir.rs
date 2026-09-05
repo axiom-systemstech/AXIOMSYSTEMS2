@@ -21,6 +21,7 @@ pub enum Instruction {
         argument_count: usize,
     },
     Index,
+    StoreIndex,
     Print,
     Return,
     If {
@@ -107,11 +108,33 @@ fn lower_block(statements: &[Statement]) -> Vec<Instruction> {
                 });
                 body
             }
-            Statement::Assign { name, value } => {
-                let mut body = lower_expression(value);
-                body.push(Instruction::StoreVariable(name.clone()));
-                body
-            }
+            Statement::Assign { target, value } => match target {
+                Expression::Variable(name) => {
+                    let mut body = lower_expression(value);
+                    body.push(Instruction::StoreVariable(name.clone()));
+                    body
+                }
+                Expression::Index { target, index } => match &**target {
+                    Expression::Variable(name) => {
+                        let mut body = lower_expression(target);
+                        body.extend(lower_expression(index));
+                        body.extend(lower_expression(value));
+                        body.push(Instruction::StoreIndex);
+                        body.push(Instruction::StoreVariable(name.clone()));
+                        body
+                    }
+                    _ => {
+                        let mut body = lower_expression(value);
+                        body.push(Instruction::StoreVariable("_tmp".to_string()));
+                        body
+                    }
+                },
+                _ => {
+                    let mut body = lower_expression(value);
+                    body.push(Instruction::StoreVariable("_tmp".to_string()));
+                    body
+                }
+            },
             Statement::While { condition, body } => {
                 let mut instructions = Vec::new();
                 instructions.push(Instruction::While {

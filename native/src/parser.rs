@@ -42,7 +42,7 @@ pub enum Statement {
         else_body: Vec<Statement>,
     },
     Assign {
-        name: String,
+        target: Expression,
         value: Expression,
     },
     While {
@@ -239,18 +239,17 @@ impl Parser {
             self.position += 1;
             return Ok(Statement::Return(self.expression()?));
         }
-        if self.check(TokenKind::Identifier)
-            && self
-                .tokens
-                .get(self.position + 1)
-                .is_some_and(|token| token.kind == TokenKind::Equal)
-        {
-            let name = self.current().lexeme.clone();
-            self.position += 2;
-            return Ok(Statement::Assign {
-                name,
-                value: self.expression()?,
-            });
+        if self.check(TokenKind::Identifier) {
+            let checkpoint = self.position;
+            let target = self.primary()?;
+            if self.check(TokenKind::Equal) {
+                self.position += 1;
+                return Ok(Statement::Assign {
+                    target,
+                    value: self.expression()?,
+                });
+            }
+            self.position = checkpoint;
         }
         self.call()
     }

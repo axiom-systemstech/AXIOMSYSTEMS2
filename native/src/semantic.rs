@@ -212,14 +212,12 @@ fn check_block(
                 require_bool(check_expression(condition, variables, functions)?)?;
                 check_block(body, &mut variables.clone(), functions, return_type.clone())?;
             }
-            Statement::Assign { name, value } => {
-                let existing = variables.get(name).cloned().ok_or_else(|| SemanticError {
-                    message: format!("unknown variable '{name}'"),
-                })?;
+            Statement::Assign { target, value } => {
+                let target_type = check_expression(target, variables, functions)?;
                 let value_type = check_expression(value, variables, functions)?;
-                if existing.is_some() && value_type.is_some() && existing != value_type {
+                if target_type.is_some() && value_type.is_some() && target_type != value_type {
                     return Err(SemanticError {
-                        message: format!("assignment to '{name}' has incompatible type"),
+                        message: "assignment has incompatible type".into(),
                     });
                 }
             }
