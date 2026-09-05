@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Expression, If, Index, IntegerLiteral, Let, Program, StringLiteral, Unary, Variable
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Expression, If, Index, IntegerLiteral, Let, Program, StringLiteral, Unary, Variable, While
 
 IRValue = Expression | str | int | bool
 
@@ -33,7 +33,13 @@ class IfInstruction:
     else_body: list["Instruction"]
 
 
-Instruction = PrintInstruction | LetInstruction | SetInstruction | IfInstruction
+@dataclass(frozen=True)
+class WhileInstruction:
+    condition: IRValue
+    body: list["Instruction"]
+
+
+Instruction = PrintInstruction | LetInstruction | SetInstruction | IfInstruction | WhileInstruction
 
 
 @dataclass(frozen=True)
@@ -69,6 +75,8 @@ def _lower_block(statements) -> list[Instruction]:
                     _lower_block(statement.else_body),
                 )
             )
+        elif isinstance(statement, While):
+            instructions.append(WhileInstruction(statement.condition, _lower_block(statement.body)))
         else:
             instructions.append(PrintInstruction(statement.arguments[0]))
     return instructions
@@ -90,6 +98,10 @@ def _render_block(instructions: list[Instruction], lines: list[str], depth: int)
             if instruction.else_body:
                 lines.append(f"{prefix}ELSE")
                 _render_block(instruction.else_body, lines, depth + 1)
+            lines.append(f"{prefix}END")
+        elif isinstance(instruction, WhileInstruction):
+            lines.append(f"{prefix}WHILE {_render_expression(instruction.condition)}")
+            _render_block(instruction.body, lines, depth + 1)
             lines.append(f"{prefix}END")
         else:
             lines.append(f"{prefix}PRINT {_render_expression(instruction.value)}")

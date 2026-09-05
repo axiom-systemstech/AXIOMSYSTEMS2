@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
-from .ir import IRProgram, IfInstruction, LetInstruction, SetInstruction
+from .ir import IRProgram, IfInstruction, LetInstruction, SetInstruction, WhileInstruction
 
 
 def execute(program: IRProgram, emit: Callable[[str], None] = print) -> None:
@@ -23,6 +23,9 @@ def _execute_block(instructions, variables, emit):
         elif isinstance(instruction, IfInstruction):
             branch = instruction.then_body if _evaluate(instruction.condition, variables) else instruction.else_body
             _execute_block(branch, variables, emit)
+        elif isinstance(instruction, WhileInstruction):
+            while _evaluate(instruction.condition, variables):
+                _execute_block(instruction.body, variables, emit)
         else:
             value = _evaluate(instruction.value, variables)
             emit(str(value).lower() if isinstance(value, bool) else str(value))

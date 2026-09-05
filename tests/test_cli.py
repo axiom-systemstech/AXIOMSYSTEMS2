@@ -1,7 +1,8 @@
 from axiom.cli import main
 from axiom.ast import BooleanLiteral, Call, Function, IntegerLiteral, Program, StringLiteral
+from axiom.ast import Binary
 from axiom.ast import Variable
-from axiom.ir import IRProgram, IfInstruction, LetInstruction, PrintInstruction, SetInstruction, lower
+from axiom.ir import IRProgram, IfInstruction, LetInstruction, PrintInstruction, SetInstruction, WhileInstruction, lower
 from axiom.lexer import LexError, TokenKind, lex
 from axiom.parser import ParseError, parse
 from axiom.runtime import execute
@@ -180,6 +181,48 @@ def test_ir_if_branch_can_mutate_shared_state():
         output.append,
     )
     assert output == ["2"]
+
+
+def test_ir_renders_and_executes_while_loop():
+    program = parse("fn main() { let count: Int = 0; while count < 3 { print(count); count = count + 1 } }")
+    assert lower(program).render() == (
+        "AXIOM-IR 0.1\n"
+        "LET count = 0\n"
+        "WHILE count < 3\n"
+        "  PRINT count\n"
+        "  SET count = count + 1\n"
+        "END\n"
+    )
+    output = []
+    execute(lower(program), output.append)
+    assert output == ["0", "1", "2"]
+
+
+def test_ir_while_body_can_contain_if():
+    output = []
+    execute(
+        IRProgram(
+            [
+                LetInstruction("count", IntegerLiteral(0)),
+                WhileInstruction(
+                    Binary(Variable("count"), "<", IntegerLiteral(2)),
+                    [
+                        IfInstruction(
+                            Binary(Variable("count"), "==", IntegerLiteral(0)),
+                            [PrintInstruction(StringLiteral("first"))],
+                            [],
+                        ),
+                        SetInstruction(
+                            Variable("count"),
+                            Binary(Variable("count"), "+", IntegerLiteral(1)),
+                        ),
+                    ],
+                ),
+            ]
+        ),
+        output.append,
+    )
+    assert output == ["first"]
 
 
 def test_build_writes_python_ir_for_arrays(tmp_path, capsys):
