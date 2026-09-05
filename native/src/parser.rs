@@ -393,26 +393,22 @@ impl Parser {
 
     fn primary(&mut self) -> Result<Expression, ParseError> {
         let token = self.current().clone();
-        match token.kind {
+        let mut expression = match token.kind {
             TokenKind::String => {
                 self.position += 1;
-                Ok(Expression::String(
-                    token.lexeme[1..token.lexeme.len() - 1].to_owned(),
-                ))
+                Expression::String(token.lexeme[1..token.lexeme.len() - 1].to_owned())
             }
             TokenKind::Integer => {
                 self.position += 1;
-                Ok(Expression::Integer(
-                    token.lexeme.parse().expect("lexer emitted integer"),
-                ))
+                Expression::Integer(token.lexeme.parse().expect("lexer emitted integer"))
             }
             TokenKind::True => {
                 self.position += 1;
-                Ok(Expression::Boolean(true))
+                Expression::Boolean(true)
             }
             TokenKind::False => {
                 self.position += 1;
-                Ok(Expression::Boolean(false))
+                Expression::Boolean(false)
             }
             TokenKind::Identifier => {
                 let name = token.lexeme.clone();
@@ -428,17 +424,9 @@ impl Parser {
                         }
                     }
                     self.consume(TokenKind::RParen, "expected ')'")?;
-                    Ok(Expression::Call(Call { name, arguments }))
-                } else if self.check(TokenKind::LBracket) {
-                    self.position += 1;
-                    let index = self.expression()?;
-                    self.consume(TokenKind::RBracket, "expected ']'")?;
-                    Ok(Expression::Index {
-                        target: Box::new(Expression::Variable(name)),
-                        index: Box::new(index),
-                    })
+                    Expression::Call(Call { name, arguments })
                 } else {
-                    Ok(Expression::Variable(name))
+                    Expression::Variable(name)
                 }
             }
             TokenKind::LBracket => {
@@ -452,10 +440,20 @@ impl Parser {
                     }
                 }
                 self.consume(TokenKind::RBracket, "expected ']'")?;
-                Ok(Expression::Array(elements))
+                Expression::Array(elements)
             }
-            _ => Err(self.error("expected literal")),
+            _ => return Err(self.error("expected literal")),
+        };
+        while self.check(TokenKind::LBracket) {
+            self.position += 1;
+            let index = self.expression()?;
+            self.consume(TokenKind::RBracket, "expected ']'")?;
+            expression = Expression::Index {
+                target: Box::new(expression),
+                index: Box::new(index),
+            };
         }
+        Ok(expression)
     }
 
     fn consume(&mut self, kind: TokenKind, message: &str) -> Result<Token, ParseError> {
@@ -534,6 +532,15 @@ mod tests {
             program.functions[0].return_type,
             Some(Type::Array(Box::new(Type::Int)))
         );
+    }
+
+    #[test]
+    fn parses_chained_array_indexing() {
+        let program = parse("fn main() { print([[10]][0][0]) }").unwrap();
+        assert!(matches!(
+            program.functions[0].body[0],
+            Statement::Call(Call { .. })
+        ));
     }
 
     #[test]

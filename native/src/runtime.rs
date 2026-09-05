@@ -309,10 +309,45 @@ fn parse_array_literal(value: &str) -> Result<Vec<String>, RuntimeError> {
     if inner.trim().is_empty() {
         return Ok(Vec::new());
     }
-    Ok(inner
-        .split(',')
-        .map(|entry| entry.trim().to_string())
-        .collect())
+    let mut elements = Vec::new();
+    let mut start = 0;
+    let mut depth = 0;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (index, character) in inner.char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match character {
+            '"' => in_string = true,
+            '[' => depth += 1,
+            ']' if depth > 0 => depth -= 1,
+            ']' => {
+                return Err(RuntimeError {
+                    message: "expected array literal".into(),
+                });
+            }
+            ',' if depth == 0 => {
+                elements.push(inner[start..index].trim().to_string());
+                start = index + character.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    if depth != 0 || in_string {
+        return Err(RuntimeError {
+            message: "expected array literal".into(),
+        });
+    }
+    elements.push(inner[start..].trim().to_string());
+    Ok(elements)
 }
 
 #[cfg(test)]
@@ -385,6 +420,14 @@ mod tests {
     fn runs_array_literal_and_indexing() {
         assert_eq!(
             run("fn main() { let values = [10, 20, 30]; print(values[1]) }").unwrap(),
+            "20\n"
+        );
+    }
+
+    #[test]
+    fn runs_chained_array_indexing() {
+        assert_eq!(
+            run("fn main() { print([[10, 20]][0][1]) }").unwrap(),
             "20\n"
         );
     }

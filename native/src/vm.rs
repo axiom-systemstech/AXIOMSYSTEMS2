@@ -740,6 +740,16 @@ mod tests {
     }
 
     #[test]
+    fn executes_compiled_chained_array_indexing() {
+        let program = parse("fn main() { print([[10, 20]][0][1]) }").unwrap();
+        let artifact = compile_program(&program);
+        let encoded = artifact.serialize();
+        let decoded = Artifact::deserialize(&encoded).unwrap();
+        let output = execute_artifact(&decoded).unwrap();
+        assert_eq!(output, "20\n");
+    }
+
+    #[test]
     fn writes_artifact_to_custom_output_path() {
         let program = parse("fn main() { print(42) }").unwrap();
         let temp_dir = std::env::temp_dir().join(format!("axiom-artifact-{}", std::process::id()));
