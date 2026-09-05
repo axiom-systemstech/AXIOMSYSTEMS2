@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
-from .ir import IRProgram, LetInstruction
+from .ir import IRProgram, LetInstruction, SetInstruction
 
 
 def execute(program: IRProgram, emit: Callable[[str], None] = print) -> None:
@@ -14,6 +14,8 @@ def execute(program: IRProgram, emit: Callable[[str], None] = print) -> None:
     for instruction in program.instructions:
         if isinstance(instruction, LetInstruction):
             variables[instruction.name] = _evaluate(instruction.value, variables)
+        elif isinstance(instruction, SetInstruction):
+            _assign(instruction.target, _evaluate(instruction.value, variables), variables)
         else:
             value = _evaluate(instruction.value, variables)
             emit(str(value).lower() if isinstance(value, bool) else str(value))
@@ -131,7 +133,7 @@ def _evaluate(expression, variables, functions=None, emit=print):
     raise RuntimeError("unsupported IR expression")
 
 
-def _assign(target, value, variables, functions, emit):
+def _assign(target, value, variables, functions=None, emit=print):
     if isinstance(target, Variable):
         variables[target.name] = value
         return

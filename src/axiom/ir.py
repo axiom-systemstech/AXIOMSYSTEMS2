@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .ast import ArrayLiteral, Binary, BooleanLiteral, Expression, Index, IntegerLiteral, Let, Program, StringLiteral, Unary, Variable
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Expression, Index, IntegerLiteral, Let, Program, StringLiteral, Unary, Variable
 
 IRValue = Expression | str | int | bool
 
@@ -21,14 +21,28 @@ class LetInstruction:
 
 
 @dataclass(frozen=True)
+class SetInstruction:
+    target: Expression
+    value: IRValue
+
+
+Instruction = PrintInstruction | LetInstruction | SetInstruction
+
+
+@dataclass(frozen=True)
 class IRProgram:
-    instructions: list[PrintInstruction]
+    instructions: list[Instruction]
 
     def render(self) -> str:
         lines = ["AXIOM-IR 0.1"]
         for instruction in self.instructions:
             if isinstance(instruction, LetInstruction):
                 lines.append(f"LET {instruction.name} = {_render_expression(instruction.value)}")
+            elif isinstance(instruction, SetInstruction):
+                lines.append(
+                    f"SET {_render_expression(instruction.target)} = "
+                    f"{_render_expression(instruction.value)}"
+                )
             else:
                 lines.append(f"PRINT {_render_expression(instruction.value)}")
         return "\n".join(lines) + "\n"
@@ -41,6 +55,8 @@ def lower(program: Program) -> IRProgram:
             for statement in function.body:
                 if isinstance(statement, Let):
                     instructions.append(LetInstruction(statement.name, statement.value))
+                elif isinstance(statement, Assign):
+                    instructions.append(SetInstruction(statement.target, statement.value))
                 else:
                     instructions.append(PrintInstruction(statement.arguments[0]))
     return IRProgram(instructions)

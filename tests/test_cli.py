@@ -1,6 +1,7 @@
 from axiom.cli import main
 from axiom.ast import BooleanLiteral, Call, Function, IntegerLiteral, Program, StringLiteral
-from axiom.ir import IRProgram, PrintInstruction, lower
+from axiom.ast import Variable
+from axiom.ir import IRProgram, PrintInstruction, SetInstruction, lower
 from axiom.lexer import LexError, TokenKind, lex
 from axiom.parser import ParseError, parse
 from axiom.runtime import execute
@@ -121,14 +122,40 @@ def test_ir_renders_arrays_indexing_and_comparisons():
     )
 
 
+def test_ir_renders_assignments():
+    program = parse(
+        "fn main() { let values: Int[] = [10, 20]; values[1] = 99; print(values[1]) }"
+    )
+    assert lower(program).render() == (
+        "AXIOM-IR 0.1\n"
+        "LET values = [10, 20]\n"
+        "SET values[1] = 99\n"
+        "PRINT values[1]\n"
+    )
+
+
+def test_ir_runtime_executes_set_instruction():
+    output = []
+    execute(
+        IRProgram(
+            [
+                SetInstruction(Variable("value"), IntegerLiteral(42)),
+                PrintInstruction(Variable("value")),
+            ]
+        ),
+        output.append,
+    )
+    assert output == ["42"]
+
+
 def test_build_writes_python_ir_for_arrays(tmp_path, capsys):
     source = tmp_path / "arrays.ax"
     output = tmp_path / "arrays.air"
-    source.write_text("fn main() { let values: Int[] = [10, 20]; print(values[1]) }", encoding="utf-8")
+    source.write_text("fn main() { let values: Int[] = [10, 20]; values[1] = 99; print(values[1]) }", encoding="utf-8")
 
     assert main(["build", str(source), "--output", str(output)]) == 0
     assert output.read_text(encoding="utf-8") == (
-        "AXIOM-IR 0.1\nLET values = [10, 20]\nPRINT values[1]\n"
+        "AXIOM-IR 0.1\nLET values = [10, 20]\nSET values[1] = 99\nPRINT values[1]\n"
     )
     assert f"built: {output}" in capsys.readouterr().out
 
