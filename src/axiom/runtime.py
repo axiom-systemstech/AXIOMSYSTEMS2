@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FieldAccess, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, StructLiteral, Unary, Variable, While
 from .ir import BreakInstruction, CallInstruction, ContinueInstruction, ForInstruction, IRFunction, IRProgram, IfInstruction, LetInstruction, ReturnInstruction, SetInstruction, WhileInstruction
 
 
@@ -187,8 +187,16 @@ def _evaluate(expression, variables, functions=None, emit=print):
         return expression.value
     if isinstance(expression, ArrayLiteral):
         return [_evaluate(element, variables, functions, emit) for element in expression.elements]
+    if isinstance(expression, StructLiteral):
+        return {name: _evaluate(value, variables, functions, emit) for name, value in expression.fields}
     if isinstance(expression, Variable):
         return variables[expression.name]
+    if isinstance(expression, FieldAccess):
+        target = _evaluate(expression.target, variables, functions, emit)
+        try:
+            return target[expression.field]
+        except (KeyError, TypeError):
+            raise RuntimeError("unknown field") from None
     if isinstance(expression, Index):
         target = _evaluate(expression.target, variables, functions, emit)
         index = _evaluate(expression.index, variables, functions, emit)

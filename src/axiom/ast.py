@@ -8,6 +8,13 @@ from dataclasses import dataclass, field
 @dataclass(frozen=True)
 class Program:
     functions: list["Function"]
+    structs: list["StructDefinition"] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class StructDefinition:
+    name: str
+    fields: list["Parameter"]
 
 
 @dataclass(frozen=True)
@@ -53,6 +60,12 @@ class BooleanLiteral:
 @dataclass(frozen=True)
 class ArrayLiteral:
     elements: list["Expression"]
+
+
+@dataclass(frozen=True)
+class StructLiteral:
+    type_name: str
+    fields: list[tuple[str, "Expression"]]
 
 
 @dataclass(frozen=True)
@@ -131,4 +144,10 @@ class Index:
     index: "Expression"
 
 
-Expression = StringLiteral | IntegerLiteral | FloatLiteral | BooleanLiteral | ArrayLiteral | Variable | Binary | Unary | Call | Index
+@dataclass(frozen=True)
+class FieldAccess:
+    target: "Expression"
+    field: str
+
+
+Expression = StringLiteral | IntegerLiteral | FloatLiteral | BooleanLiteral | ArrayLiteral | StructLiteral | Variable | Binary | Unary | Call | Index | FieldAccess

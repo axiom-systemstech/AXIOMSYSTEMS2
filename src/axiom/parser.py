@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Parameter, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FieldAccess, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Parameter, Program, Return, StringLiteral, StructDefinition, StructLiteral, Unary, Variable, While
 from .lexer import Token, TokenKind, lex
 
 
@@ -17,9 +17,27 @@ class Parser:
 
     def parse(self) -> Program:
         functions = []
+        structs = []
         while not self._check(TokenKind.EOF):
-            functions.append(self._function())
-        return Program(functions)
+            if self._check(TokenKind.STRUCT):
+                structs.append(self._struct())
+            else:
+                functions.append(self._function())
+        return Program(functions, structs)
+
+    def _struct(self) -> StructDefinition:
+        self._consume(TokenKind.STRUCT, "expected 'struct'")
+        name = self._consume(TokenKind.IDENTIFIER, "expected struct name").lexeme
+        self._consume(TokenKind.LBRACE, "expected '{'")
+        fields = []
+        while not self._check(TokenKind.RBRACE):
+            field_name = self._consume(TokenKind.IDENTIFIER, "expected field name").lexeme
+            self._consume(TokenKind.COLON, "expected ':'")
+            fields.append(Parameter(field_name, self._type_name()))
+            if self._check(TokenKind.COMMA) or self._check(TokenKind.SEMICOLON):
+                self.position += 1
+        self._consume(TokenKind.RBRACE, "expected '}'")
+        return StructDefinition(name, fields)
 
     def _function(self) -> Function:
         self._consume(TokenKind.FN, "expected 'fn'")
@@ -244,7 +262,18 @@ class Parser:
             return BooleanLiteral(token.kind == TokenKind.TRUE)
         if token.kind == TokenKind.IDENTIFIER:
             self.position += 1
-            if self._check(TokenKind.LPAREN):
+            if self._check(TokenKind.LBRACE):
+                self.position += 1
+                fields = []
+                while not self._check(TokenKind.RBRACE):
+                    field_name = self._consume(TokenKind.IDENTIFIER, "expected field name").lexeme
+                    self._consume(TokenKind.COLON, "expected ':'")
+                    fields.append((field_name, self._expression()))
+                    if self._check(TokenKind.COMMA) or self._check(TokenKind.SEMICOLON):
+                        self.position += 1
+                self._consume(TokenKind.RBRACE, "expected '}'")
+                expression = StructLiteral(token.lexeme, fields)
+            elif self._check(TokenKind.LPAREN):
                 expression = self._finish_call(token.lexeme)
             else:
                 expression = Variable(token.lexeme)
@@ -265,6 +294,10 @@ class Parser:
             index = self._expression()
             self._consume(TokenKind.RBRACKET, "expected ']'")
             expression = Index(expression, index)
+        while self._check(TokenKind.DOT):
+            self.position += 1
+            field = self._consume(TokenKind.IDENTIFIER, "expected field name").lexeme
+            expression = FieldAccess(expression, field)
         return expression
 
     def _finish_call(self, name: str) -> Call:

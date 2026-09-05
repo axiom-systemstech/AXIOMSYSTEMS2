@@ -87,6 +87,24 @@ def test_parser_builds_ast_for_minimal_program():
     )
 
 
+def test_parser_builds_struct_literal_and_field_access():
+    program = parse(
+        "struct Point { x: Int, y: Int } fn main() { let point: Point = Point { x: 10, y: 20 }; print(point.x) }"
+    )
+    assert program.structs[0].name == "Point"
+    assert program.structs[0].fields[0].name == "x"
+
+
+def test_runtime_executes_struct_field_access(tmp_path, capsys):
+    source = tmp_path / "structs.ax"
+    source.write_text(
+        "struct Point { x: Int, y: Int } fn main() { let point: Point = Point { x: 10, y: 20 }; print(point.x); print(point.y) }",
+        encoding="utf-8",
+    )
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "10\n20\n"
+
+
 def test_parser_reports_missing_function_body():
     try:
         parse("fn main()")

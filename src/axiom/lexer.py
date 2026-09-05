@@ -16,6 +16,7 @@ class TokenKind(Enum):
     FOR = auto()
     BREAK = auto()
     CONTINUE = auto()
+    STRUCT = auto()
     TRUE = auto()
     FALSE = auto()
     IDENTIFIER = auto()
@@ -47,6 +48,7 @@ class TokenKind(Enum):
     OR = auto()
     LESS = auto()
     LESS_EQUAL = auto()
+    DOT = auto()
     EOF = auto()
 
 
@@ -62,7 +64,7 @@ class LexError(ValueError):
     """Raised when source text cannot be converted into tokens."""
 
 
-_KEYWORDS = {"fn": TokenKind.FN, "let": TokenKind.LET, "return": TokenKind.RETURN, "if": TokenKind.IF, "else": TokenKind.ELSE, "while": TokenKind.WHILE, "for": TokenKind.FOR, "break": TokenKind.BREAK, "continue": TokenKind.CONTINUE, "true": TokenKind.TRUE, "false": TokenKind.FALSE}
+_KEYWORDS = {"fn": TokenKind.FN, "let": TokenKind.LET, "return": TokenKind.RETURN, "if": TokenKind.IF, "else": TokenKind.ELSE, "while": TokenKind.WHILE, "for": TokenKind.FOR, "break": TokenKind.BREAK, "continue": TokenKind.CONTINUE, "struct": TokenKind.STRUCT, "true": TokenKind.TRUE, "false": TokenKind.FALSE}
 
 
 def lex(source: str) -> list[Token]:
@@ -145,6 +147,7 @@ def lex(source: str) -> list[Token]:
             "%": TokenKind.PERCENT,
             "/": TokenKind.SLASH,
             "!": TokenKind.BANG,
+            ".": TokenKind.DOT,
         }
         if character in punctuation:
             tokens.append(Token(punctuation[character], character, token_line, token_column))

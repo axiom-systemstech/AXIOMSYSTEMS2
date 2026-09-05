@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FieldAccess, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, StructLiteral, Unary, Variable, While
 
 
 class SemanticError(ValueError):
@@ -10,10 +10,11 @@ class SemanticError(ValueError):
 
 
 _BUILTIN_TYPES = {"Int", "Float", "Bool", "String"}
+_STRUCTS: dict[str, dict[str, str]] = {}
 
 
 def _is_known_type(type_name: str) -> bool:
-    return type_name.rstrip("[]") in _BUILTIN_TYPES
+    return type_name.rstrip("[]") in _BUILTIN_TYPES or type_name.rstrip("[]") in _STRUCTS
 
 
 def _types_compatible(expected: str, actual: str) -> bool:
@@ -21,6 +22,19 @@ def _types_compatible(expected: str, actual: str) -> bool:
 
 
 def analyze(program: Program) -> None:
+    global _STRUCTS
+    _STRUCTS = {}
+    for struct in program.structs:
+        if struct.name in _STRUCTS:
+            raise SemanticError(f"duplicate struct '{struct.name}'")
+        fields = {}
+        for field in struct.fields:
+            if field.name in fields:
+                raise SemanticError(f"struct '{struct.name}' has duplicate fields")
+            if not _is_known_type(field.type_name):
+                raise SemanticError(f"struct '{struct.name}' uses an unknown field type")
+            fields[field.name] = field.type_name
+        _STRUCTS[struct.name] = fields
     function_names: set[str] = set()
     signatures = {}
     for function in program.functions:
@@ -187,6 +201,16 @@ def _expression_type(expression, variables: dict[str, str], signatures) -> str:
         return "Int"
     if isinstance(expression, FloatLiteral):
         return "Float"
+    if isinstance(expression, StructLiteral):
+        if expression.type_name not in _STRUCTS:
+            raise SemanticError(f"unknown struct '{expression.type_name}'")
+        expected = _STRUCTS[expression.type_name]
+        actual = {name: _expression_type(value, variables, signatures) for name, value in expression.fields}
+        if set(actual) != set(expected):
+            raise SemanticError(f"struct '{expression.type_name}' has incompatible fields")
+        if any(actual[name] != field_type for name, field_type in expected.items()):
+            raise SemanticError(f"struct '{expression.type_name}' has incompatible fields")
+        return expression.type_name
     if isinstance(expression, BooleanLiteral):
         return "Bool"
     if isinstance(expression, ArrayLiteral):
@@ -207,6 +231,12 @@ def _expression_type(expression, variables: dict[str, str], signatures) -> str:
         if not target_type.endswith("[]"):
             raise SemanticError("index requires an array")
         return target_type[:-2]
+    if isinstance(expression, FieldAccess):
+        target_type = _expression_type(expression.target, variables, signatures)
+        fields = _STRUCTS.get(target_type)
+        if fields is None or expression.field not in fields:
+            raise SemanticError(f"unknown field '{expression.field}'")
+        return fields[expression.field]
     if isinstance(expression, Call):
         return _check_call(expression, variables, signatures)
     if isinstance(expression, Binary):

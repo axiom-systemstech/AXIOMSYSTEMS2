@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, Expression, FloatLiteral, For, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, Expression, FieldAccess, FloatLiteral, For, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, StructLiteral, Unary, Variable, While
 
 IRValue = Expression | str | int | float | bool
 
@@ -207,10 +207,15 @@ def _render_expression(expression: IRValue) -> str:
     if isinstance(expression, ArrayLiteral):
         elements = ", ".join(_render_expression(element) for element in expression.elements)
         return f"[{elements}]"
+    if isinstance(expression, StructLiteral):
+        fields = ", ".join(f"{name}: {_render_expression(value)}" for name, value in expression.fields)
+        return f"{expression.type_name} {{{fields}}}"
     if isinstance(expression, Variable):
         return expression.name
     if isinstance(expression, Index):
         return f"{_render_expression(expression.target)}[{_render_expression(expression.index)}]"
+    if isinstance(expression, FieldAccess):
+        return f"{_render_expression(expression.target)}.{expression.field}"
     if isinstance(expression, Unary):
         return f"{expression.operator}{_render_expression(expression.operand)}"
     if hasattr(expression, "name") and hasattr(expression, "arguments"):
