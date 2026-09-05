@@ -22,6 +22,8 @@ class TokenKind(Enum):
     RPAREN = auto()
     LBRACE = auto()
     RBRACE = auto()
+    LBRACKET = auto()
+    RBRACKET = auto()
     SEMICOLON = auto()
     COLON = auto()
     EQUAL = auto()
@@ -105,6 +107,8 @@ def lex(source: str) -> list[Token]:
             ")": TokenKind.RPAREN,
             "{": TokenKind.LBRACE,
             "}": TokenKind.RBRACE,
+            "[": TokenKind.LBRACKET,
+            "]": TokenKind.RBRACKET,
             ";": TokenKind.SEMICOLON,
             ":": TokenKind.COLON,
             "=": TokenKind.EQUAL,

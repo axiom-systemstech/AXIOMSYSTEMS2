@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import Assign, Binary, BooleanLiteral, Call, Function, If, IntegerLiteral, Let, Parameter, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Function, If, Index, IntegerLiteral, Let, Parameter, Program, Return, StringLiteral, Unary, Variable, While
 from .lexer import Token, TokenKind, lex
 
 
@@ -35,7 +35,7 @@ class Parser:
         return_type = None
         if self._check(TokenKind.ARROW):
             self.position += 1
-            return_type = self._consume(TokenKind.IDENTIFIER, "expected return type").lexeme
+            return_type = self._type_name()
         body = self._block()
         return Function(name, body, parameters, return_type)
 
@@ -54,8 +54,16 @@ class Parser:
     def _parameter(self) -> Parameter:
         name = self._consume(TokenKind.IDENTIFIER, "expected parameter name").lexeme
         self._consume(TokenKind.COLON, "expected ':'")
-        type_name = self._consume(TokenKind.IDENTIFIER, "expected parameter type").lexeme
+        type_name = self._type_name()
         return Parameter(name, type_name)
+
+    def _type_name(self) -> str:
+        type_name = self._consume(TokenKind.IDENTIFIER, "expected type name").lexeme
+        while self._check(TokenKind.LBRACKET):
+            self.position += 1
+            self._consume(TokenKind.RBRACKET, "expected ']' in array type")
+            type_name += "[]"
+        return type_name
 
     def _statement(self) -> Call | Let:
         if self._check(TokenKind.LET):
@@ -64,7 +72,7 @@ class Parser:
             type_name = None
             if self._check(TokenKind.COLON):
                 self.position += 1
-                type_name = self._consume(TokenKind.IDENTIFIER, "expected type name").lexeme
+                type_name = self._type_name()
             self._consume(TokenKind.EQUAL, "expected '='")
             return Let(name, type_name, self._expression())
         if self._check(TokenKind.RETURN):
@@ -82,10 +90,13 @@ class Parser:
         if self._check(TokenKind.WHILE):
             self.position += 1
             return While(self._expression(), self._block())
-        if self._check(TokenKind.IDENTIFIER) and self._peek().kind == TokenKind.EQUAL:
-            name = self._current().lexeme
-            self.position += 2
-            return Assign(name, self._expression())
+        if self._check(TokenKind.IDENTIFIER):
+            checkpoint = self.position
+            target = self._primary()
+            if self._check(TokenKind.EQUAL):
+                self.position += 1
+                return Assign(target, self._expression())
+            self.position = checkpoint
         expression = self._expression()
         if not isinstance(expression, Call):
             self._error(self._current(), "expected statement")
@@ -179,9 +190,27 @@ class Parser:
         if token.kind == TokenKind.IDENTIFIER:
             self.position += 1
             if self._check(TokenKind.LPAREN):
-                return self._finish_call(token.lexeme)
-            return Variable(token.lexeme)
-        self._error(token, "expected expression")
+                expression = self._finish_call(token.lexeme)
+            else:
+                expression = Variable(token.lexeme)
+        elif token.kind == TokenKind.LBRACKET:
+            self.position += 1
+            elements = []
+            if not self._check(TokenKind.RBRACKET):
+                elements.append(self._expression())
+                while self._check(TokenKind.COMMA):
+                    self.position += 1
+                    elements.append(self._expression())
+            self._consume(TokenKind.RBRACKET, "expected ']'")
+            expression = ArrayLiteral(elements)
+        else:
+            self._error(token, "expected expression")
+        while self._check(TokenKind.LBRACKET):
+            self.position += 1
+            index = self._expression()
+            self._consume(TokenKind.RBRACKET, "expected ']'")
+            expression = Index(expression, index)
+        return expression
 
     def _finish_call(self, name: str) -> Call:
         self._consume(TokenKind.LPAREN, "expected '('")

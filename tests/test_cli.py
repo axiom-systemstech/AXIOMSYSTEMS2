@@ -182,3 +182,32 @@ def test_runtime_respects_operator_precedence(tmp_path, capsys):
     )
     assert main(["run", str(source)]) == 0
     assert capsys.readouterr().out == "14\ntrue\n-5\n"
+
+
+def test_runtime_executes_arrays_and_indexed_assignment(tmp_path, capsys):
+    source = tmp_path / "arrays.ax"
+    source.write_text(
+        "fn main() { let values: Int[] = [10, 20, 30]; values[1] = 99; print(values[1]) }",
+        encoding="utf-8",
+    )
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "99\n"
+
+
+def test_semantic_analysis_rejects_heterogeneous_arrays():
+    try:
+        analyze(parse("fn main() { print([1, true]) }"))
+    except SemanticError as error:
+        assert str(error) == "array elements must share the same type"
+    else:
+        raise AssertionError("expected SemanticError")
+
+
+def test_runtime_executes_nested_array_assignment(tmp_path, capsys):
+    source = tmp_path / "nested_arrays.ax"
+    source.write_text(
+        "fn main() { let matrix: Int[][] = [[10, 20], [30, 40]]; matrix[1][0] = 99; print(matrix[1][0]) }",
+        encoding="utf-8",
+    )
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "99\n"

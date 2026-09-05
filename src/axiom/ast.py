@@ -46,6 +46,11 @@ class BooleanLiteral:
 
 
 @dataclass(frozen=True)
+class ArrayLiteral:
+    elements: list["Expression"]
+
+
+@dataclass(frozen=True)
 class Variable:
     name: str
 
@@ -84,7 +89,7 @@ class If:
 
 @dataclass(frozen=True)
 class Assign:
-    name: str
+    target: "Expression"
     value: "Expression"
 
 
@@ -95,4 +100,10 @@ class While:
 
 
 Statement = Call | Let | Return | If | Assign | While
-Expression = StringLiteral | IntegerLiteral | BooleanLiteral | Variable | Binary | Unary | Call
+@dataclass(frozen=True)
+class Index:
+    target: "Expression"
+    index: "Expression"
+
+
+Expression = StringLiteral | IntegerLiteral | BooleanLiteral | ArrayLiteral | Variable | Binary | Unary | Call | Index

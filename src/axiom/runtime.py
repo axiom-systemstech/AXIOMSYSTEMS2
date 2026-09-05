@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .ast import Assign, Binary, BooleanLiteral, Call, Function, If, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
 from .ir import IRProgram, LetInstruction
 
 
@@ -30,7 +30,7 @@ def _invoke(function: Function, arguments, functions, emit):
         if isinstance(statement, Let):
             variables[statement.name] = _evaluate(statement.value, variables, functions, emit)
         elif isinstance(statement, Assign):
-            variables[statement.name] = _evaluate(statement.value, variables, functions, emit)
+            _assign(statement.target, _evaluate(statement.value, variables, functions, emit), variables, functions, emit)
         elif isinstance(statement, Return):
             return _evaluate(statement.value, variables, functions, emit)
         elif isinstance(statement, If):
@@ -57,7 +57,7 @@ def _invoke_block(statements, variables, functions, emit):
         if isinstance(statement, Let):
             variables[statement.name] = _evaluate(statement.value, variables, functions, emit)
         elif isinstance(statement, Assign):
-            variables[statement.name] = _evaluate(statement.value, variables, functions, emit)
+            _assign(statement.target, _evaluate(statement.value, variables, functions, emit), variables, functions, emit)
         elif isinstance(statement, Return):
             return True, _evaluate(statement.value, variables, functions, emit)
         elif isinstance(statement, If):
@@ -84,8 +84,19 @@ def _evaluate(expression, variables, functions=None, emit=print):
         return expression
     if isinstance(expression, (StringLiteral, IntegerLiteral, BooleanLiteral)):
         return expression.value
+    if isinstance(expression, ArrayLiteral):
+        return [_evaluate(element, variables, functions, emit) for element in expression.elements]
     if isinstance(expression, Variable):
         return variables[expression.name]
+    if isinstance(expression, Index):
+        target = _evaluate(expression.target, variables, functions, emit)
+        index = _evaluate(expression.index, variables, functions, emit)
+        try:
+            if index < 0:
+                raise IndexError
+            return target[index]
+        except (IndexError, TypeError):
+            raise RuntimeError("index out of bounds") from None
     if isinstance(expression, Binary) and expression.operator == "+":
         return _evaluate(expression.left, variables, functions, emit) + _evaluate(expression.right, variables, functions, emit)
     if isinstance(expression, Binary) and expression.operator == ">":
@@ -110,3 +121,20 @@ def _evaluate(expression, variables, functions=None, emit=print):
         arguments = [_evaluate(argument, variables, functions, emit) for argument in expression.arguments]
         return _invoke(functions[expression.name], arguments, functions, emit)
     raise RuntimeError("unsupported IR expression")
+
+
+def _assign(target, value, variables, functions, emit):
+    if isinstance(target, Variable):
+        variables[target.name] = value
+        return
+    if isinstance(target, Index):
+        container = _evaluate(target.target, variables, functions, emit)
+        index = _evaluate(target.index, variables, functions, emit)
+        try:
+            if index < 0:
+                raise IndexError
+            container[index] = value
+        except (IndexError, TypeError):
+            raise RuntimeError("index out of bounds") from None
+        return
+    raise RuntimeError("invalid assignment target")

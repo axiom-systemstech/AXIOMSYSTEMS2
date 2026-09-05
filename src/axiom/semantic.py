@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import Assign, Binary, BooleanLiteral, Call, Function, If, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
 
 
 class SemanticError(ValueError):
@@ -10,6 +10,14 @@ class SemanticError(ValueError):
 
 
 _BUILTIN_TYPES = {"Int", "Bool", "String"}
+
+
+def _is_known_type(type_name: str) -> bool:
+    return type_name.rstrip("[]") in _BUILTIN_TYPES
+
+
+def _types_compatible(expected: str, actual: str) -> bool:
+    return actual == expected or (actual == "Array" and expected.endswith("[]"))
 
 
 def analyze(program: Program) -> None:
@@ -20,9 +28,9 @@ def analyze(program: Program) -> None:
             raise SemanticError(f"duplicate function '{function.name}'")
         function_names.add(function.name)
         parameter_types = [parameter.type_name for parameter in function.parameters]
-        if any(type_name not in _BUILTIN_TYPES for type_name in parameter_types):
+        if any(not _is_known_type(type_name) for type_name in parameter_types):
             raise SemanticError(f"function '{function.name}' uses an unknown parameter type")
-        if function.return_type is not None and function.return_type not in _BUILTIN_TYPES:
+        if function.return_type is not None and not _is_known_type(function.return_type):
             raise SemanticError(f"function '{function.name}' uses an unknown return type")
         if len({parameter.name for parameter in function.parameters}) != len(function.parameters):
             raise SemanticError(f"function '{function.name}' has duplicate parameters")
@@ -53,15 +61,14 @@ def _check_function(function: Function, signatures) -> None:
             _check_block(statement.body, variables.copy(), signatures, function)
             continue
         if isinstance(statement, Assign):
-            if statement.name not in variables:
-                raise SemanticError(f"unknown variable '{statement.name}'")
+            target_type = _expression_type(statement.target, variables, signatures)
             value_type = _expression_type(statement.value, variables, signatures)
-            if value_type != variables[statement.name]:
-                raise SemanticError(f"variable '{statement.name}' expects {variables[statement.name]}, got {value_type}")
+            if value_type != target_type:
+                raise SemanticError(f"assignment expects {target_type}, got {value_type}")
             continue
         if isinstance(statement, Let):
             value_type = _expression_type(statement.value, variables, signatures)
-            if statement.type_name is not None and statement.type_name != value_type:
+            if statement.type_name is not None and not _types_compatible(statement.type_name, value_type):
                 raise SemanticError(
                     f"variable '{statement.name}' expects {statement.type_name}, got {value_type}"
                 )
@@ -74,7 +81,7 @@ def _check_function(function: Function, signatures) -> None:
                 if function.return_type is None:
                     raise SemanticError(f"function '{function.name}' cannot return a value")
                 value_type = _expression_type(statement.value, variables, signatures)
-                if value_type != function.return_type:
+                if not _types_compatible(function.return_type, value_type):
                     raise SemanticError(f"function '{function.name}' returns {value_type}, expected {function.return_type}")
                 returned = True
                 continue
@@ -93,7 +100,7 @@ def _check_block(statements, variables, signatures, function):
     for statement in statements:
         if isinstance(statement, Let):
             value_type = _expression_type(statement.value, variables, signatures)
-            if statement.type_name is not None and statement.type_name != value_type:
+            if statement.type_name is not None and not _types_compatible(statement.type_name, value_type):
                 raise SemanticError(f"variable '{statement.name}' expects {statement.type_name}, got {value_type}")
             variables[statement.name] = statement.type_name or value_type
         elif isinstance(statement, Return):
@@ -111,10 +118,9 @@ def _check_block(statements, variables, signatures, function):
                 raise SemanticError("while condition must be Bool")
             _check_block(statement.body, variables.copy(), signatures, function)
         elif isinstance(statement, Assign):
-            if statement.name not in variables:
-                raise SemanticError(f"unknown variable '{statement.name}'")
-            if _expression_type(statement.value, variables, signatures) != variables[statement.name]:
-                raise SemanticError(f"assignment to '{statement.name}' has incompatible type")
+            target_type = _expression_type(statement.target, variables, signatures)
+            if _expression_type(statement.value, variables, signatures) != target_type:
+                raise SemanticError("assignment has incompatible type")
         elif isinstance(statement, Call):
             if statement.name == "print":
                 if len(statement.arguments) != 1:
@@ -145,10 +151,24 @@ def _expression_type(expression, variables: dict[str, str], signatures) -> str:
         return "Int"
     if isinstance(expression, BooleanLiteral):
         return "Bool"
+    if isinstance(expression, ArrayLiteral):
+        if not expression.elements:
+            return "Array"
+        element_types = [_expression_type(element, variables, signatures) for element in expression.elements]
+        if any(element_type != element_types[0] for element_type in element_types[1:]):
+            raise SemanticError("array elements must share the same type")
+        return f"{element_types[0]}[]"
     if isinstance(expression, Variable):
         if expression.name not in variables:
             raise SemanticError(f"unknown variable '{expression.name}'")
         return variables[expression.name]
+    if isinstance(expression, Index):
+        target_type = _expression_type(expression.target, variables, signatures)
+        if _expression_type(expression.index, variables, signatures) != "Int":
+            raise SemanticError("array index requires Int")
+        if not target_type.endswith("[]"):
+            raise SemanticError("index requires an array")
+        return target_type[:-2]
     if isinstance(expression, Call):
         return _check_call(expression, variables, signatures)
     if isinstance(expression, Binary):
