@@ -31,6 +31,7 @@ fn check_function(function: &Function, functions: &[Function]) -> Result<(), Sem
         &mut variables,
         functions,
         function.return_type.clone(),
+        0,
     )
 }
 
@@ -208,6 +209,7 @@ fn check_block(
     variables: &mut std::collections::HashMap<String, Option<Type>>,
     functions: &[Function],
     return_type: Option<Type>,
+    loop_depth: usize,
 ) -> Result<(), SemanticError> {
     for statement in statements {
         match statement {
@@ -247,17 +249,25 @@ fn check_block(
                     &mut variables.clone(),
                     functions,
                     return_type.clone(),
+                    loop_depth,
                 )?;
                 check_block(
                     else_body,
                     &mut variables.clone(),
                     functions,
                     return_type.clone(),
+                    loop_depth,
                 )?;
             }
             Statement::While { condition, body } => {
                 require_bool(check_expression(condition, variables, functions)?)?;
-                check_block(body, &mut variables.clone(), functions, return_type.clone())?;
+                check_block(
+                    body,
+                    &mut variables.clone(),
+                    functions,
+                    return_type.clone(),
+                    loop_depth + 1,
+                )?;
             }
             Statement::For {
                 initializer,
@@ -272,6 +282,7 @@ fn check_block(
                         &mut scoped,
                         functions,
                         return_type.clone(),
+                        loop_depth,
                     )?;
                 }
                 require_bool(check_expression(condition, &scoped, functions)?)?;
@@ -281,11 +292,29 @@ fn check_block(
                         &mut scoped,
                         functions,
                         return_type.clone(),
+                        loop_depth,
                     )?;
                 }
-                check_block(body, &mut scoped, functions, return_type.clone())?;
+                check_block(
+                    body,
+                    &mut scoped,
+                    functions,
+                    return_type.clone(),
+                    loop_depth + 1,
+                )?;
             }
-            Statement::Break | Statement::Continue => {}
+            Statement::Break if loop_depth > 0 => {}
+            Statement::Continue if loop_depth > 0 => {}
+            Statement::Break => {
+                return Err(SemanticError {
+                    message: "break must be inside a loop".into(),
+                });
+            }
+            Statement::Continue => {
+                return Err(SemanticError {
+                    message: "continue must be inside a loop".into(),
+                });
+            }
             Statement::Assign { target, value } => {
                 let target_type = check_expression(target, variables, functions)?;
                 let value_type = check_expression(value, variables, functions)?;
@@ -358,5 +387,18 @@ mod tests {
         let error = analyze(&crate::parser::parse("fn main() { if 1 { print(\"no\") } }").unwrap())
             .unwrap_err();
         assert_eq!(error.message, "condition requires Bool");
+    }
+
+    #[test]
+    fn rejects_loop_control_outside_loop() {
+        for (keyword, expected) in [
+            ("break", "break must be inside a loop"),
+            ("continue", "continue must be inside a loop"),
+        ] {
+            let error =
+                analyze(&parse(&format!("fn main() {{ if true {{ {keyword} }} }}")).unwrap())
+                    .unwrap_err();
+            assert_eq!(error.message, expected);
+        }
     }
 }
