@@ -14,6 +14,8 @@ class TokenKind(Enum):
     ELSE = auto()
     WHILE = auto()
     FOR = auto()
+    BREAK = auto()
+    CONTINUE = auto()
     TRUE = auto()
     FALSE = auto()
     IDENTIFIER = auto()
@@ -58,7 +60,7 @@ class LexError(ValueError):
     """Raised when source text cannot be converted into tokens."""
 
 
-_KEYWORDS = {"fn": TokenKind.FN, "let": TokenKind.LET, "return": TokenKind.RETURN, "if": TokenKind.IF, "else": TokenKind.ELSE, "while": TokenKind.WHILE, "for": TokenKind.FOR, "true": TokenKind.TRUE, "false": TokenKind.FALSE}
+_KEYWORDS = {"fn": TokenKind.FN, "let": TokenKind.LET, "return": TokenKind.RETURN, "if": TokenKind.IF, "else": TokenKind.ELSE, "while": TokenKind.WHILE, "for": TokenKind.FOR, "break": TokenKind.BREAK, "continue": TokenKind.CONTINUE, "true": TokenKind.TRUE, "false": TokenKind.FALSE}
 
 
 def lex(source: str) -> list[Token]:

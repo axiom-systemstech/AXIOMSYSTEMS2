@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, For, Function, If, Index, IntegerLiteral, Let, Parameter, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, For, Function, If, Index, IntegerLiteral, Let, Parameter, Program, Return, StringLiteral, Unary, Variable, While
 from .lexer import Token, TokenKind, lex
 
 
@@ -93,6 +93,12 @@ class Parser:
         if self._check(TokenKind.WHILE):
             self.position += 1
             return While(self._expression(), self._block())
+        if self._check(TokenKind.BREAK):
+            self.position += 1
+            return Break()
+        if self._check(TokenKind.CONTINUE):
+            self.position += 1
+            return Continue()
         if self._check(TokenKind.FOR):
             self.position += 1
             self._consume(TokenKind.LPAREN, "expected '('")

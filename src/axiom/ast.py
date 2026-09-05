@@ -107,7 +107,17 @@ class For:
     body: list["Statement"]
 
 
-Statement = Call | Let | Return | If | Assign | While | For
+@dataclass(frozen=True)
+class Break:
+    pass
+
+
+@dataclass(frozen=True)
+class Continue:
+    pass
+
+
+Statement = Call | Let | Return | If | Assign | While | For | Break | Continue
 
 
 @dataclass(frozen=True)

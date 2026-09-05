@@ -407,3 +407,13 @@ def test_runtime_executes_else_if_chains(tmp_path, capsys):
     )
     assert main(["run", str(source)]) == 0
     assert capsys.readouterr().out == "yes\n"
+
+
+def test_runtime_executes_break_and_continue(tmp_path, capsys):
+    source = tmp_path / "loop_control.ax"
+    source.write_text(
+        'fn main() { for (let i: Int = 0; i < 5; i = i + 1) { if i == 2 { continue } if i == 4 { break } print(i) } }',
+        encoding="utf-8",
+    )
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "0\n1\n3\n"
