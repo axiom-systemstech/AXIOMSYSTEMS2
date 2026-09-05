@@ -89,6 +89,7 @@ pub enum BinaryOperator {
     Greater,
     Less,
     Equal,
+    NotEqual,
     And,
     Or,
 }
@@ -321,11 +322,16 @@ impl Parser {
 
     fn equality(&mut self) -> Result<Expression, ParseError> {
         let mut expression = self.comparison()?;
-        while self.check(TokenKind::EqualEqual) {
+        while self.check(TokenKind::EqualEqual) || self.check(TokenKind::NotEqual) {
+            let operator = if self.check(TokenKind::EqualEqual) {
+                BinaryOperator::Equal
+            } else {
+                BinaryOperator::NotEqual
+            };
             self.position += 1;
             expression = Expression::Binary {
                 left: Box::new(expression),
-                operator: BinaryOperator::Equal,
+                operator,
                 right: Box::new(self.comparison()?),
             };
         }

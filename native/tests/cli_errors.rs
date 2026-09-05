@@ -157,3 +157,44 @@ fn unary_negation_runs_in_source_and_compiled_artifact() {
     let _ = std::fs::remove_file(source_path);
     let _ = std::fs::remove_file(artifact_path);
 }
+
+#[test]
+fn not_equal_runs_in_source_and_compiled_artifact() {
+    let source_path = temp_path("not_equal_source.ax");
+    let artifact_path = temp_path("not_equal_output.axm");
+    std::fs::write(
+        &source_path,
+        "fn main() { if 2 != 3 { print(\"different\") } }",
+    )
+    .unwrap();
+
+    let source_run = run_axiom(&["run", source_path.to_str().unwrap()]);
+    assert!(
+        source_run.status.success(),
+        "source run failed: {}",
+        String::from_utf8_lossy(&source_run.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&source_run.stdout), "different\n");
+
+    let build = run_axiom(&[
+        "build",
+        source_path.to_str().unwrap(),
+        artifact_path.to_str().unwrap(),
+    ]);
+    assert!(
+        build.status.success(),
+        "build failed: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let artifact_run = run_axiom(&["run", artifact_path.to_str().unwrap()]);
+    assert!(
+        artifact_run.status.success(),
+        "artifact run failed: {}",
+        String::from_utf8_lossy(&artifact_run.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&artifact_run.stdout), "different\n");
+
+    let _ = std::fs::remove_file(source_path);
+    let _ = std::fs::remove_file(artifact_path);
+}

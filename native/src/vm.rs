@@ -313,6 +313,7 @@ impl Machine {
                         BinaryOperator::Greater => Value::Bool(left.as_int()? > right.as_int()?),
                         BinaryOperator::Less => Value::Bool(left.as_int()? < right.as_int()?),
                         BinaryOperator::Equal => Value::Bool(left == right),
+                        BinaryOperator::NotEqual => Value::Bool(left != right),
                         BinaryOperator::And => Value::Bool(left.as_bool()? && right.as_bool()?),
                         BinaryOperator::Or => Value::Bool(left.as_bool()? || right.as_bool()?),
                     };
@@ -577,6 +578,7 @@ fn encode_binary(op: &BinaryOperator) -> String {
         BinaryOperator::Greater => "Greater".to_string(),
         BinaryOperator::Less => "Less".to_string(),
         BinaryOperator::Equal => "Equal".to_string(),
+        BinaryOperator::NotEqual => "NotEqual".to_string(),
         BinaryOperator::And => "And".to_string(),
         BinaryOperator::Or => "Or".to_string(),
     }
@@ -591,6 +593,7 @@ fn decode_binary(value: &str) -> Result<BinaryOperator, VmError> {
         "Greater" => Ok(BinaryOperator::Greater),
         "Less" => Ok(BinaryOperator::Less),
         "Equal" => Ok(BinaryOperator::Equal),
+        "NotEqual" => Ok(BinaryOperator::NotEqual),
         "And" => Ok(BinaryOperator::And),
         "Or" => Ok(BinaryOperator::Or),
         _ => Err(VmError {

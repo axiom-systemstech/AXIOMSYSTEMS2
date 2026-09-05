@@ -83,7 +83,7 @@ fn check_expression(
                     require_types(left_type, right_type, Type::Int, "comparison operators")?;
                     Ok(Some(Type::Bool))
                 }
-                BinaryOperator::Equal => {
+                BinaryOperator::Equal | BinaryOperator::NotEqual => {
                     if left_type.is_some() && right_type.is_some() && left_type != right_type {
                         return Err(SemanticError {
                             message: "== requires matching types".into(),

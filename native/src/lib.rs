@@ -31,6 +31,7 @@ pub enum TokenKind {
     Arrow,
     Greater,
     EqualEqual,
+    NotEqual,
     Minus,
     Star,
     Slash,
@@ -225,6 +226,7 @@ fn multi_character_token(characters: &[char], index: usize) -> Option<(TokenKind
     let kind = match pair.as_str() {
         "->" => TokenKind::Arrow,
         "==" => TokenKind::EqualEqual,
+        "!=" => TokenKind::NotEqual,
         "&&" => TokenKind::And,
         "||" => TokenKind::Or,
         _ => return None,
