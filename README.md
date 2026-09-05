@@ -69,7 +69,7 @@ El núcleo nativo está en [native](native), con módulos clave como:
 La base del proyecto ya está verificada con pruebas reales:
 
 - Rust: 45 tests internos y 9 tests CLI pasando.
-- Python: 40 tests pasando.
+- Python: 41 tests pasando.
 - `git diff --check` sin errores en la última validación.
 
 ## Desarrollo
