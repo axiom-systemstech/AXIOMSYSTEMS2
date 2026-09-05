@@ -85,7 +85,10 @@ class Parser:
             else_body = []
             if self._check(TokenKind.ELSE):
                 self.position += 1
-                else_body = self._block()
+                if self._check(TokenKind.IF):
+                    else_body = [self._statement()]
+                else:
+                    else_body = self._block()
             return If(condition, then_body, else_body)
         if self._check(TokenKind.WHILE):
             self.position += 1

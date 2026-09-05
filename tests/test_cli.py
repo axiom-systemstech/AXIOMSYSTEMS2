@@ -377,3 +377,13 @@ def test_runtime_executes_all_integer_comparisons(tmp_path, capsys):
     )
     assert main(["run", str(source)]) == 0
     assert capsys.readouterr().out == "1\n2\n3\n4\n"
+
+
+def test_runtime_executes_else_if_chains(tmp_path, capsys):
+    source = tmp_path / "elif.ax"
+    source.write_text(
+        "fn main() { if false { print(\"no\") } else if 2 < 3 { print(\"yes\") } else { print(\"nope\") } }",
+        encoding="utf-8",
+    )
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "yes\n"
