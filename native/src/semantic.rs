@@ -109,6 +109,18 @@ fn check_expression(
             }
             Ok(Some(Type::Bool))
         }
+        Expression::Unary {
+            operator: UnaryOperator::Negate,
+            operand,
+        } => {
+            let operand_type = check_expression(operand, variables, functions)?;
+            if operand_type.is_some() && operand_type != Some(Type::Int) {
+                return Err(SemanticError {
+                    message: "unary '-' requires Int".into(),
+                });
+            }
+            Ok(Some(Type::Int))
+        }
         Expression::Index { target, index } => {
             let target_type = check_expression(target, variables, functions)?;
             let index_type = check_expression(index, variables, functions)?;

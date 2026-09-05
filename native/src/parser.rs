@@ -96,6 +96,7 @@ pub enum BinaryOperator {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperator {
     Not,
+    Negate,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -390,6 +391,13 @@ impl Parser {
             self.position += 1;
             return Ok(Expression::Unary {
                 operator: UnaryOperator::Not,
+                operand: Box::new(self.unary()?),
+            });
+        }
+        if self.check(TokenKind::Minus) {
+            self.position += 1;
+            return Ok(Expression::Unary {
+                operator: UnaryOperator::Negate,
                 operand: Box::new(self.unary()?),
             });
         }

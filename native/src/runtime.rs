@@ -309,6 +309,15 @@ fn evaluate(
             operator: crate::parser::UnaryOperator::Not,
             operand,
         } => Ok((evaluate(operand, variables, functions, output)? != "true").to_string()),
+        Expression::Unary {
+            operator: crate::parser::UnaryOperator::Negate,
+            operand,
+        } => integer(operand, variables, functions, output)?
+            .checked_neg()
+            .map(|value| value.to_string())
+            .ok_or_else(|| RuntimeError {
+                message: "integer negation overflow".into(),
+            }),
         Expression::Index { target, index } => {
             let target_value = evaluate(target, variables, functions, output)?;
             let index_value = evaluate(index, variables, functions, output)?;

@@ -322,6 +322,11 @@ impl Machine {
                     let value = self.pop_stack()?;
                     let result = match op {
                         UnaryOperator::Not => Value::Bool(!value.as_bool()?),
+                        UnaryOperator::Negate => {
+                            Value::Int(value.as_int()?.checked_neg().ok_or_else(|| VmError {
+                                message: "integer negation overflow".into(),
+                            })?)
+                        }
                     };
                     self.stack.push(result);
                 }
@@ -597,12 +602,14 @@ fn decode_binary(value: &str) -> Result<BinaryOperator, VmError> {
 fn encode_unary(op: &UnaryOperator) -> String {
     match op {
         UnaryOperator::Not => "Not".to_string(),
+        UnaryOperator::Negate => "Negate".to_string(),
     }
 }
 
 fn decode_unary(value: &str) -> Result<UnaryOperator, VmError> {
     match value {
         "Not" => Ok(UnaryOperator::Not),
+        "Negate" => Ok(UnaryOperator::Negate),
         _ => Err(VmError {
             message: format!("unknown unary operator '{value}'"),
         }),
