@@ -41,6 +41,11 @@ class IntegerLiteral:
 
 
 @dataclass(frozen=True)
+class FloatLiteral:
+    value: float
+
+
+@dataclass(frozen=True)
 class BooleanLiteral:
     value: bool
 
@@ -126,4 +131,4 @@ class Index:
     index: "Expression"
 
 
-Expression = StringLiteral | IntegerLiteral | BooleanLiteral | ArrayLiteral | Variable | Binary | Unary | Call | Index
+Expression = StringLiteral | IntegerLiteral | FloatLiteral | BooleanLiteral | ArrayLiteral | Variable | Binary | Unary | Call | Index

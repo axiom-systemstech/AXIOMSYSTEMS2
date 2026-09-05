@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, For, Function, If, Index, IntegerLiteral, Let, Parameter, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Parameter, Program, Return, StringLiteral, Unary, Variable, While
 from .lexer import Token, TokenKind, lex
 
 
@@ -236,6 +236,9 @@ class Parser:
         if token.kind == TokenKind.INTEGER:
             self.position += 1
             return IntegerLiteral(int(token.lexeme))
+        if token.kind == TokenKind.FLOAT:
+            self.position += 1
+            return FloatLiteral(float(token.lexeme))
         if token.kind in (TokenKind.TRUE, TokenKind.FALSE):
             self.position += 1
             return BooleanLiteral(token.kind == TokenKind.TRUE)

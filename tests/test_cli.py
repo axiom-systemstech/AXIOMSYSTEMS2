@@ -389,6 +389,16 @@ def test_runtime_executes_string_concatenation(tmp_path, capsys):
     assert capsys.readouterr().out == "Hello AXIOM\n"
 
 
+def test_runtime_executes_float_arithmetic(tmp_path, capsys):
+    source = tmp_path / "floats.ax"
+    source.write_text(
+        "fn main() { let value: Float = 1.5 + 2.5; print(value); print(value / 2.0) }",
+        encoding="utf-8",
+    )
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "4.0\n2.0\n"
+
+
 def test_runtime_executes_for_loop(tmp_path, capsys):
     source = tmp_path / "for.ax"
     source.write_text(

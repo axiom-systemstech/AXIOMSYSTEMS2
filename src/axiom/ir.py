@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, Expression, For, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, Expression, FloatLiteral, For, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
 
 IRValue = Expression | str | int | bool
 
@@ -199,6 +199,8 @@ def _render_expression(expression: IRValue) -> str:
     if isinstance(expression, StringLiteral):
         return repr(expression.value)
     if isinstance(expression, IntegerLiteral):
+        return str(expression.value)
+    if isinstance(expression, FloatLiteral):
         return str(expression.value)
     if isinstance(expression, BooleanLiteral):
         return str(expression.value).lower()

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
 
 
 class SemanticError(ValueError):
     """Raised when a syntactically valid program is not meaningful."""
 
 
-_BUILTIN_TYPES = {"Int", "Bool", "String"}
+_BUILTIN_TYPES = {"Int", "Float", "Bool", "String"}
 
 
 def _is_known_type(type_name: str) -> bool:
@@ -172,6 +172,8 @@ def _expression_type(expression, variables: dict[str, str], signatures) -> str:
         return "String"
     if isinstance(expression, IntegerLiteral):
         return "Int"
+    if isinstance(expression, FloatLiteral):
+        return "Float"
     if isinstance(expression, BooleanLiteral):
         return "Bool"
     if isinstance(expression, ArrayLiteral):
@@ -197,16 +199,14 @@ def _expression_type(expression, variables: dict[str, str], signatures) -> str:
     if isinstance(expression, Binary):
         left_type = _expression_type(expression.left, variables, signatures)
         right_type = _expression_type(expression.right, variables, signatures)
-        if expression.operator == "+" and left_type == right_type == "Int":
-            return "Int"
+        if expression.operator in {"+", "-", "*", "/"} and left_type == right_type in {"Int", "Float"}:
+            return left_type
         if expression.operator == "+" and left_type == right_type == "String":
             return "String"
-        if expression.operator in {">", ">=", "<", "<="} and left_type == right_type == "Int":
+        if expression.operator in {">", ">=", "<", "<="} and left_type == right_type in {"Int", "Float"}:
             return "Bool"
         if expression.operator in {"==", "!="} and left_type == right_type:
             return "Bool"
-        if expression.operator in {"-", "*", "/"} and left_type == right_type == "Int":
-            return "Int"
         if expression.operator in {"&&", "||"} and left_type == right_type == "Bool":
             return "Bool"
         raise SemanticError(f"operator {expression.operator!r} does not support {left_type} and {right_type}")
@@ -214,7 +214,7 @@ def _expression_type(expression, variables: dict[str, str], signatures) -> str:
         operand_type = _expression_type(expression.operand, variables, signatures)
         if expression.operator == "!" and operand_type == "Bool":
             return "Bool"
-        if expression.operator == "-" and operand_type == "Int":
-            return "Int"
+        if expression.operator == "-" and operand_type in {"Int", "Float"}:
+            return operand_type
         raise SemanticError(f"operator {expression.operator!r} does not support {operand_type}")
     raise SemanticError("unsupported expression")

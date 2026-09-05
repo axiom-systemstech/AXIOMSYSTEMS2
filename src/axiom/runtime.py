@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
 from .ir import BreakInstruction, CallInstruction, ContinueInstruction, ForInstruction, IRFunction, IRProgram, IfInstruction, LetInstruction, ReturnInstruction, SetInstruction, WhileInstruction
 
 
@@ -179,7 +179,7 @@ def _invoke_block(statements, variables, functions, emit):
 def _evaluate(expression, variables, functions=None, emit=print):
     if isinstance(expression, (str, int, bool)):
         return expression
-    if isinstance(expression, (StringLiteral, IntegerLiteral, BooleanLiteral)):
+    if isinstance(expression, (StringLiteral, IntegerLiteral, FloatLiteral, BooleanLiteral)):
         return expression.value
     if isinstance(expression, ArrayLiteral):
         return [_evaluate(element, variables, functions, emit) for element in expression.elements]
@@ -215,7 +215,9 @@ def _evaluate(expression, variables, functions=None, emit=print):
     if isinstance(expression, Binary) and expression.operator == "*":
         return _evaluate(expression.left, variables, functions, emit) * _evaluate(expression.right, variables, functions, emit)
     if isinstance(expression, Binary) and expression.operator == "/":
-        return _evaluate(expression.left, variables, functions, emit) // _evaluate(expression.right, variables, functions, emit)
+        left = _evaluate(expression.left, variables, functions, emit)
+        right = _evaluate(expression.right, variables, functions, emit)
+        return left // right if isinstance(left, int) and isinstance(right, int) else left / right
     if isinstance(expression, Binary) and expression.operator == "&&":
         return _evaluate(expression.left, variables, functions, emit) and _evaluate(expression.right, variables, functions, emit)
     if isinstance(expression, Binary) and expression.operator == "||":

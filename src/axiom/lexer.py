@@ -20,6 +20,7 @@ class TokenKind(Enum):
     FALSE = auto()
     IDENTIFIER = auto()
     INTEGER = auto()
+    FLOAT = auto()
     STRING = auto()
     LPAREN = auto()
     RPAREN = auto()
@@ -179,7 +180,15 @@ def lex(source: str) -> list[Token]:
             while index < len(source) and source[index].isdigit():
                 index += 1
                 column += 1
-            tokens.append(Token(TokenKind.INTEGER, source[start:index], token_line, token_column))
+            kind = TokenKind.INTEGER
+            if index < len(source) and source[index] == "." and index + 1 < len(source) and source[index + 1].isdigit():
+                kind = TokenKind.FLOAT
+                index += 1
+                column += 1
+                while index < len(source) and source[index].isdigit():
+                    index += 1
+                    column += 1
+            tokens.append(Token(kind, source[start:index], token_line, token_column))
             continue
 
         raise LexError(f"unexpected character {character!r} at {token_line}:{token_column}")
