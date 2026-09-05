@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Expression, If, Index, IntegerLiteral, Let, Program, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Expression, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
 
 IRValue = Expression | str | int | bool
 
@@ -39,25 +39,57 @@ class WhileInstruction:
     body: list["Instruction"]
 
 
-Instruction = PrintInstruction | LetInstruction | SetInstruction | IfInstruction | WhileInstruction
+@dataclass(frozen=True)
+class CallInstruction:
+    name: str
+    arguments: list[Expression]
+
+
+@dataclass(frozen=True)
+class ReturnInstruction:
+    value: IRValue
+
+
+Instruction = PrintInstruction | LetInstruction | SetInstruction | IfInstruction | WhileInstruction | CallInstruction | ReturnInstruction
+
+
+@dataclass(frozen=True)
+class IRFunction:
+    name: str
+    parameters: list[str]
+    body: list[Instruction]
 
 
 @dataclass(frozen=True)
 class IRProgram:
     instructions: list[Instruction]
+    functions: list[IRFunction] = field(default_factory=list)
 
     def render(self) -> str:
         lines = ["AXIOM-IR 0.1"]
-        _render_block(self.instructions, lines, 0)
+        if self.functions:
+            lines.append("FUNCTION main()")
+            _render_block(self.instructions, lines, 1)
+            lines.append("END FUNCTION")
+            for function in self.functions:
+                parameters = ", ".join(function.parameters)
+                lines.append(f"FUNCTION {function.name}({parameters})")
+                _render_block(function.body, lines, 1)
+                lines.append("END FUNCTION")
+        else:
+            _render_block(self.instructions, lines, 0)
         return "\n".join(lines) + "\n"
 
 
 def lower(program: Program) -> IRProgram:
     instructions = []
+    functions = []
     for function in program.functions:
         if function.name == "main":
             instructions.extend(_lower_block(function.body))
-    return IRProgram(instructions)
+        else:
+            functions.append(IRFunction(function.name, [parameter.name for parameter in function.parameters], _lower_block(function.body)))
+    return IRProgram(instructions, functions)
 
 
 def _lower_block(statements) -> list[Instruction]:
@@ -77,8 +109,15 @@ def _lower_block(statements) -> list[Instruction]:
             )
         elif isinstance(statement, While):
             instructions.append(WhileInstruction(statement.condition, _lower_block(statement.body)))
+        elif isinstance(statement, Return):
+            instructions.append(ReturnInstruction(statement.value))
+        elif isinstance(statement, Call):
+            if statement.name == "print":
+                instructions.append(PrintInstruction(statement.arguments[0]))
+            else:
+                instructions.append(CallInstruction(statement.name, statement.arguments))
         else:
-            instructions.append(PrintInstruction(statement.arguments[0]))
+            raise ValueError(f"unsupported statement in IR lowering: {type(statement).__name__}")
     return instructions
 
 
@@ -103,6 +142,11 @@ def _render_block(instructions: list[Instruction], lines: list[str], depth: int)
             lines.append(f"{prefix}WHILE {_render_expression(instruction.condition)}")
             _render_block(instruction.body, lines, depth + 1)
             lines.append(f"{prefix}END")
+        elif isinstance(instruction, CallInstruction):
+            arguments = ", ".join(_render_expression(argument) for argument in instruction.arguments)
+            lines.append(f"{prefix}CALL {instruction.name}({arguments})")
+        elif isinstance(instruction, ReturnInstruction):
+            lines.append(f"{prefix}RETURN {_render_expression(instruction.value)}")
         else:
             lines.append(f"{prefix}PRINT {_render_expression(instruction.value)}")
 

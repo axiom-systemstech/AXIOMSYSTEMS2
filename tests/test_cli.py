@@ -225,6 +225,25 @@ def test_ir_while_body_can_contain_if():
     assert output == ["first"]
 
 
+def test_ir_lowers_and_executes_function_return():
+    program = parse(
+        "fn add(a: Int, b: Int) -> Int { return a + b } "
+        "fn main() { print(add(20, 22)) }"
+    )
+    assert lower(program).render() == (
+        "AXIOM-IR 0.1\n"
+        "FUNCTION main()\n"
+        "  PRINT add(20, 22)\n"
+        "END FUNCTION\n"
+        "FUNCTION add(a, b)\n"
+        "  RETURN a + b\n"
+        "END FUNCTION\n"
+    )
+    output = []
+    execute(lower(program), output.append)
+    assert output == ["42"]
+
+
 def test_build_writes_python_ir_for_arrays(tmp_path, capsys):
     source = tmp_path / "arrays.ax"
     output = tmp_path / "arrays.air"

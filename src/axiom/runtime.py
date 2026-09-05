@@ -5,30 +5,47 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
-from .ir import IRProgram, IfInstruction, LetInstruction, SetInstruction, WhileInstruction
+from .ir import CallInstruction, IRFunction, IRProgram, IfInstruction, LetInstruction, ReturnInstruction, SetInstruction, WhileInstruction
 
 
 def execute(program: IRProgram, emit: Callable[[str], None] = print) -> None:
     """Execute an IR program using the host output function."""
-    variables = {}
-    _execute_block(program.instructions, variables, emit)
+    functions = {function.name: function for function in program.functions}
+    main = IRFunction("main", [], program.instructions)
+    _invoke_ir(main, [], functions | {"main": main}, emit)
 
 
-def _execute_block(instructions, variables, emit):
+def _invoke_ir(function, arguments, functions, emit):
+    variables = {name: value for name, value in zip(function.parameters, arguments)}
+    returned, value = _execute_block(function.body, variables, functions, emit)
+    return value if returned else None
+
+
+def _execute_block(instructions, variables, functions, emit):
     for instruction in instructions:
         if isinstance(instruction, LetInstruction):
-            variables[instruction.name] = _evaluate(instruction.value, variables)
+            variables[instruction.name] = _evaluate(instruction.value, variables, functions, emit)
         elif isinstance(instruction, SetInstruction):
-            _assign(instruction.target, _evaluate(instruction.value, variables), variables)
+            _assign(instruction.target, _evaluate(instruction.value, variables, functions, emit), variables, functions, emit)
         elif isinstance(instruction, IfInstruction):
-            branch = instruction.then_body if _evaluate(instruction.condition, variables) else instruction.else_body
-            _execute_block(branch, variables, emit)
+            branch = instruction.then_body if _evaluate(instruction.condition, variables, functions, emit) else instruction.else_body
+            returned, value = _execute_block(branch, variables, functions, emit)
+            if returned:
+                return True, value
         elif isinstance(instruction, WhileInstruction):
-            while _evaluate(instruction.condition, variables):
-                _execute_block(instruction.body, variables, emit)
+            while _evaluate(instruction.condition, variables, functions, emit):
+                returned, value = _execute_block(instruction.body, variables, functions, emit)
+                if returned:
+                    return True, value
+        elif isinstance(instruction, CallInstruction):
+            arguments = [_evaluate(argument, variables, functions, emit) for argument in instruction.arguments]
+            _invoke_ir(functions[instruction.name], arguments, functions, emit)
+        elif isinstance(instruction, ReturnInstruction):
+            return True, _evaluate(instruction.value, variables, functions, emit)
         else:
-            value = _evaluate(instruction.value, variables)
+            value = _evaluate(instruction.value, variables, functions, emit)
             emit(str(value).lower() if isinstance(value, bool) else str(value))
+    return False, None
 
 
 def execute_program(program: Program, emit: Callable[[str], None] = print) -> None:
@@ -139,6 +156,8 @@ def _evaluate(expression, variables, functions=None, emit=print):
         return -_evaluate(expression.operand, variables, functions, emit)
     if isinstance(expression, Call):
         arguments = [_evaluate(argument, variables, functions, emit) for argument in expression.arguments]
+        if isinstance(functions[expression.name], IRFunction):
+            return _invoke_ir(functions[expression.name], arguments, functions, emit)
         return _invoke(functions[expression.name], arguments, functions, emit)
     raise RuntimeError("unsupported IR expression")
 
