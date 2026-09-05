@@ -82,3 +82,6 @@ fn main() {
     print(17 % 5)
 }
 ```
+
+Los operadores `&&` y `||` usan cortocircuito: el operando derecho solo se
+evalúa cuando el izquierdo no determina el resultado.
