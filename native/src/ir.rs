@@ -128,14 +128,10 @@ fn lower_block_with_counter(statements: &[Statement], counter: &mut usize) -> Ve
                 body
             }
             Statement::Assign { target, value } => lower_assignment(target, value, counter),
-            Statement::While { condition, body } => {
-                let mut instructions = Vec::new();
-                instructions.push(Instruction::While {
-                    condition: lower_expression(condition),
-                    body: lower_block_with_counter(body, counter),
-                });
-                instructions
-            }
+            Statement::While { condition, body } => vec![Instruction::While {
+                condition: lower_expression(condition),
+                body: lower_block_with_counter(body, counter),
+            }],
             Statement::For {
                 initializer,
                 condition,
@@ -202,10 +198,7 @@ fn lower_assignment(
                 current_var = temp_name;
             }
 
-            let final_index = indexes
-                .last()
-                .cloned()
-                .unwrap_or_else(|| Expression::Integer(0));
+            let final_index = indexes.last().cloned().unwrap_or(Expression::Integer(0));
             body.push(Instruction::LoadVariable(current_var.clone()));
             body.extend(lower_expression(&final_index));
             body.extend(lower_expression(value));

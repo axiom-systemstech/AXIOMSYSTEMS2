@@ -523,9 +523,8 @@ impl Machine {
                         arguments.push(self.pop_stack()?);
                     }
                     arguments.reverse();
-                    match self.call_function(name, arguments)? {
-                        Some(value) => self.stack.push(value),
-                        None => {}
+                    if let Some(value) = self.call_function(name, arguments)? {
+                        self.stack.push(value);
                     }
                 }
                 Instruction::Print => {
