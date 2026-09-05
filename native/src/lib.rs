@@ -30,6 +30,7 @@ pub enum TokenKind {
     Comma,
     Arrow,
     Greater,
+    GreaterEqual,
     EqualEqual,
     NotEqual,
     Minus,
@@ -39,6 +40,7 @@ pub enum TokenKind {
     And,
     Or,
     Less,
+    LessEqual,
     Eof,
 }
 
@@ -227,6 +229,8 @@ fn multi_character_token(characters: &[char], index: usize) -> Option<(TokenKind
         "->" => TokenKind::Arrow,
         "==" => TokenKind::EqualEqual,
         "!=" => TokenKind::NotEqual,
+        ">=" => TokenKind::GreaterEqual,
+        "<=" => TokenKind::LessEqual,
         "&&" => TokenKind::And,
         "||" => TokenKind::Or,
         _ => return None,

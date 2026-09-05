@@ -198,3 +198,50 @@ fn not_equal_runs_in_source_and_compiled_artifact() {
     let _ = std::fs::remove_file(source_path);
     let _ = std::fs::remove_file(artifact_path);
 }
+
+#[test]
+fn inclusive_comparisons_run_in_source_and_compiled_artifact() {
+    let source_path = temp_path("inclusive_source.ax");
+    let artifact_path = temp_path("inclusive_output.axm");
+    std::fs::write(
+        &source_path,
+        "fn main() { let count: Int = 0; while count <= 2 { print(count); count = count + 1 } if 3 >= 3 { print(\"inclusive\") } }",
+    )
+    .unwrap();
+
+    let source_run = run_axiom(&["run", source_path.to_str().unwrap()]);
+    assert!(
+        source_run.status.success(),
+        "source run failed: {}",
+        String::from_utf8_lossy(&source_run.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&source_run.stdout),
+        "0\n1\n2\ninclusive\n"
+    );
+
+    let build = run_axiom(&[
+        "build",
+        source_path.to_str().unwrap(),
+        artifact_path.to_str().unwrap(),
+    ]);
+    assert!(
+        build.status.success(),
+        "build failed: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let artifact_run = run_axiom(&["run", artifact_path.to_str().unwrap()]);
+    assert!(
+        artifact_run.status.success(),
+        "artifact run failed: {}",
+        String::from_utf8_lossy(&artifact_run.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&artifact_run.stdout),
+        "0\n1\n2\ninclusive\n"
+    );
+
+    let _ = std::fs::remove_file(source_path);
+    let _ = std::fs::remove_file(artifact_path);
+}

@@ -287,6 +287,20 @@ fn evaluate(
         Expression::Binary {
             left,
             right,
+            operator: crate::parser::BinaryOperator::GreaterEqual,
+        } => Ok((integer(left, variables, functions, output)?
+            >= integer(right, variables, functions, output)?)
+        .to_string()),
+        Expression::Binary {
+            left,
+            right,
+            operator: crate::parser::BinaryOperator::LessEqual,
+        } => Ok((integer(left, variables, functions, output)?
+            <= integer(right, variables, functions, output)?)
+        .to_string()),
+        Expression::Binary {
+            left,
+            right,
             operator: crate::parser::BinaryOperator::Equal,
         } => Ok((evaluate(left, variables, functions, output)?
             == evaluate(right, variables, functions, output)?)

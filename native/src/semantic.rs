@@ -79,7 +79,10 @@ fn check_expression(
                     require_types(left_type, right_type, Type::Int, "arithmetic operators")?;
                     Ok(Some(Type::Int))
                 }
-                BinaryOperator::Greater | BinaryOperator::Less => {
+                BinaryOperator::Greater
+                | BinaryOperator::GreaterEqual
+                | BinaryOperator::Less
+                | BinaryOperator::LessEqual => {
                     require_types(left_type, right_type, Type::Int, "comparison operators")?;
                     Ok(Some(Type::Bool))
                 }
