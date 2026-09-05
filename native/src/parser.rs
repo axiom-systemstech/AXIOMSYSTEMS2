@@ -87,6 +87,7 @@ pub enum BinaryOperator {
     Multiply,
     Divide,
     Greater,
+    Less,
     Equal,
     And,
     Or,
@@ -332,11 +333,16 @@ impl Parser {
 
     fn comparison(&mut self) -> Result<Expression, ParseError> {
         let mut expression = self.term()?;
-        while self.check(TokenKind::Greater) {
+        while self.check(TokenKind::Greater) || self.check(TokenKind::Less) {
             self.position += 1;
+            let operator = if self.tokens[self.position - 1].kind == TokenKind::Greater {
+                BinaryOperator::Greater
+            } else {
+                BinaryOperator::Less
+            };
             expression = Expression::Binary {
                 left: Box::new(expression),
-                operator: BinaryOperator::Greater,
+                operator,
                 right: Box::new(self.term()?),
             };
         }

@@ -37,6 +37,7 @@ pub enum TokenKind {
     Bang,
     And,
     Or,
+    Less,
     Eof,
 }
 
@@ -211,6 +212,7 @@ fn punctuation(value: char) -> Option<TokenKind> {
         '*' => TokenKind::Star,
         '/' => TokenKind::Slash,
         '!' => TokenKind::Bang,
+        '<' => TokenKind::Less,
         _ => return None,
     })
 }

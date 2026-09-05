@@ -270,6 +270,23 @@ fn evaluate(
         Expression::Binary {
             left,
             right,
+            operator: crate::parser::BinaryOperator::Less,
+        } => {
+            let left = evaluate(left, variables, functions, output)?
+                .parse::<i64>()
+                .map_err(|_| RuntimeError {
+                    message: "< expects integers".into(),
+                })?;
+            let right = evaluate(right, variables, functions, output)?
+                .parse::<i64>()
+                .map_err(|_| RuntimeError {
+                    message: "< expects integers".into(),
+                })?;
+            Ok((left < right).to_string())
+        }
+        Expression::Binary {
+            left,
+            right,
             operator: crate::parser::BinaryOperator::Equal,
         } => Ok((evaluate(left, variables, functions, output)?
             == evaluate(right, variables, functions, output)?)

@@ -311,6 +311,7 @@ impl Machine {
                             Value::Int(left.as_int()? / divisor)
                         }
                         BinaryOperator::Greater => Value::Bool(left.as_int()? > right.as_int()?),
+                        BinaryOperator::Less => Value::Bool(left.as_int()? < right.as_int()?),
                         BinaryOperator::Equal => Value::Bool(left == right),
                         BinaryOperator::And => Value::Bool(left.as_bool()? && right.as_bool()?),
                         BinaryOperator::Or => Value::Bool(left.as_bool()? || right.as_bool()?),
@@ -540,7 +541,7 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
             argument_count,
         });
     }
-    if let Some(raw) = token.strip_prefix("If[") {
+    if let Some(raw) = token.strip_prefix("If") {
         let (then_raw, rest) = extract_bracketed(raw)?;
         let (else_raw, _) = extract_bracketed(rest)?;
         return Ok(Instruction::If {
@@ -548,7 +549,7 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
             else_body: decode_sequence(&else_raw)?,
         });
     }
-    if let Some(raw) = token.strip_prefix("While[") {
+    if let Some(raw) = token.strip_prefix("While") {
         let (condition_raw, rest) = extract_bracketed(raw)?;
         let (body_raw, _) = extract_bracketed(rest)?;
         return Ok(Instruction::While {
@@ -569,6 +570,7 @@ fn encode_binary(op: &BinaryOperator) -> String {
         BinaryOperator::Multiply => "Multiply".to_string(),
         BinaryOperator::Divide => "Divide".to_string(),
         BinaryOperator::Greater => "Greater".to_string(),
+        BinaryOperator::Less => "Less".to_string(),
         BinaryOperator::Equal => "Equal".to_string(),
         BinaryOperator::And => "And".to_string(),
         BinaryOperator::Or => "Or".to_string(),
@@ -582,6 +584,7 @@ fn decode_binary(value: &str) -> Result<BinaryOperator, VmError> {
         "Multiply" => Ok(BinaryOperator::Multiply),
         "Divide" => Ok(BinaryOperator::Divide),
         "Greater" => Ok(BinaryOperator::Greater),
+        "Less" => Ok(BinaryOperator::Less),
         "Equal" => Ok(BinaryOperator::Equal),
         "And" => Ok(BinaryOperator::And),
         "Or" => Ok(BinaryOperator::Or),
@@ -610,6 +613,7 @@ fn split_escaped(input: &str, delimiter: char) -> Vec<String> {
     let mut parts = Vec::new();
     let mut current = String::new();
     let mut escaped = false;
+    let mut bracket_depth = 0usize;
     for character in input.chars() {
         if escaped {
             current.push(character);
@@ -621,7 +625,12 @@ fn split_escaped(input: &str, delimiter: char) -> Vec<String> {
             escaped = true;
             continue;
         }
-        if character == delimiter {
+        if delimiter == ';' && character == '[' {
+            bracket_depth += 1;
+        } else if delimiter == ';' && character == ']' && bracket_depth > 0 {
+            bracket_depth -= 1;
+        }
+        if character == delimiter && bracket_depth == 0 {
             parts.push(current.clone());
             current.clear();
         } else {
