@@ -8,8 +8,9 @@ La fase inicial ya ha dejado estable la identidad técnica y la arquitectura mí
 
 - Bootstrap en Python para iterar rápido y validar comportamiento.
 - Backend nativo en Rust dentro de [native](native).
-- Pipeline funcional: lexer -> parser -> análisis semántico -> IR -> VM -> artefactos .axm.
+- Pipeline funcional: lexer -> parser -> análisis semántico -> IR -> VM -> artefactos `.axm`.
 - Soporte para tipos base, funciones, parámetros, retornos, arrays, indexación y asignación por índice.
+- Bootstrap Python y backend Rust con una cobertura funcional cada vez más alineada.
 - Validación automatizada en Rust y Python.
 
 ## Arquitectura actual
@@ -26,6 +27,13 @@ La referencia de comportamiento vive en [src/axiom](src/axiom). Aquí se mantien
 
 Esto sirve como base comparativa frente al backend nativo.
 
+El bootstrap también dispone de un IR portable `.air` con instrucciones para:
+
+- `LET`, `SET` y `PRINT`.
+- bloques recursivos `IF`/`ELSE` y `WHILE`.
+- funciones, llamadas y retornos.
+- arrays, indexación y expresiones aritméticas o comparativas.
+
 ### Backend nativo
 
 El núcleo nativo está en [native](native), con módulos clave como:
@@ -39,20 +47,28 @@ El núcleo nativo está en [native](native), con módulos clave como:
 ## Funcionalidades ya soportadas
 
 - Literales: enteros, booleanos, cadenas.
+- Literales de arrays y arrays anidados.
 - Variables y reasignaciones simples.
 - Funciones con parámetros y retorno.
 - Tipos explícitos, incluyendo arrays: `Int[]`, `Bool[]`, etc.
 - Indexación de arrays, incluso encadenada: `values[1]`, `matrix[0][1]`.
 - Asignación a elementos de arrays: `values[1] = 99`.
 - Asignación anidada a arrays: `matrix[1][0] = 99`.
+- Comentarios de línea con `//`.
+- Expresiones agrupadas con paréntesis: `(2 + 3) * 4`.
+- Negación unaria de enteros: `-value`.
+- Comparaciones: `>`, `>=`, `<`, `<=`, `==` y `!=`.
+- Operadores aritméticos, lógicos y precedencia de expresiones.
+- Control de flujo: `if`, `else` y `while`.
 - Artefactos compilados `.axm` con serialización y ejecución posterior.
 
 ## Validación actual
 
 La base del proyecto ya está verificada con pruebas reales:
 
-- Rust: 36 tests pasando.
-- Python: 19 tests pasando.
+- Rust: 37 tests internos y 8 tests CLI pasando.
+- Python: 33 tests pasando.
+- `git diff --check` sin errores en la última validación.
 
 ## Desarrollo
 
@@ -73,14 +89,15 @@ native/target/debug/axiom run examples/hello.ax
 
 ## Roadmap actual
 
-El roadmap completo sigue en [Documento sin título.txt](Documento%20sin%20t%C3%ADtulo.txt), pero el proyecto ya ha superado varias etapas funcionales y se encuentra en la consolidación del lenguaje base.
+El roadmap completo sigue en [Documento sin título.txt](Documento%20sin%20t%C3%ADtulo.txt), que continúa siendo la fuente de dirección del proyecto. El trabajo actual está consolidando el lenguaje base y manteniendo Python como bootstrap mientras Rust avanza como implementación nativa.
 
 Los siguientes movimientos razonables son:
 
-- mejorar la calidad de errores del CLI con línea/columna reales
-- ampliar soporte de expresiones y control de flujo
-- preparar la siguiente capa del lenguaje: estructuras, objetos o iteraciones más ricas
-- seguir manteniendo Python y Rust como dos referencias paralelas hasta que la implementación nativa sustituya a la bootstrap
+- completar la paridad entre el IR Python `.air` y el backend nativo
+- mejorar la calidad de errores semánticos del CLI con línea/columna reales
+- ampliar las pruebas end-to-end de build, artefactos y funciones
+- avanzar hacia la siguiente capa del lenguaje: estructuras, objetos, enums y tipos más ricos
+- seguir usando Python como referencia mientras Rust consolida la implementación principal
 
 ## Principios
 
