@@ -46,11 +46,11 @@ El núcleo nativo está en [native](native), con módulos clave como:
 
 ## Funcionalidades ya soportadas
 
-- Literales: enteros, booleanos, cadenas.
+- Literales: enteros, flotantes, booleanos, cadenas.
 - Literales de arrays y arrays anidados.
 - Variables y reasignaciones simples.
 - Funciones con parámetros y retorno.
-- Tipos explícitos, incluyendo arrays: `Int[]`, `Bool[]`, etc.
+- Tipos explícitos, incluyendo `Int`, `Float` y arrays: `Int[]`, `Bool[]`, etc.
 - Indexación de arrays, incluso encadenada: `values[1]`, `matrix[0][1]`.
 - Asignación a elementos de arrays: `values[1] = 99`.
 - Asignación anidada a arrays: `matrix[1][0] = 99`.

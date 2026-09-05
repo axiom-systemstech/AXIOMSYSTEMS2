@@ -44,6 +44,7 @@ justifiquen.
 - Los errores léxicos incluyen el carácter y su posición.
 - Las palabras reservadas se distinguen de los identificadores durante el
   lexing.
+- Los literales `Float` usan punto decimal, por ejemplo `1.5`.
 - La sintaxis prioriza una curva de aprendizaje corta sin renunciar a
   compilación nativa y ejecución rápida.
 
@@ -61,5 +62,15 @@ fn main() {
     } else {
         print("other")
     }
+}
+```
+
+Los tipos `Int` y `Float` admiten operaciones aritméticas y comparaciones entre
+operandos del mismo tipo:
+
+```axiom
+fn main() {
+    let total: Float = 1.5 + 2.5
+    print(total / 2.0)
 }
 ```
