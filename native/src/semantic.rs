@@ -99,7 +99,7 @@ fn check_expression(
                         Ok(Some(Type::Int))
                     } else {
                         Err(SemanticError {
-                            message: "+ requires Int or String operands".into(),
+                            message: "+ requires matching Int, Float, or String operands".into(),
                         })
                     }
                 }
@@ -434,5 +434,14 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error.message, "function 'answer' must return a value");
+    }
+
+    #[test]
+    fn rejects_mixed_integer_and_float_addition() {
+        let error = analyze(&parse("fn main() { print(1 + 2.0) }").unwrap()).unwrap_err();
+        assert_eq!(
+            error.message,
+            "+ requires matching Int, Float, or String operands"
+        );
     }
 }
