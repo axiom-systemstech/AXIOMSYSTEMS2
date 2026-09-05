@@ -111,6 +111,28 @@ def test_ir_lowers_main_print_call():
     assert lower(program).render() == "AXIOM-IR 0.1\nPRINT 'Hello AXIOM'\n"
 
 
+def test_ir_renders_arrays_indexing_and_comparisons():
+    program = parse("fn main() { let values: Int[] = [10, 20, 30]; print(values[1]); print(2 <= 3) }")
+    assert lower(program).render() == (
+        "AXIOM-IR 0.1\n"
+        "LET values = [10, 20, 30]\n"
+        "PRINT values[1]\n"
+        "PRINT 2 <= 3\n"
+    )
+
+
+def test_build_writes_python_ir_for_arrays(tmp_path, capsys):
+    source = tmp_path / "arrays.ax"
+    output = tmp_path / "arrays.air"
+    source.write_text("fn main() { let values: Int[] = [10, 20]; print(values[1]) }", encoding="utf-8")
+
+    assert main(["build", str(source), "--output", str(output)]) == 0
+    assert output.read_text(encoding="utf-8") == (
+        "AXIOM-IR 0.1\nLET values = [10, 20]\nPRINT values[1]\n"
+    )
+    assert f"built: {output}" in capsys.readouterr().out
+
+
 def test_runtime_executes_print_instruction():
     output = []
     execute(IRProgram([PrintInstruction("Hello AXIOM")]), output.append)

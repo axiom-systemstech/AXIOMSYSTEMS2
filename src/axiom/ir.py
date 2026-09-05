@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .ast import Binary, BooleanLiteral, Expression, IntegerLiteral, Let, Program, StringLiteral, Variable
+from .ast import ArrayLiteral, Binary, BooleanLiteral, Expression, Index, IntegerLiteral, Let, Program, StringLiteral, Unary, Variable
 
 IRValue = Expression | str | int | bool
 
@@ -53,8 +53,15 @@ def _render_expression(expression: IRValue) -> str:
         return str(expression.value)
     if isinstance(expression, BooleanLiteral):
         return str(expression.value).lower()
+    if isinstance(expression, ArrayLiteral):
+        elements = ", ".join(_render_expression(element) for element in expression.elements)
+        return f"[{elements}]"
     if isinstance(expression, Variable):
         return expression.name
+    if isinstance(expression, Index):
+        return f"{_render_expression(expression.target)}[{_render_expression(expression.index)}]"
+    if isinstance(expression, Unary):
+        return f"{expression.operator}{_render_expression(expression.operand)}"
     if hasattr(expression, "name") and hasattr(expression, "arguments"):
         arguments = ", ".join(_render_expression(argument) for argument in expression.arguments)
         return f"{expression.name}({arguments})"
