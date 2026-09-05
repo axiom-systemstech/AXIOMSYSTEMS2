@@ -125,11 +125,7 @@ fn less_than_runs_in_source_and_compiled_artifact() {
 fn unary_negation_runs_in_source_and_compiled_artifact() {
     let source_path = temp_path("negate_source.ax");
     let artifact_path = temp_path("negate_output.axm");
-    std::fs::write(
-        &source_path,
-        "fn main() { let total: Int = 2 + 3; print(-total); print(-2 * 3) }",
-    )
-    .unwrap();
+    std::fs::write(&source_path, "fn main() { print(-(2 + 3)); print(-2 * 3) }").unwrap();
 
     let source_run = run_axiom(&["run", source_path.to_str().unwrap()]);
     assert!(

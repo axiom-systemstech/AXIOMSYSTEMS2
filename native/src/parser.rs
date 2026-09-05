@@ -455,6 +455,12 @@ impl Parser {
                 self.consume(TokenKind::RBracket, "expected ']'")?;
                 Expression::Array(elements)
             }
+            TokenKind::LParen => {
+                self.position += 1;
+                let expression = self.expression()?;
+                self.consume(TokenKind::RParen, "expected ')' ")?;
+                expression
+            }
             _ => return Err(self.error("expected literal")),
         };
         while self.check(TokenKind::LBracket) {
