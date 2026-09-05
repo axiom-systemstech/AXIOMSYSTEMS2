@@ -436,6 +436,34 @@ impl Machine {
                     };
                     self.stack.push(value);
                 }
+                Instruction::ShortCircuitAnd { right } => {
+                    let left = self.pop_stack()?.as_bool()?;
+                    if !left {
+                        self.stack.push(Value::Bool(false));
+                    } else {
+                        match self.execute_block(right, locals)? {
+                            Flow::None => {
+                                let value = self.pop_stack()?.as_bool()?;
+                                self.stack.push(Value::Bool(value));
+                            }
+                            flow => return Ok(flow),
+                        }
+                    }
+                }
+                Instruction::ShortCircuitOr { right } => {
+                    let left = self.pop_stack()?.as_bool()?;
+                    if left {
+                        self.stack.push(Value::Bool(true));
+                    } else {
+                        match self.execute_block(right, locals)? {
+                            Flow::None => {
+                                let value = self.pop_stack()?.as_bool()?;
+                                self.stack.push(Value::Bool(value));
+                            }
+                            flow => return Ok(flow),
+                        }
+                    }
+                }
                 Instruction::Unary { op } => {
                     let value = self.pop_stack()?;
                     let result =
@@ -606,6 +634,12 @@ fn encode_instruction(instruction: &Instruction) -> String {
         Instruction::StoreVariable(name) => format!("StoreVariable:{}", escape_string(name)),
         Instruction::MakeArray { length } => format!("MakeArray:{length}"),
         Instruction::Binary { op } => format!("Binary:{}", encode_binary(op)),
+        Instruction::ShortCircuitAnd { right } => {
+            format!("ShortCircuitAnd[{}]", encode_sequence(right))
+        }
+        Instruction::ShortCircuitOr { right } => {
+            format!("ShortCircuitOr[{}]", encode_sequence(right))
+        }
         Instruction::Unary { op } => format!("Unary:{}", encode_unary(op)),
         Instruction::Call {
             name,
@@ -712,6 +746,18 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
     if let Some(raw) = token.strip_prefix("Binary:") {
         return Ok(Instruction::Binary {
             op: decode_binary(raw)?,
+        });
+    }
+    if let Some(raw) = token.strip_prefix("ShortCircuitAnd") {
+        let (right, _) = extract_bracketed(raw)?;
+        return Ok(Instruction::ShortCircuitAnd {
+            right: decode_sequence(&right)?,
+        });
+    }
+    if let Some(raw) = token.strip_prefix("ShortCircuitOr") {
+        let (right, _) = extract_bracketed(raw)?;
+        return Ok(Instruction::ShortCircuitOr {
+            right: decode_sequence(&right)?,
         });
     }
     if let Some(raw) = token.strip_prefix("Unary:") {
@@ -976,6 +1022,17 @@ mod tests {
         let artifact = compile_program(&program);
         let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
         assert_eq!(execute_artifact(&decoded).unwrap(), "2\n");
+    }
+
+    #[test]
+    fn executes_compiled_short_circuit_logic() {
+        let program = parse(
+            "fn main() { if false && 1 / 0 == 0 { print(\"bad\") } if true || 1 / 0 == 0 { print(\"ok\") } }",
+        )
+        .unwrap();
+        let artifact = compile_program(&program);
+        let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
+        assert_eq!(execute_artifact(&decoded).unwrap(), "ok\n");
     }
 
     #[test]

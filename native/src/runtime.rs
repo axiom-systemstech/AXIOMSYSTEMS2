@@ -468,16 +468,24 @@ fn evaluate(
             left,
             right,
             operator: crate::parser::BinaryOperator::And,
-        } => Ok((evaluate(left, variables, functions, output)? == "true"
-            && evaluate(right, variables, functions, output)? == "true")
-            .to_string()),
+        } => {
+            let left = evaluate(left, variables, functions, output)? == "true";
+            if !left {
+                return Ok("false".into());
+            }
+            Ok((evaluate(right, variables, functions, output)? == "true").to_string())
+        }
         Expression::Binary {
             left,
             right,
             operator: crate::parser::BinaryOperator::Or,
-        } => Ok((evaluate(left, variables, functions, output)? == "true"
-            || evaluate(right, variables, functions, output)? == "true")
-            .to_string()),
+        } => {
+            let left = evaluate(left, variables, functions, output)? == "true";
+            if left {
+                return Ok("true".into());
+            }
+            Ok((evaluate(right, variables, functions, output)? == "true").to_string())
+        }
         Expression::Unary {
             operator: crate::parser::UnaryOperator::Not,
             operand,
@@ -764,6 +772,14 @@ mod tests {
     #[test]
     fn runs_integer_remainder() {
         assert_eq!(run("fn main() { print(17 % 5) }").unwrap(), "2\n");
+    }
+
+    #[test]
+    fn short_circuits_logical_operators() {
+        assert_eq!(
+            run("fn main() { if false && 1 / 0 == 0 { print(\"bad\") } if true || 1 / 0 == 0 { print(\"ok\") } }").unwrap(),
+            "ok\n"
+        );
     }
 
     #[test]

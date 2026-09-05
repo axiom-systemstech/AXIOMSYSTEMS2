@@ -231,9 +231,11 @@ def _evaluate(expression, variables, functions=None, emit=print):
             raise RuntimeError("division by zero")
         return left % right
     if isinstance(expression, Binary) and expression.operator == "&&":
-        return _evaluate(expression.left, variables, functions, emit) and _evaluate(expression.right, variables, functions, emit)
+        left = _evaluate(expression.left, variables, functions, emit)
+        return left and _evaluate(expression.right, variables, functions, emit)
     if isinstance(expression, Binary) and expression.operator == "||":
-        return _evaluate(expression.left, variables, functions, emit) or _evaluate(expression.right, variables, functions, emit)
+        left = _evaluate(expression.left, variables, functions, emit)
+        return left or _evaluate(expression.right, variables, functions, emit)
     if isinstance(expression, Unary) and expression.operator == "!":
         return not _evaluate(expression.operand, variables, functions, emit)
     if isinstance(expression, Unary) and expression.operator == "-":

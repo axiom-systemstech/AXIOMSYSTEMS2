@@ -14,6 +14,12 @@ pub enum Instruction {
     Binary {
         op: BinaryOperator,
     },
+    ShortCircuitAnd {
+        right: Vec<Instruction>,
+    },
+    ShortCircuitOr {
+        right: Vec<Instruction>,
+    },
     Unary {
         op: UnaryOperator,
     },
@@ -248,8 +254,18 @@ fn lower_expression(expression: &Expression) -> Vec<Instruction> {
             right,
         } => {
             let mut instructions = lower_expression(left);
-            instructions.extend(lower_expression(right));
-            instructions.push(Instruction::Binary { op: *operator });
+            match operator {
+                BinaryOperator::And => instructions.push(Instruction::ShortCircuitAnd {
+                    right: lower_expression(right),
+                }),
+                BinaryOperator::Or => instructions.push(Instruction::ShortCircuitOr {
+                    right: lower_expression(right),
+                }),
+                _ => {
+                    instructions.extend(lower_expression(right));
+                    instructions.push(Instruction::Binary { op: *operator });
+                }
+            }
             instructions
         }
         Expression::Unary { operator, operand } => {
