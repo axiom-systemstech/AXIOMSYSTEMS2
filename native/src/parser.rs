@@ -22,6 +22,7 @@ pub struct Parameter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     Int,
+    Float,
     Bool,
     String,
     Array(Box<Type>),
@@ -69,6 +70,7 @@ pub struct Call {
 pub enum Expression {
     String(String),
     Integer(i64),
+    Float(String),
     Boolean(bool),
     Variable(String),
     Array(Vec<Expression>),
@@ -187,6 +189,7 @@ impl Parser {
         let token = self.consume(TokenKind::Identifier, "expected type name")?;
         let mut type_name = match token.lexeme.as_str() {
             "Int" => Ok(Type::Int),
+            "Float" => Ok(Type::Float),
             "Bool" => Ok(Type::Bool),
             "String" => Ok(Type::String),
             _ => Err(ParseError {
@@ -496,6 +499,10 @@ impl Parser {
             TokenKind::Integer => {
                 self.position += 1;
                 Expression::Integer(token.lexeme.parse().expect("lexer emitted integer"))
+            }
+            TokenKind::Float => {
+                self.position += 1;
+                Expression::Float(token.lexeme)
             }
             TokenKind::True => {
                 self.position += 1;

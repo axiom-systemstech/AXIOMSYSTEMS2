@@ -19,6 +19,7 @@ pub enum TokenKind {
     False,
     Identifier,
     Integer,
+    Float,
     String,
     LParen,
     RParen,
@@ -171,8 +172,22 @@ pub fn lex(source: &str) -> Result<Vec<Token>, LexError> {
                 index += 1;
                 column += 1;
             }
+            let mut kind = TokenKind::Integer;
+            if characters.get(index) == Some(&'.')
+                && characters
+                    .get(index + 1)
+                    .is_some_and(|value| value.is_ascii_digit())
+            {
+                kind = TokenKind::Float;
+                index += 1;
+                column += 1;
+                while index < characters.len() && characters[index].is_ascii_digit() {
+                    index += 1;
+                    column += 1;
+                }
+            }
             tokens.push(Token {
-                kind: TokenKind::Integer,
+                kind,
                 lexeme: characters[start..index].iter().collect(),
                 line: token_line,
                 column: token_column,

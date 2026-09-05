@@ -6,6 +6,7 @@ use crate::parser::{BinaryOperator, Program, UnaryOperator};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Value {
     Int(i64),
+    Float(String),
     Bool(bool),
     String(String),
     Array(Vec<Value>),
@@ -44,6 +45,7 @@ impl std::fmt::Display for Value {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Int(value) => write!(formatter, "{value}"),
+            Value::Float(value) => write!(formatter, "{value}"),
             Value::Bool(value) => write!(formatter, "{value}"),
             Value::String(value) => write!(formatter, "{value}"),
             Value::Array(values) => {
@@ -287,6 +289,7 @@ impl Machine {
         while index < instructions.len() {
             match &instructions[index] {
                 Instruction::PushInt(value) => self.stack.push(Value::Int(*value)),
+                Instruction::PushFloat(value) => self.stack.push(Value::Float(value.clone())),
                 Instruction::PushBool(value) => self.stack.push(Value::Bool(*value)),
                 Instruction::PushString(value) => self.stack.push(Value::String(value.clone())),
                 Instruction::LoadVariable(name) => {
@@ -311,24 +314,111 @@ impl Machine {
                     let right = self.pop_stack()?;
                     let left = self.pop_stack()?;
                     let value = match op {
-                        BinaryOperator::Add => Value::Int(left.as_int()? + right.as_int()?),
-                        BinaryOperator::Subtract => Value::Int(left.as_int()? - right.as_int()?),
-                        BinaryOperator::Multiply => Value::Int(left.as_int()? * right.as_int()?),
+                        BinaryOperator::Add => match (&left, &right) {
+                            (Value::Int(left), Value::Int(right)) => Value::Int(left + right),
+                            (Value::Float(left), Value::Float(right)) => {
+                                Value::Float(render_float(
+                                    left.parse::<f64>().map_err(|_| VmError {
+                                        message: "invalid Float value".into(),
+                                    })? + right.parse::<f64>().map_err(|_| VmError {
+                                        message: "invalid Float value".into(),
+                                    })?,
+                                ))
+                            }
+                            (Value::String(left), Value::String(right)) => {
+                                Value::String(format!("{left}{right}"))
+                            }
+                            _ => {
+                                return Err(VmError {
+                                    message: "addition requires matching operands".into(),
+                                })
+                            }
+                        },
+                        BinaryOperator::Subtract => match (&left, &right) {
+                            (Value::Int(left), Value::Int(right)) => Value::Int(left - right),
+                            (Value::Float(left), Value::Float(right)) => {
+                                Value::Float(render_float(
+                                    left.parse::<f64>().map_err(|_| VmError {
+                                        message: "invalid Float value".into(),
+                                    })? - right.parse::<f64>().map_err(|_| VmError {
+                                        message: "invalid Float value".into(),
+                                    })?,
+                                ))
+                            }
+                            _ => {
+                                return Err(VmError {
+                                    message: "arithmetic requires matching operands".into(),
+                                })
+                            }
+                        },
+                        BinaryOperator::Multiply => match (&left, &right) {
+                            (Value::Int(left), Value::Int(right)) => Value::Int(left * right),
+                            (Value::Float(left), Value::Float(right)) => {
+                                Value::Float(render_float(
+                                    left.parse::<f64>().map_err(|_| VmError {
+                                        message: "invalid Float value".into(),
+                                    })? * right.parse::<f64>().map_err(|_| VmError {
+                                        message: "invalid Float value".into(),
+                                    })?,
+                                ))
+                            }
+                            _ => {
+                                return Err(VmError {
+                                    message: "arithmetic requires matching operands".into(),
+                                })
+                            }
+                        },
                         BinaryOperator::Divide => {
-                            let divisor = right.as_int()?;
-                            if divisor == 0 {
+                            let divisor = match &right {
+                                Value::Int(value) => *value as f64,
+                                Value::Float(value) => {
+                                    value.parse::<f64>().map_err(|_| VmError {
+                                        message: "invalid Float value".into(),
+                                    })?
+                                }
+                                _ => {
+                                    return Err(VmError {
+                                        message: "arithmetic requires numeric operands".into(),
+                                    })
+                                }
+                            };
+                            if divisor == 0.0 {
                                 return Err(VmError {
                                     message: "division by zero".into(),
                                 });
                             }
-                            Value::Int(left.as_int()? / divisor)
+                            match &left {
+                                Value::Int(value) if matches!(&right, Value::Int(_)) => {
+                                    Value::Int(*value / divisor as i64)
+                                }
+                                Value::Float(value) => Value::Float(render_float(
+                                    value.parse::<f64>().map_err(|_| VmError {
+                                        message: "invalid Float value".into(),
+                                    })? / divisor,
+                                )),
+                                _ => {
+                                    return Err(VmError {
+                                        message: "arithmetic requires numeric operands".into(),
+                                    })
+                                }
+                            }
                         }
-                        BinaryOperator::Greater => Value::Bool(left.as_int()? > right.as_int()?),
+                        BinaryOperator::Greater => {
+                            Value::Bool(compare_numeric(&left, &right, |left, right| left > right)?)
+                        }
                         BinaryOperator::GreaterEqual => {
-                            Value::Bool(left.as_int()? >= right.as_int()?)
+                            Value::Bool(compare_numeric(&left, &right, |left, right| {
+                                left >= right
+                            })?)
                         }
-                        BinaryOperator::Less => Value::Bool(left.as_int()? < right.as_int()?),
-                        BinaryOperator::LessEqual => Value::Bool(left.as_int()? <= right.as_int()?),
+                        BinaryOperator::Less => {
+                            Value::Bool(compare_numeric(&left, &right, |left, right| left < right)?)
+                        }
+                        BinaryOperator::LessEqual => {
+                            Value::Bool(compare_numeric(&left, &right, |left, right| {
+                                left <= right
+                            })?)
+                        }
                         BinaryOperator::Equal => Value::Bool(left == right),
                         BinaryOperator::NotEqual => Value::Bool(left != right),
                         BinaryOperator::And => Value::Bool(left.as_bool()? && right.as_bool()?),
@@ -338,14 +428,27 @@ impl Machine {
                 }
                 Instruction::Unary { op } => {
                     let value = self.pop_stack()?;
-                    let result = match op {
-                        UnaryOperator::Not => Value::Bool(!value.as_bool()?),
-                        UnaryOperator::Negate => {
-                            Value::Int(value.as_int()?.checked_neg().ok_or_else(|| VmError {
-                                message: "integer negation overflow".into(),
-                            })?)
-                        }
-                    };
+                    let result =
+                        match op {
+                            UnaryOperator::Not => Value::Bool(!value.as_bool()?),
+                            UnaryOperator::Negate => match value {
+                                Value::Int(value) => {
+                                    Value::Int(value.checked_neg().ok_or_else(|| VmError {
+                                        message: "integer negation overflow".into(),
+                                    })?)
+                                }
+                                Value::Float(value) => Value::Float(render_float(
+                                    -value.parse::<f64>().map_err(|_| VmError {
+                                        message: "invalid Float value".into(),
+                                    })?,
+                                )),
+                                _ => {
+                                    return Err(VmError {
+                                        message: "unary '-' requires a numeric operand".into(),
+                                    })
+                                }
+                            },
+                        };
                     self.stack.push(result);
                 }
                 Instruction::Index => {
@@ -484,6 +587,7 @@ fn decode_sequence(raw: &str) -> Result<Vec<Instruction>, VmError> {
 fn encode_instruction(instruction: &Instruction) -> String {
     match instruction {
         Instruction::PushInt(value) => format!("PushInt:{value}"),
+        Instruction::PushFloat(value) => format!("PushFloat:{value}"),
         Instruction::PushBool(value) => {
             format!("PushBool:{}", if *value { "true" } else { "false" })
         }
@@ -561,6 +665,12 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
             message: format!("invalid integer literal '{value}'"),
         })?;
         return Ok(Instruction::PushInt(value));
+    }
+    if let Some(value) = token.strip_prefix("PushFloat:") {
+        value.parse::<f64>().map_err(|_| VmError {
+            message: format!("invalid float literal '{value}'"),
+        })?;
+        return Ok(Instruction::PushFloat(value.to_string()));
     }
     if let Some(value) = token.strip_prefix("PushBool:") {
         let value = match value {
@@ -808,6 +918,34 @@ fn unescape_string(value: &str) -> String {
     result
 }
 
+fn render_float(value: f64) -> String {
+    if value.fract() == 0.0 {
+        format!("{value:.1}")
+    } else {
+        value.to_string()
+    }
+}
+
+fn compare_numeric<F>(left: &Value, right: &Value, compare: F) -> Result<bool, VmError>
+where
+    F: FnOnce(f64, f64) -> bool,
+{
+    match (left, right) {
+        (Value::Int(left), Value::Int(right)) => Ok(compare(*left as f64, *right as f64)),
+        (Value::Float(left), Value::Float(right)) => Ok(compare(
+            left.parse::<f64>().map_err(|_| VmError {
+                message: "invalid Float value".into(),
+            })?,
+            right.parse::<f64>().map_err(|_| VmError {
+                message: "invalid Float value".into(),
+            })?,
+        )),
+        _ => Err(VmError {
+            message: "comparison requires matching numeric operands".into(),
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -818,6 +956,16 @@ mod tests {
         let program = parse("fn main() { let total: Int = 20 + 22; print(total) }").unwrap();
         let output = execute_program(&program).unwrap();
         assert_eq!(output, "42\n");
+    }
+
+    #[test]
+    fn executes_compiled_float_arithmetic() {
+        let program =
+            parse("fn main() { let value: Float = 1.5 + 2.5; print(value); print(value / 2.0) }")
+                .unwrap();
+        let artifact = compile_program(&program);
+        let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
+        assert_eq!(execute_artifact(&decoded).unwrap(), "4.0\n2.0\n");
     }
 
     #[test]

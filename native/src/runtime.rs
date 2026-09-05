@@ -304,6 +304,7 @@ fn evaluate(
     match expression {
         Expression::String(value) => Ok(value.clone()),
         Expression::Integer(value) => Ok(value.to_string()),
+        Expression::Float(value) => Ok(value.clone()),
         Expression::Boolean(value) => Ok(value.to_string()),
         Expression::Array(values) => {
             let items = values
@@ -324,6 +325,10 @@ fn evaluate(
             let right = evaluate(right, variables, functions, output)?;
             if let (Ok(left_value), Ok(right_value)) = (left.parse::<i64>(), right.parse::<i64>()) {
                 Ok((left_value + right_value).to_string())
+            } else if let (Ok(left_value), Ok(right_value)) =
+                (left.parse::<f64>(), right.parse::<f64>())
+            {
+                Ok(render_float(left_value + right_value))
             } else {
                 Ok(format!("{left}{right}"))
             }
@@ -332,28 +337,40 @@ fn evaluate(
             left,
             right,
             operator: crate::parser::BinaryOperator::Subtract,
-        } => Ok((integer(left, variables, functions, output)?
-            - integer(right, variables, functions, output)?)
-        .to_string()),
+        } => numeric_binary(left, right, variables, functions, output, |left, right| {
+            left - right
+        }),
         Expression::Binary {
             left,
             right,
             operator: crate::parser::BinaryOperator::Multiply,
-        } => Ok((integer(left, variables, functions, output)?
-            * integer(right, variables, functions, output)?)
-        .to_string()),
+        } => numeric_binary(left, right, variables, functions, output, |left, right| {
+            left * right
+        }),
         Expression::Binary {
             left,
             right,
             operator: crate::parser::BinaryOperator::Divide,
         } => {
-            let divisor = integer(right, variables, functions, output)?;
-            if divisor == 0 {
+            let left_value = evaluate(left, variables, functions, output)?;
+            let right_value = evaluate(right, variables, functions, output)?;
+            let divisor = right_value.parse::<f64>().map_err(|_| RuntimeError {
+                message: "arithmetic operators expect numbers".into(),
+            })?;
+            if divisor == 0.0 {
                 return Err(RuntimeError {
                     message: "division by zero".into(),
                 });
             }
-            Ok((integer(left, variables, functions, output)? / divisor).to_string())
+            if let (Ok(left), Ok(right)) = (left_value.parse::<i64>(), right_value.parse::<i64>()) {
+                Ok((left / right).to_string())
+            } else {
+                Ok(render_float(
+                    left_value.parse::<f64>().map_err(|_| RuntimeError {
+                        message: "arithmetic operators expect numbers".into(),
+                    })? / divisor,
+                ))
+            }
         }
         Expression::Binary {
             left,
@@ -361,14 +378,14 @@ fn evaluate(
             operator: crate::parser::BinaryOperator::Greater,
         } => {
             let left = evaluate(left, variables, functions, output)?
-                .parse::<i64>()
+                .parse::<f64>()
                 .map_err(|_| RuntimeError {
-                    message: "> expects integers".into(),
+                    message: "> expects numbers".into(),
                 })?;
             let right = evaluate(right, variables, functions, output)?
-                .parse::<i64>()
+                .parse::<f64>()
                 .map_err(|_| RuntimeError {
-                    message: "> expects integers".into(),
+                    message: "> expects numbers".into(),
                 })?;
             Ok((left > right).to_string())
         }
@@ -378,14 +395,14 @@ fn evaluate(
             operator: crate::parser::BinaryOperator::Less,
         } => {
             let left = evaluate(left, variables, functions, output)?
-                .parse::<i64>()
+                .parse::<f64>()
                 .map_err(|_| RuntimeError {
-                    message: "< expects integers".into(),
+                    message: "< expects numbers".into(),
                 })?;
             let right = evaluate(right, variables, functions, output)?
-                .parse::<i64>()
+                .parse::<f64>()
                 .map_err(|_| RuntimeError {
-                    message: "< expects integers".into(),
+                    message: "< expects numbers".into(),
                 })?;
             Ok((left < right).to_string())
         }
@@ -393,15 +410,31 @@ fn evaluate(
             left,
             right,
             operator: crate::parser::BinaryOperator::GreaterEqual,
-        } => Ok((integer(left, variables, functions, output)?
-            >= integer(right, variables, functions, output)?)
+        } => Ok((evaluate(left, variables, functions, output)?
+            .parse::<f64>()
+            .map_err(|_| RuntimeError {
+                message: ">= expects numbers".into(),
+            })?
+            >= evaluate(right, variables, functions, output)?
+                .parse::<f64>()
+                .map_err(|_| RuntimeError {
+                    message: ">= expects numbers".into(),
+                })?)
         .to_string()),
         Expression::Binary {
             left,
             right,
             operator: crate::parser::BinaryOperator::LessEqual,
-        } => Ok((integer(left, variables, functions, output)?
-            <= integer(right, variables, functions, output)?)
+        } => Ok((evaluate(left, variables, functions, output)?
+            .parse::<f64>()
+            .map_err(|_| RuntimeError {
+                message: "<= expects numbers".into(),
+            })?
+            <= evaluate(right, variables, functions, output)?
+                .parse::<f64>()
+                .map_err(|_| RuntimeError {
+                    message: "<= expects numbers".into(),
+                })?)
         .to_string()),
         Expression::Binary {
             left,
@@ -438,12 +471,23 @@ fn evaluate(
         Expression::Unary {
             operator: crate::parser::UnaryOperator::Negate,
             operand,
-        } => integer(operand, variables, functions, output)?
-            .checked_neg()
-            .map(|value| value.to_string())
-            .ok_or_else(|| RuntimeError {
-                message: "integer negation overflow".into(),
-            }),
+        } => {
+            let value = evaluate(operand, variables, functions, output)?;
+            if let Ok(value) = value.parse::<i64>() {
+                value
+                    .checked_neg()
+                    .map(|value| value.to_string())
+                    .ok_or_else(|| RuntimeError {
+                        message: "integer negation overflow".into(),
+                    })
+            } else {
+                Ok(render_float(-value.parse::<f64>().map_err(|_| {
+                    RuntimeError {
+                        message: "unary '-' requires a number".into(),
+                    }
+                })?))
+            }
+        }
         Expression::Index { target, index } => {
             let target_value = evaluate(target, variables, functions, output)?;
             let index_value = evaluate(index, variables, functions, output)?;
@@ -482,6 +526,40 @@ fn integer(
         .map_err(|_| RuntimeError {
             message: "arithmetic operators expect integers".into(),
         })
+}
+
+fn numeric_binary<F>(
+    left: &Expression,
+    right: &Expression,
+    variables: &std::collections::HashMap<String, String>,
+    functions: &[crate::parser::Function],
+    output: &mut String,
+    operation: F,
+) -> Result<String, RuntimeError>
+where
+    F: FnOnce(f64, f64) -> f64,
+{
+    let left = evaluate(left, variables, functions, output)?;
+    let right = evaluate(right, variables, functions, output)?;
+    let integer_operands = left.parse::<i64>().ok().zip(right.parse::<i64>().ok());
+    if let Some((left, right)) = integer_operands {
+        return Ok((operation(left as f64, right as f64) as i64).to_string());
+    }
+    let left = left.parse::<f64>().map_err(|_| RuntimeError {
+        message: "arithmetic operators expect numbers".into(),
+    })?;
+    let right = right.parse::<f64>().map_err(|_| RuntimeError {
+        message: "arithmetic operators expect numbers".into(),
+    })?;
+    Ok(render_float(operation(left, right)))
+}
+
+fn render_float(value: f64) -> String {
+    if value.fract() == 0.0 {
+        format!("{value:.1}")
+    } else {
+        value.to_string()
+    }
 }
 
 fn parse_array_literal(value: &str) -> Result<Vec<String>, RuntimeError> {
@@ -580,6 +658,15 @@ mod tests {
         assert_eq!(
             run("fn main() { print(\"Hello\" + \" \" + \"AXIOM\") }").unwrap(),
             "Hello AXIOM\n"
+        );
+    }
+
+    #[test]
+    fn runs_float_arithmetic() {
+        assert_eq!(
+            run("fn main() { let value: Float = 1.5 + 2.5; print(value); print(value / 2.0) }")
+                .unwrap(),
+            "4.0\n2.0\n"
         );
     }
 

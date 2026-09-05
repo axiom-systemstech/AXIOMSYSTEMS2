@@ -42,6 +42,7 @@ fn check_expression(
     match expression {
         Expression::String(_) => Ok(Some(Type::String)),
         Expression::Integer(_) => Ok(Some(Type::Int)),
+        Expression::Float(_) => Ok(Some(Type::Float)),
         Expression::Boolean(_) => Ok(Some(Type::Bool)),
         Expression::Array(elements) => {
             let mut inferred: Option<Type> = None;
@@ -74,7 +75,9 @@ fn check_expression(
             match operator {
                 BinaryOperator::Add => {
                     if left_type == right_type
-                        && (left_type == Some(Type::Int) || left_type == Some(Type::String))
+                        && (left_type == Some(Type::Int)
+                            || left_type == Some(Type::Float)
+                            || left_type == Some(Type::String))
                     {
                         Ok(left_type.or(Some(Type::Int)))
                     } else if left_type.is_none() && right_type.is_none() {
@@ -86,15 +89,31 @@ fn check_expression(
                     }
                 }
                 BinaryOperator::Subtract | BinaryOperator::Multiply | BinaryOperator::Divide => {
-                    require_types(left_type, right_type, Type::Int, "arithmetic operators")?;
-                    Ok(Some(Type::Int))
+                    if left_type == Some(Type::Int) && right_type == Some(Type::Int) {
+                        Ok(Some(Type::Int))
+                    } else if left_type == Some(Type::Float) && right_type == Some(Type::Float) {
+                        Ok(Some(Type::Float))
+                    } else {
+                        Err(SemanticError {
+                            message: "arithmetic operators require matching numeric operands"
+                                .into(),
+                        })
+                    }
                 }
                 BinaryOperator::Greater
                 | BinaryOperator::GreaterEqual
                 | BinaryOperator::Less
                 | BinaryOperator::LessEqual => {
-                    require_types(left_type, right_type, Type::Int, "comparison operators")?;
-                    Ok(Some(Type::Bool))
+                    if (left_type == Some(Type::Int) && right_type == Some(Type::Int))
+                        || (left_type == Some(Type::Float) && right_type == Some(Type::Float))
+                    {
+                        Ok(Some(Type::Bool))
+                    } else {
+                        Err(SemanticError {
+                            message: "comparison operators require matching numeric operands"
+                                .into(),
+                        })
+                    }
                 }
                 BinaryOperator::Equal | BinaryOperator::NotEqual => {
                     if left_type.is_some() && right_type.is_some() && left_type != right_type {
@@ -127,12 +146,15 @@ fn check_expression(
             operand,
         } => {
             let operand_type = check_expression(operand, variables, functions)?;
-            if operand_type.is_some() && operand_type != Some(Type::Int) {
+            if operand_type.is_some()
+                && operand_type != Some(Type::Int)
+                && operand_type != Some(Type::Float)
+            {
                 return Err(SemanticError {
-                    message: "unary '-' requires Int".into(),
+                    message: "unary '-' requires Int or Float".into(),
                 });
             }
-            Ok(Some(Type::Int))
+            Ok(operand_type)
         }
         Expression::Index { target, index } => {
             let target_type = check_expression(target, variables, functions)?;

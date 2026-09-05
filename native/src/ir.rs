@@ -3,6 +3,7 @@ use crate::parser::{BinaryOperator, Expression, Program, Statement, Type, UnaryO
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
     PushInt(i64),
+    PushFloat(String),
     PushBool(bool),
     PushString(String),
     LoadVariable(String),
@@ -228,6 +229,7 @@ fn lower_expression(expression: &Expression) -> Vec<Instruction> {
     match expression {
         Expression::String(value) => vec![Instruction::PushString(value.clone())],
         Expression::Integer(value) => vec![Instruction::PushInt(*value)],
+        Expression::Float(value) => vec![Instruction::PushFloat(value.clone())],
         Expression::Boolean(value) => vec![Instruction::PushBool(*value)],
         Expression::Array(values) => {
             let mut instructions = Vec::new();
