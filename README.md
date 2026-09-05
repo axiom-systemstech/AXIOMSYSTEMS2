@@ -56,7 +56,7 @@ El núcleo nativo está en [native](native), con módulos clave como:
 - Asignación anidada a arrays: `matrix[1][0] = 99`.
 - Comentarios de línea con `//`.
 - Expresiones agrupadas con paréntesis: `(2 + 3) * 4`.
-- Negación unaria de enteros: `-value`.
+- Negación unaria de enteros y flotantes: `-value`.
 - Comparaciones: `>`, `>=`, `<`, `<=`, `==` y `!=`.
 - Operadores aritméticos, lógicos y precedencia de expresiones.
 - Control de flujo: `if`, `else if`, `else`, `while`, `for`, `break` y `continue`.
@@ -67,8 +67,8 @@ El núcleo nativo está en [native](native), con módulos clave como:
 
 La base del proyecto ya está verificada con pruebas reales:
 
-- Rust: 37 tests internos y 8 tests CLI pasando.
-- Python: 33 tests pasando.
+- Rust: 44 tests internos y 8 tests CLI pasando.
+- Python: 40 tests pasando.
 - `git diff --check` sin errores en la última validación.
 
 ## Desarrollo
