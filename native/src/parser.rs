@@ -3,6 +3,13 @@ use crate::{lex, LexError, Token, TokenKind};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Program {
     pub functions: Vec<Function>,
+    pub structs: Vec<StructDefinition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructDefinition {
+    pub name: String,
+    pub fields: Vec<Parameter>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +32,7 @@ pub enum Type {
     Float,
     Bool,
     String,
+    Named(String),
     Array(Box<Type>),
 }
 
@@ -74,6 +82,10 @@ pub enum Expression {
     Boolean(bool),
     Variable(String),
     Array(Vec<Expression>),
+    StructLiteral {
+        type_name: String,
+        fields: Vec<(String, Expression)>,
+    },
     Binary {
         left: Box<Expression>,
         operator: BinaryOperator,
@@ -87,6 +99,10 @@ pub enum Expression {
     Index {
         target: Box<Expression>,
         index: Box<Expression>,
+    },
+    FieldAccess {
+        target: Box<Expression>,
+        field: String,
     },
 }
 
@@ -125,6 +141,7 @@ pub fn parse(source: &str) -> Result<Program, ParseError> {
     Parser {
         tokens,
         position: 0,
+        struct_names: std::collections::HashSet::new(),
     }
     .parse()
 }
@@ -132,15 +149,46 @@ pub fn parse(source: &str) -> Result<Program, ParseError> {
 struct Parser {
     tokens: Vec<Token>,
     position: usize,
+    struct_names: std::collections::HashSet<String>,
 }
 
 impl Parser {
     fn parse(mut self) -> Result<Program, ParseError> {
         let mut functions = Vec::new();
+        let mut structs = Vec::new();
         while !self.check(TokenKind::Eof) {
-            functions.push(self.function()?);
+            if self.check(TokenKind::Struct) {
+                structs.push(self.struct_definition()?);
+            } else {
+                functions.push(self.function()?);
+            }
         }
-        Ok(Program { functions })
+        Ok(Program { functions, structs })
+    }
+
+    fn struct_definition(&mut self) -> Result<StructDefinition, ParseError> {
+        self.consume(TokenKind::Struct, "expected 'struct'")?;
+        let name = self
+            .consume(TokenKind::Identifier, "expected struct name")?
+            .lexeme;
+        self.struct_names.insert(name.clone());
+        self.consume(TokenKind::LBrace, "expected '{'")?;
+        let mut fields = Vec::new();
+        while !self.check(TokenKind::RBrace) {
+            let field_name = self
+                .consume(TokenKind::Identifier, "expected field name")?
+                .lexeme;
+            self.consume(TokenKind::Colon, "expected ':'")?;
+            fields.push(Parameter {
+                name: field_name,
+                type_name: Some(self.type_name()?),
+            });
+            if self.check(TokenKind::Comma) || self.check(TokenKind::Semicolon) {
+                self.position += 1;
+            }
+        }
+        self.consume(TokenKind::RBrace, "expected '}'")?;
+        Ok(StructDefinition { name, fields })
     }
 
     fn function(&mut self) -> Result<Function, ParseError> {
@@ -193,6 +241,7 @@ impl Parser {
             "Float" => Ok(Type::Float),
             "Bool" => Ok(Type::Bool),
             "String" => Ok(Type::String),
+            _ if self.struct_names.contains(&token.lexeme) => Ok(Type::Named(token.lexeme.clone())),
             _ => Err(ParseError {
                 message: format!("unknown type '{}'", token.lexeme),
                 line: token.line,
@@ -521,7 +570,25 @@ impl Parser {
             TokenKind::Identifier => {
                 let name = token.lexeme.clone();
                 self.position += 1;
-                if self.check(TokenKind::LParen) {
+                if self.check(TokenKind::LBrace) {
+                    self.position += 1;
+                    let mut fields = Vec::new();
+                    while !self.check(TokenKind::RBrace) {
+                        let field_name = self
+                            .consume(TokenKind::Identifier, "expected field name")?
+                            .lexeme;
+                        self.consume(TokenKind::Colon, "expected ':'")?;
+                        fields.push((field_name, self.expression()?));
+                        if self.check(TokenKind::Comma) || self.check(TokenKind::Semicolon) {
+                            self.position += 1;
+                        }
+                    }
+                    self.consume(TokenKind::RBrace, "expected '}'")?;
+                    Expression::StructLiteral {
+                        type_name: name,
+                        fields,
+                    }
+                } else if self.check(TokenKind::LParen) {
                     self.position += 1;
                     let mut arguments = Vec::new();
                     if !self.check(TokenKind::RParen) {
@@ -565,6 +632,16 @@ impl Parser {
             expression = Expression::Index {
                 target: Box::new(expression),
                 index: Box::new(index),
+            };
+        }
+        while self.check(TokenKind::Dot) {
+            self.position += 1;
+            let field = self
+                .consume(TokenKind::Identifier, "expected field name")?
+                .lexeme;
+            expression = Expression::FieldAccess {
+                target: Box::new(expression),
+                field,
             };
         }
         Ok(expression)

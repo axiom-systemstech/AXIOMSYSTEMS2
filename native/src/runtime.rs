@@ -313,9 +313,25 @@ fn evaluate(
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(format!("[{}]", items.join(", ")))
         }
+        Expression::StructLiteral { fields, .. } => {
+            let values = fields
+                .iter()
+                .map(|(name, value)| {
+                    Ok(format!(
+                        "{name}={}",
+                        evaluate(value, variables, functions, output)?
+                    ))
+                })
+                .collect::<Result<Vec<_>, RuntimeError>>()?;
+            Ok(format!("{{{}}}", values.join(",")))
+        }
         Expression::Variable(name) => variables.get(name).cloned().ok_or_else(|| RuntimeError {
             message: format!("unknown variable '{name}'"),
         }),
+        Expression::FieldAccess { target, field } => {
+            let value = evaluate(target, variables, functions, output)?;
+            parse_struct_field(&value, field)
+        }
         Expression::Binary {
             left,
             right,
@@ -639,6 +655,24 @@ fn parse_array_literal(value: &str) -> Result<Vec<String>, RuntimeError> {
     Ok(elements)
 }
 
+fn parse_struct_field(value: &str, field: &str) -> Result<String, RuntimeError> {
+    let inner = value
+        .strip_prefix('{')
+        .and_then(|value| value.strip_suffix('}'))
+        .ok_or_else(|| RuntimeError {
+            message: "expected struct value".into(),
+        })?;
+    inner
+        .split(',')
+        .find_map(|entry| {
+            let (name, value) = entry.split_once('=')?;
+            (name == field).then(|| value.to_string())
+        })
+        .ok_or_else(|| RuntimeError {
+            message: format!("unknown field '{field}'"),
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -680,6 +714,14 @@ mod tests {
         assert_eq!(
             run("fn main() { print(\"Hello\" + \" \" + \"AXIOM\") }").unwrap(),
             "Hello AXIOM\n"
+        );
+    }
+
+    #[test]
+    fn runs_struct_field_access() {
+        assert_eq!(
+            run("struct Point { x: Int, y: Int } fn main() { let point: Point = Point { x: 10, y: 20 }; print(point.x); print(point.y) }").unwrap(),
+            "10\n20\n"
         );
     }
 

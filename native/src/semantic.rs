@@ -74,6 +74,7 @@ fn check_expression(
             }
             Ok(inferred.map(|value| Type::Array(Box::new(value))))
         }
+        Expression::StructLiteral { type_name, .. } => Ok(Some(Type::Named(type_name.clone()))),
         Expression::Variable(name) => variables.get(name).cloned().ok_or_else(|| SemanticError {
             message: format!("unknown variable '{name}'"),
         }),
@@ -187,6 +188,7 @@ fn check_expression(
                 }),
             }
         }
+        Expression::FieldAccess { .. } => Ok(None),
         Expression::Call(call) => {
             let function = functions
                 .iter()

@@ -10,6 +10,7 @@ pub enum Value {
     Bool(bool),
     String(String),
     Array(Vec<Value>),
+    Struct(HashMap<String, Value>),
 }
 
 impl Value {
@@ -55,6 +56,14 @@ impl std::fmt::Display for Value {
                     .collect::<Vec<_>>()
                     .join(", ");
                 write!(formatter, "[{rendered}]")
+            }
+            Value::Struct(fields) => {
+                let rendered = fields
+                    .iter()
+                    .map(|(name, value)| format!("{name}={value}"))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                write!(formatter, "{{{rendered}}}")
             }
         }
     }
@@ -310,6 +319,15 @@ impl Machine {
                     values.reverse();
                     self.stack.push(Value::Array(values));
                 }
+                Instruction::MakeStruct { fields } => {
+                    let mut values = Vec::with_capacity(fields.len());
+                    for _ in fields {
+                        values.push(self.pop_stack()?);
+                    }
+                    values.reverse();
+                    let fields = fields.iter().cloned().zip(values).collect();
+                    self.stack.push(Value::Struct(fields));
+                }
                 Instruction::Binary { op } => {
                     let right = self.pop_stack()?;
                     let left = self.pop_stack()?;
@@ -500,6 +518,18 @@ impl Machine {
                     }
                     self.stack.push(values[index as usize].clone());
                 }
+                Instruction::GetField(field) => {
+                    let value = self.pop_stack()?;
+                    let Value::Struct(fields) = value else {
+                        return Err(VmError {
+                            message: "expected struct value".into(),
+                        });
+                    };
+                    self.stack
+                        .push(fields.get(field).cloned().ok_or_else(|| VmError {
+                            message: format!("unknown field '{field}'"),
+                        })?);
+                }
                 Instruction::StoreIndex => {
                     let value = self.pop_stack()?;
                     let index = self.pop_stack()?.as_int()?;
@@ -632,6 +662,14 @@ fn encode_instruction(instruction: &Instruction) -> String {
         Instruction::LoadVariable(name) => format!("LoadVariable:{}", escape_string(name)),
         Instruction::StoreVariable(name) => format!("StoreVariable:{}", escape_string(name)),
         Instruction::MakeArray { length } => format!("MakeArray:{length}"),
+        Instruction::MakeStruct { fields } => format!(
+            "MakeStruct:{}",
+            fields
+                .iter()
+                .map(|field| escape_string(field))
+                .collect::<Vec<_>>()
+                .join("|")
+        ),
         Instruction::Binary { op } => format!("Binary:{}", encode_binary(op)),
         Instruction::ShortCircuitAnd { right } => {
             format!("ShortCircuitAnd[{}]", encode_sequence(right))
@@ -648,6 +686,7 @@ fn encode_instruction(instruction: &Instruction) -> String {
         }
         Instruction::Index => "Index".to_string(),
         Instruction::StoreIndex => "StoreIndex".to_string(),
+        Instruction::GetField(field) => format!("GetField:{}", escape_string(field)),
         Instruction::Print => "Print".to_string(),
         Instruction::Return => "Return".to_string(),
         Instruction::If {
@@ -697,6 +736,9 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
     if token == "StoreIndex" {
         return Ok(Instruction::StoreIndex);
     }
+    if let Some(field) = token.strip_prefix("GetField:") {
+        return Ok(Instruction::GetField(unescape_string(field)));
+    }
     if token == "Break" {
         return Ok(Instruction::Break);
     }
@@ -741,6 +783,17 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
             message: format!("invalid array length '{raw}'"),
         })?;
         return Ok(Instruction::MakeArray { length });
+    }
+    if let Some(raw) = token.strip_prefix("MakeStruct:") {
+        let fields = if raw.is_empty() {
+            Vec::new()
+        } else {
+            split_escaped(raw, '|')
+                .into_iter()
+                .map(|field| unescape_string(&field))
+                .collect()
+        };
+        return Ok(Instruction::MakeStruct { fields });
     }
     if let Some(raw) = token.strip_prefix("Binary:") {
         return Ok(Instruction::Binary {
@@ -1032,6 +1085,17 @@ mod tests {
         let artifact = compile_program(&program);
         let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
         assert_eq!(execute_artifact(&decoded).unwrap(), "ok\n");
+    }
+
+    #[test]
+    fn executes_compiled_struct_field_access() {
+        let program = parse(
+            "struct Point { x: Int, y: Int } fn main() { let point: Point = Point { x: 10, y: 20 }; print(point.x); print(point.y) }",
+        )
+        .unwrap();
+        let artifact = compile_program(&program);
+        let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
+        assert_eq!(execute_artifact(&decoded).unwrap(), "10\n20\n");
     }
 
     #[test]

@@ -11,6 +11,9 @@ pub enum Instruction {
     MakeArray {
         length: usize,
     },
+    MakeStruct {
+        fields: Vec<String>,
+    },
     Binary {
         op: BinaryOperator,
     },
@@ -29,6 +32,7 @@ pub enum Instruction {
     },
     Index,
     StoreIndex,
+    GetField(String),
     Print,
     Return,
     If {
@@ -240,6 +244,16 @@ fn lower_expression(expression: &Expression) -> Vec<Instruction> {
             });
             instructions
         }
+        Expression::StructLiteral { fields, .. } => {
+            let mut instructions = Vec::new();
+            for (_, value) in fields {
+                instructions.extend(lower_expression(value));
+            }
+            instructions.push(Instruction::MakeStruct {
+                fields: fields.iter().map(|(name, _)| name.clone()).collect(),
+            });
+            instructions
+        }
         Expression::Variable(name) => vec![Instruction::LoadVariable(name.clone())],
         Expression::Binary {
             left,
@@ -270,6 +284,11 @@ fn lower_expression(expression: &Expression) -> Vec<Instruction> {
             let mut instructions = lower_expression(target);
             instructions.extend(lower_expression(index));
             instructions.push(Instruction::Index);
+            instructions
+        }
+        Expression::FieldAccess { target, field } => {
+            let mut instructions = lower_expression(target);
+            instructions.push(Instruction::GetField(field.clone()));
             instructions
         }
         Expression::Call(call) => {

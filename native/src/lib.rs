@@ -15,6 +15,7 @@ pub enum TokenKind {
     For,
     Break,
     Continue,
+    Struct,
     True,
     False,
     Identifier,
@@ -46,6 +47,7 @@ pub enum TokenKind {
     Or,
     Less,
     LessEqual,
+    Dot,
     Eof,
 }
 
@@ -222,6 +224,7 @@ fn keyword(value: &str) -> TokenKind {
         "for" => TokenKind::For,
         "break" => TokenKind::Break,
         "continue" => TokenKind::Continue,
+        "struct" => TokenKind::Struct,
         "true" => TokenKind::True,
         "false" => TokenKind::False,
         _ => TokenKind::Identifier,
@@ -248,6 +251,7 @@ fn punctuation(value: char) -> Option<TokenKind> {
         '/' => TokenKind::Slash,
         '!' => TokenKind::Bang,
         '<' => TokenKind::Less,
+        '.' => TokenKind::Dot,
         _ => return None,
     })
 }
