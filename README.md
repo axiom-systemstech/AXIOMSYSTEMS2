@@ -49,6 +49,7 @@ El núcleo nativo está en [native](native), con módulos clave como:
 
 - Literales: enteros, flotantes, booleanos, cadenas.
 - Literales de arrays y arrays anidados.
+- Structs con campos base, literales nombrados y acceso de lectura por punto.
 - Variables y reasignaciones simples.
 - Funciones con parámetros y retorno.
 - Tipos explícitos, incluyendo `Int`, `Float` y arrays: `Int[]`, `Bool[]`, etc.
@@ -68,7 +69,7 @@ El núcleo nativo está en [native](native), con módulos clave como:
 
 La base del proyecto ya está verificada con pruebas reales:
 
-- Rust: 50 tests internos y 12 tests CLI pasando.
+- Rust: 52 tests internos y 13 tests CLI pasando.
 - Python: 43 tests pasando.
 - `git diff --check` sin errores en la última validación.
 
