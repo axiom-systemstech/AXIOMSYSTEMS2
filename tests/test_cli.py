@@ -389,6 +389,16 @@ def test_runtime_executes_string_concatenation(tmp_path, capsys):
     assert capsys.readouterr().out == "Hello AXIOM\n"
 
 
+def test_runtime_executes_for_loop(tmp_path, capsys):
+    source = tmp_path / "for.ax"
+    source.write_text(
+        'fn main() { for (let i: Int = 0; i < 3; i = i + 1) { print(i) } }',
+        encoding="utf-8",
+    )
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "0\n1\n2\n"
+
+
 def test_runtime_executes_else_if_chains(tmp_path, capsys):
     source = tmp_path / "elif.ax"
     source.write_text(

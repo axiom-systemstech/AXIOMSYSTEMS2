@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Expression, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Expression, For, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
 
 IRValue = Expression | str | int | bool
 
@@ -109,6 +109,13 @@ def _lower_block(statements) -> list[Instruction]:
             )
         elif isinstance(statement, While):
             instructions.append(WhileInstruction(statement.condition, _lower_block(statement.body)))
+        elif isinstance(statement, For):
+            if statement.initializer is not None:
+                instructions.extend(_lower_block([statement.initializer]))
+            body = _lower_block(statement.body)
+            if statement.update is not None:
+                body.append(SetInstruction(statement.update.target, statement.update.value))
+            instructions.append(WhileInstruction(statement.condition, body))
         elif isinstance(statement, Return):
             instructions.append(ReturnInstruction(statement.value))
         elif isinstance(statement, Call):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Function, If, Index, IntegerLiteral, Let, Parameter, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, For, Function, If, Index, IntegerLiteral, Let, Parameter, Program, Return, StringLiteral, Unary, Variable, While
 from .lexer import Token, TokenKind, lex
 
 
@@ -93,6 +93,42 @@ class Parser:
         if self._check(TokenKind.WHILE):
             self.position += 1
             return While(self._expression(), self._block())
+        if self._check(TokenKind.FOR):
+            self.position += 1
+            self._consume(TokenKind.LPAREN, "expected '('")
+            initializer = None
+            if not self._check(TokenKind.SEMICOLON):
+                checkpoint = self.position
+                if self._check(TokenKind.LET):
+                    self.position += 1
+                    name = self._consume(TokenKind.IDENTIFIER, "expected variable name").lexeme
+                    type_name = None
+                    if self._check(TokenKind.COLON):
+                        self.position += 1
+                        type_name = self._type_name()
+                    self._consume(TokenKind.EQUAL, "expected '='")
+                    initializer = Let(name, type_name, self._expression())
+                else:
+                    target = self._primary()
+                    if not self._check(TokenKind.EQUAL):
+                        self.position = checkpoint
+                        self._error(self._current(), "expected loop initializer")
+                    self.position += 1
+                    initializer = Assign(target, self._expression())
+            self._consume(TokenKind.SEMICOLON, "expected ';'")
+            condition = self._expression()
+            self._consume(TokenKind.SEMICOLON, "expected ';'")
+            update = None
+            if not self._check(TokenKind.RPAREN):
+                checkpoint = self.position
+                target = self._primary()
+                if not self._check(TokenKind.EQUAL):
+                    self.position = checkpoint
+                    self._error(self._current(), "expected loop update")
+                self.position += 1
+                update = Assign(target, self._expression())
+            self._consume(TokenKind.RPAREN, "expected ')' ")
+            return For(initializer, condition, update, self._block())
         if self._check(TokenKind.IDENTIFIER):
             checkpoint = self.position
             target = self._primary()

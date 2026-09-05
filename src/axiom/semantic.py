@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
 
 
 class SemanticError(ValueError):
@@ -59,6 +59,29 @@ def _check_function(function: Function, signatures) -> None:
             if _expression_type(statement.condition, variables, signatures) != "Bool":
                 raise SemanticError("while condition must be Bool")
             _check_block(statement.body, variables.copy(), signatures, function)
+            continue
+        if isinstance(statement, For):
+            if statement.initializer is not None:
+                if isinstance(statement.initializer, Let):
+                    value_type = _expression_type(statement.initializer.value, variables, signatures)
+                    if statement.initializer.type_name is not None and not _types_compatible(statement.initializer.type_name, value_type):
+                        raise SemanticError(
+                            f"variable '{statement.initializer.name}' expects {statement.initializer.type_name}, got {value_type}"
+                        )
+                    variables[statement.initializer.name] = statement.initializer.type_name or value_type
+                elif isinstance(statement.initializer, Assign):
+                    target_type = _expression_type(statement.initializer.target, variables, signatures)
+                    value_type = _expression_type(statement.initializer.value, variables, signatures)
+                    if value_type != target_type:
+                        raise SemanticError(f"assignment expects {target_type}, got {value_type}")
+            if _expression_type(statement.condition, variables, signatures) != "Bool":
+                raise SemanticError("for condition must be Bool")
+            _check_block(statement.body, variables.copy(), signatures, function)
+            if statement.update is not None:
+                target_type = _expression_type(statement.update.target, variables, signatures)
+                value_type = _expression_type(statement.update.value, variables, signatures)
+                if value_type != target_type:
+                    raise SemanticError(f"assignment expects {target_type}, got {value_type}")
             continue
         if isinstance(statement, Assign):
             target_type = _expression_type(statement.target, variables, signatures)

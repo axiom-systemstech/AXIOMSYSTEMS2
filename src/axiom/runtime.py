@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
 from .ir import CallInstruction, IRFunction, IRProgram, IfInstruction, LetInstruction, ReturnInstruction, SetInstruction, WhileInstruction
 
 
@@ -72,6 +72,18 @@ def _invoke(function: Function, arguments, functions, emit):
                 returned, value = _invoke_block(statement.body, variables, functions, emit)
                 if returned:
                     return value
+        elif isinstance(statement, For):
+            if statement.initializer is not None:
+                if isinstance(statement.initializer, Let):
+                    variables[statement.initializer.name] = _evaluate(statement.initializer.value, variables, functions, emit)
+                elif isinstance(statement.initializer, Assign):
+                    _assign(statement.initializer.target, _evaluate(statement.initializer.value, variables, functions, emit), variables, functions, emit)
+            while _evaluate(statement.condition, variables, functions, emit):
+                returned, value = _invoke_block(statement.body, variables, functions, emit)
+                if returned:
+                    return value
+                if statement.update is not None:
+                    _assign(statement.update.target, _evaluate(statement.update.value, variables, functions, emit), variables, functions, emit)
         else:
             value = _evaluate(statement.arguments[0], variables, functions, emit)
             if statement.name == "print":
@@ -99,6 +111,18 @@ def _invoke_block(statements, variables, functions, emit):
                 returned, value = _invoke_block(statement.body, variables, functions, emit)
                 if returned:
                     return True, value
+        elif isinstance(statement, For):
+            if statement.initializer is not None:
+                if isinstance(statement.initializer, Let):
+                    variables[statement.initializer.name] = _evaluate(statement.initializer.value, variables, functions, emit)
+                elif isinstance(statement.initializer, Assign):
+                    _assign(statement.initializer.target, _evaluate(statement.initializer.value, variables, functions, emit), variables, functions, emit)
+            while _evaluate(statement.condition, variables, functions, emit):
+                returned, value = _invoke_block(statement.body, variables, functions, emit)
+                if returned:
+                    return True, value
+                if statement.update is not None:
+                    _assign(statement.update.target, _evaluate(statement.update.value, variables, functions, emit), variables, functions, emit)
         else:
             value = _evaluate(statement.arguments[0], variables, functions, emit)
             if statement.name == "print":

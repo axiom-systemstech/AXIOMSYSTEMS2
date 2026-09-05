@@ -99,7 +99,17 @@ class While:
     body: list["Statement"]
 
 
-Statement = Call | Let | Return | If | Assign | While
+@dataclass(frozen=True)
+class For:
+    initializer: "Statement | None"
+    condition: "Expression"
+    update: "Assign | None"
+    body: list["Statement"]
+
+
+Statement = Call | Let | Return | If | Assign | While | For
+
+
 @dataclass(frozen=True)
 class Index:
     target: "Expression"
