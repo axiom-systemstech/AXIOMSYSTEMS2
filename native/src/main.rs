@@ -53,10 +53,7 @@ fn main() -> ExitCode {
                 ExitCode::SUCCESS
             }
             Err(error) => {
-                eprintln!(
-                    "error: {} at {}:{}",
-                    error.message, error.line, error.column
-                );
+                eprintln!("{}", format_error(error.message, error.line, error.column));
                 ExitCode::from(1)
             }
         },
@@ -89,10 +86,7 @@ fn main() -> ExitCode {
                 ExitCode::SUCCESS
             }
             Err(error) => {
-                eprintln!(
-                    "error: {} at {}:{}",
-                    error.message, error.line, error.column
-                );
+                eprintln!("{}", format_error(error.message, error.line, error.column));
                 ExitCode::from(1)
             }
         },
@@ -141,10 +135,7 @@ fn main() -> ExitCode {
                         }
                     },
                     Err(error) => {
-                        eprintln!(
-                            "error: {} at {}:{}",
-                            error.message, error.line, error.column
-                        );
+                        eprintln!("{}", format_error(error.message, error.line, error.column));
                         ExitCode::from(1)
                     }
                 }
@@ -161,4 +152,12 @@ fn main() -> ExitCode {
 fn print_help() {
     println!("AXIOM native compiler");
     println!("Usage: axiom <check|build|run> <source.ax>");
+}
+
+fn format_error(message: String, line: usize, column: usize) -> String {
+    if line == 0 && column == 0 {
+        format!("error: {message}")
+    } else {
+        format!("error: {message} at {line}:{column}")
+    }
 }
