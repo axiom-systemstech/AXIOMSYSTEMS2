@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
-from .ir import CallInstruction, IRFunction, IRProgram, IfInstruction, LetInstruction, ReturnInstruction, SetInstruction, WhileInstruction
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ir import BreakInstruction, CallInstruction, ContinueInstruction, ForInstruction, IRFunction, IRProgram, IfInstruction, LetInstruction, ReturnInstruction, SetInstruction, WhileInstruction
 
 
 def execute(program: IRProgram, emit: Callable[[str], None] = print) -> None:
@@ -29,14 +29,33 @@ def _execute_block(instructions, variables, functions, emit):
             _assign(instruction.target, _evaluate(instruction.value, variables, functions, emit), variables, functions, emit)
         elif isinstance(instruction, IfInstruction):
             branch = instruction.then_body if _evaluate(instruction.condition, variables, functions, emit) else instruction.else_body
-            returned, value = _execute_block(branch, variables, functions, emit)
-            if returned:
+            status, value = _execute_block(branch, variables, functions, emit)
+            if status is _BREAK or status is _CONTINUE:
+                return status, None
+            if status:
                 return True, value
         elif isinstance(instruction, WhileInstruction):
             while _evaluate(instruction.condition, variables, functions, emit):
-                returned, value = _execute_block(instruction.body, variables, functions, emit)
-                if returned:
+                status, value = _execute_block(instruction.body, variables, functions, emit)
+                if status is _BREAK: break
+                if status is _CONTINUE: continue
+                if status:
                     return True, value
+        elif isinstance(instruction, ForInstruction):
+            _execute_block(instruction.initializer, variables, functions, emit)
+            while _evaluate(instruction.condition, variables, functions, emit):
+                status, value = _execute_block(instruction.body, variables, functions, emit)
+                if status is _BREAK: break
+                if status is _CONTINUE:
+                    _execute_block(instruction.update, variables, functions, emit)
+                    continue
+                if status:
+                    return True, value
+                _execute_block(instruction.update, variables, functions, emit)
+        elif isinstance(instruction, BreakInstruction):
+            return _BREAK, None
+        elif isinstance(instruction, ContinueInstruction):
+            return _CONTINUE, None
         elif isinstance(instruction, CallInstruction):
             arguments = [_evaluate(argument, variables, functions, emit) for argument in instruction.arguments]
             _invoke_ir(functions[instruction.name], arguments, functions, emit)
@@ -46,6 +65,9 @@ def _execute_block(instructions, variables, functions, emit):
             value = _evaluate(instruction.value, variables, functions, emit)
             emit(str(value).lower() if isinstance(value, bool) else str(value))
     return False, None
+
+_BREAK = object()
+_CONTINUE = object()
 
 
 def execute_program(program: Program, emit: Callable[[str], None] = print) -> None:
@@ -64,13 +86,17 @@ def _invoke(function: Function, arguments, functions, emit):
             return _evaluate(statement.value, variables, functions, emit)
         elif isinstance(statement, If):
             branch = statement.then_body if _evaluate(statement.condition, variables, functions, emit) else statement.else_body
-            result = _invoke_block(branch, variables, functions, emit)
-            if result[0]:
-                return result[1]
+            status, value = _invoke_block(branch, variables, functions, emit)
+            if status is _BREAK or status is _CONTINUE:
+                return status
+            if status:
+                return value
         elif isinstance(statement, While):
             while _evaluate(statement.condition, variables, functions, emit):
-                returned, value = _invoke_block(statement.body, variables, functions, emit)
-                if returned:
+                status, value = _invoke_block(statement.body, variables, functions, emit)
+                if status is _BREAK: break
+                if status is _CONTINUE: continue
+                if status:
                     return value
         elif isinstance(statement, For):
             if statement.initializer is not None:
@@ -79,8 +105,13 @@ def _invoke(function: Function, arguments, functions, emit):
                 elif isinstance(statement.initializer, Assign):
                     _assign(statement.initializer.target, _evaluate(statement.initializer.value, variables, functions, emit), variables, functions, emit)
             while _evaluate(statement.condition, variables, functions, emit):
-                returned, value = _invoke_block(statement.body, variables, functions, emit)
-                if returned:
+                status, value = _invoke_block(statement.body, variables, functions, emit)
+                if status is _BREAK: break
+                if status is _CONTINUE:
+                    if statement.update is not None:
+                        _assign(statement.update.target, _evaluate(statement.update.value, variables, functions, emit), variables, functions, emit)
+                    continue
+                if status:
                     return value
                 if statement.update is not None:
                     _assign(statement.update.target, _evaluate(statement.update.value, variables, functions, emit), variables, functions, emit)
@@ -103,13 +134,17 @@ def _invoke_block(statements, variables, functions, emit):
             return True, _evaluate(statement.value, variables, functions, emit)
         elif isinstance(statement, If):
             branch = statement.then_body if _evaluate(statement.condition, variables, functions, emit) else statement.else_body
-            returned, value = _invoke_block(branch, variables, functions, emit)
-            if returned:
+            status, value = _invoke_block(branch, variables, functions, emit)
+            if status is _BREAK or status is _CONTINUE:
+                return status, None
+            if status:
                 return True, value
         elif isinstance(statement, While):
             while _evaluate(statement.condition, variables, functions, emit):
-                returned, value = _invoke_block(statement.body, variables, functions, emit)
-                if returned:
+                status, value = _invoke_block(statement.body, variables, functions, emit)
+                if status is _BREAK: break
+                if status is _CONTINUE: continue
+                if status:
                     return True, value
         elif isinstance(statement, For):
             if statement.initializer is not None:
@@ -118,11 +153,20 @@ def _invoke_block(statements, variables, functions, emit):
                 elif isinstance(statement.initializer, Assign):
                     _assign(statement.initializer.target, _evaluate(statement.initializer.value, variables, functions, emit), variables, functions, emit)
             while _evaluate(statement.condition, variables, functions, emit):
-                returned, value = _invoke_block(statement.body, variables, functions, emit)
-                if returned:
+                status, value = _invoke_block(statement.body, variables, functions, emit)
+                if status is _BREAK: return False, None
+                if status is _CONTINUE:
+                    if statement.update is not None:
+                        _assign(statement.update.target, _evaluate(statement.update.value, variables, functions, emit), variables, functions, emit)
+                    continue
+                if status:
                     return True, value
                 if statement.update is not None:
                     _assign(statement.update.target, _evaluate(statement.update.value, variables, functions, emit), variables, functions, emit)
+        elif isinstance(statement, Break):
+            return _BREAK, None
+        elif isinstance(statement, Continue):
+            return _CONTINUE, None
         else:
             value = _evaluate(statement.arguments[0], variables, functions, emit)
             if statement.name == "print":

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Expression, For, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, Expression, For, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
 
 IRValue = Expression | str | int | bool
 
@@ -40,6 +40,14 @@ class WhileInstruction:
 
 
 @dataclass(frozen=True)
+class ForInstruction:
+    initializer: list["Instruction"]
+    condition: IRValue
+    update: list["Instruction"]
+    body: list["Instruction"]
+
+
+@dataclass(frozen=True)
 class CallInstruction:
     name: str
     arguments: list[Expression]
@@ -50,7 +58,17 @@ class ReturnInstruction:
     value: IRValue
 
 
-Instruction = PrintInstruction | LetInstruction | SetInstruction | IfInstruction | WhileInstruction | CallInstruction | ReturnInstruction
+@dataclass(frozen=True)
+class BreakInstruction:
+    pass
+
+
+@dataclass(frozen=True)
+class ContinueInstruction:
+    pass
+
+
+Instruction = PrintInstruction | LetInstruction | SetInstruction | IfInstruction | WhileInstruction | ForInstruction | CallInstruction | ReturnInstruction | BreakInstruction | ContinueInstruction
 
 
 @dataclass(frozen=True)
@@ -110,12 +128,18 @@ def _lower_block(statements) -> list[Instruction]:
         elif isinstance(statement, While):
             instructions.append(WhileInstruction(statement.condition, _lower_block(statement.body)))
         elif isinstance(statement, For):
+            initializer = []
             if statement.initializer is not None:
-                instructions.extend(_lower_block([statement.initializer]))
+                initializer.extend(_lower_block([statement.initializer]))
             body = _lower_block(statement.body)
+            update = []
             if statement.update is not None:
-                body.append(SetInstruction(statement.update.target, statement.update.value))
-            instructions.append(WhileInstruction(statement.condition, body))
+                update = [SetInstruction(statement.update.target, statement.update.value)]
+            instructions.append(ForInstruction(initializer, statement.condition, update, body))
+        elif isinstance(statement, Break):
+            instructions.append(BreakInstruction())
+        elif isinstance(statement, Continue):
+            instructions.append(ContinueInstruction())
         elif isinstance(statement, Return):
             instructions.append(ReturnInstruction(statement.value))
         elif isinstance(statement, Call):
@@ -149,11 +173,24 @@ def _render_block(instructions: list[Instruction], lines: list[str], depth: int)
             lines.append(f"{prefix}WHILE {_render_expression(instruction.condition)}")
             _render_block(instruction.body, lines, depth + 1)
             lines.append(f"{prefix}END")
+        elif isinstance(instruction, ForInstruction):
+            if instruction.initializer:
+                _render_block(instruction.initializer, lines, depth)
+            lines.append(f"{prefix}FOR {_render_expression(instruction.condition)}")
+            _render_block(instruction.body, lines, depth + 1)
+            if instruction.update:
+                lines.append(f"{prefix}UPDATE")
+                _render_block(instruction.update, lines, depth + 1)
+            lines.append(f"{prefix}END FOR")
         elif isinstance(instruction, CallInstruction):
             arguments = ", ".join(_render_expression(argument) for argument in instruction.arguments)
             lines.append(f"{prefix}CALL {instruction.name}({arguments})")
         elif isinstance(instruction, ReturnInstruction):
             lines.append(f"{prefix}RETURN {_render_expression(instruction.value)}")
+        elif isinstance(instruction, BreakInstruction):
+            lines.append(f"{prefix}BREAK")
+        elif isinstance(instruction, ContinueInstruction):
+            lines.append(f"{prefix}CONTINUE")
         else:
             lines.append(f"{prefix}PRINT {_render_expression(instruction.value)}")
 
