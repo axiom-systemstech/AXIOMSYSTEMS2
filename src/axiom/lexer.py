@@ -71,6 +71,13 @@ def lex(source: str) -> list[Token]:
             line += 1
             column = 1
             continue
+        if character == "/" and source.startswith("//", index):
+            index += 2
+            column += 2
+            while index < len(source) and source[index] != "\n":
+                index += 1
+                column += 1
+            continue
 
         token_line, token_column = line, column
         if source.startswith("->", index):

@@ -59,6 +59,14 @@ def test_lexer_reports_invalid_character_position():
         raise AssertionError("expected LexError")
 
 
+def test_lexer_skips_line_comments_and_preserves_division():
+    tokens = lex('// ignored\nprint("http://axiom"); print(6 / 2)')
+    assert [token.kind for token in tokens].count(TokenKind.SLASH) == 1
+    assert tokens[0].lexeme == "print"
+    assert tokens[0].line == 2
+    assert tokens[0].column == 1
+
+
 def test_parser_builds_ast_for_minimal_program():
     program = parse('fn main() { print("Hello AXIOM"); }')
     assert program == Program(

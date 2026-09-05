@@ -79,6 +79,15 @@ pub fn lex(source: &str) -> Result<Vec<Token>, LexError> {
             column = 1;
             continue;
         }
+        if character == '/' && characters.get(index + 1) == Some(&'/') {
+            index += 2;
+            column += 2;
+            while index < characters.len() && characters[index] != '\n' {
+                index += 1;
+                column += 1;
+            }
+            continue;
+        }
 
         let token_line = line;
         let token_column = column;
@@ -249,6 +258,15 @@ mod tests {
         assert_eq!(tokens[5].lexeme, "print");
         assert_eq!(tokens[7].kind, TokenKind::Integer);
         assert_eq!(tokens.last().unwrap().kind, TokenKind::Eof);
+    }
+
+    #[test]
+    fn skips_line_comments_without_changing_following_positions() {
+        let tokens = lex("// ignored\nprint(6 / 2)").unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Identifier);
+        assert_eq!(tokens[0].lexeme, "print");
+        assert_eq!((tokens[0].line, tokens[0].column), (2, 1));
+        assert!(tokens.iter().all(|token| token.lexeme != "ignored"));
     }
 
     #[test]
