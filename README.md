@@ -59,7 +59,7 @@ El núcleo nativo está en [native](native), con módulos clave como:
 - Negación unaria de enteros: `-value`.
 - Comparaciones: `>`, `>=`, `<`, `<=`, `==` y `!=`.
 - Operadores aritméticos, lógicos y precedencia de expresiones.
-- Control de flujo: `if`, `else if`, `else` y `while`.
+- Control de flujo: `if`, `else if`, `else`, `while`, `for`, `break` y `continue`.
 - Artefactos compilados `.axm` con serialización y ejecución posterior.
 - Ejemplos reales de ramificación: `else if` encadenado con valores y condiciones.
 

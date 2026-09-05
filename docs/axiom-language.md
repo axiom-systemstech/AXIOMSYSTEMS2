@@ -10,6 +10,24 @@ fn main() {
 }
 ```
 
+Los bucles `for` aceptan inicializador, condición y actualización. `continue`
+ejecuta la actualización antes de la siguiente iteración y `break` termina el
+bucle actual:
+
+```axiom
+fn main() {
+    for (let i: Int = 0; i < 5; i = i + 1) {
+        if i == 2 {
+            continue
+        }
+        if i == 4 {
+            break
+        }
+        print(i)
+    }
+}
+```
+
 Este corte reconoce funciones, identificadores, cadenas, paréntesis, llaves y
 el punto y coma opcional. La gramática crecerá junto con el parser y cada
 decisión estable se documentará aquí.
