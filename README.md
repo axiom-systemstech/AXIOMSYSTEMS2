@@ -30,9 +30,10 @@ Esto sirve como base comparativa frente al backend nativo.
 El bootstrap también dispone de un IR portable `.air` con instrucciones para:
 
 - `LET`, `SET` y `PRINT`.
-- bloques recursivos `IF`/`ELSE` y `WHILE`.
+- bloques recursivos `IF`/`ELSE`, `WHILE` y `FOR`.
+- control de bucle `BREAK` y `CONTINUE`.
 - funciones, llamadas y retornos.
-- arrays, indexación y expresiones aritméticas o comparativas.
+- arrays, indexación y expresiones aritméticas, comparativas o flotantes.
 
 ### Backend nativo
 
@@ -67,7 +68,7 @@ El núcleo nativo está en [native](native), con módulos clave como:
 
 La base del proyecto ya está verificada con pruebas reales:
 
-- Rust: 45 tests internos y 8 tests CLI pasando.
+- Rust: 45 tests internos y 9 tests CLI pasando.
 - Python: 40 tests pasando.
 - `git diff --check` sin errores en la última validación.
 
