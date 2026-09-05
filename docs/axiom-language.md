@@ -48,6 +48,27 @@ justifiquen.
 - La sintaxis prioriza una curva de aprendizaje corta sin renunciar a
   compilación nativa y ejecución rápida.
 
+## Estructuras
+
+La sintaxis propuesta para estructuras mantiene los campos explícitos y el
+acceso directo mediante punto:
+
+```axiom
+struct Point {
+    x: Int
+    y: Int
+}
+
+fn main() {
+    let point: Point = Point { x: 10, y: 20 }
+    print(point.x)
+}
+```
+
+Los nombres de campo deben ser únicos dentro de la estructura. La primera
+implementación soportará campos con tipos base y acceso de lectura; la
+reasignación de campos y los tipos compuestos se añadirán después.
+
 ## Estructuras de control
 
 La rama condicional ya admite encadenamientos de `else if`:
