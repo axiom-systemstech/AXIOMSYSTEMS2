@@ -471,6 +471,15 @@ mod tests {
     }
 
     #[test]
+    fn runs_nested_indexed_assignment() {
+        assert_eq!(
+            run("fn main() { let matrix = [[10, 20], [30, 40]]; matrix[1][0] = 99; print(matrix[1][0]) }")
+                .unwrap(),
+            "99\n"
+        );
+    }
+
+    #[test]
     fn runs_chained_array_indexing() {
         assert_eq!(
             run("fn main() { print([[10, 20]][0][1]) }").unwrap(),

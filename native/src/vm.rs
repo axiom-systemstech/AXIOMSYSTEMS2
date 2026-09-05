@@ -768,6 +768,19 @@ mod tests {
     }
 
     #[test]
+    fn executes_compiled_nested_indexed_assignment() {
+        let program = parse(
+            "fn main() { let matrix = [[10, 20], [30, 40]]; matrix[1][0] = 99; print(matrix[1][0]) }",
+        )
+        .unwrap();
+        let artifact = compile_program(&program);
+        let encoded = artifact.serialize();
+        let decoded = Artifact::deserialize(&encoded).unwrap();
+        let output = execute_artifact(&decoded).unwrap();
+        assert_eq!(output, "99\n");
+    }
+
+    #[test]
     fn writes_artifact_to_custom_output_path() {
         let program = parse("fn main() { print(42) }").unwrap();
         let temp_dir = std::env::temp_dir().join(format!("axiom-artifact-{}", std::process::id()));

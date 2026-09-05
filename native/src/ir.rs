@@ -67,6 +67,10 @@ pub fn lower_program(program: &Program) -> LoweredProgram {
 }
 
 fn lower_block(statements: &[Statement]) -> Vec<Instruction> {
+    lower_block_with_counter(statements, &mut 0)
+}
+
+fn lower_block_with_counter(statements: &[Statement], counter: &mut usize) -> Vec<Instruction> {
     let mut instructions = Vec::new();
     for statement in statements {
         instructions.extend(match statement {
@@ -103,49 +107,96 @@ fn lower_block(statements: &[Statement]) -> Vec<Instruction> {
             } => {
                 let mut body = lower_expression(condition);
                 body.push(Instruction::If {
-                    then_body: lower_block(then_body),
-                    else_body: lower_block(else_body),
+                    then_body: lower_block_with_counter(then_body, counter),
+                    else_body: lower_block_with_counter(else_body, counter),
                 });
                 body
             }
-            Statement::Assign { target, value } => match target {
-                Expression::Variable(name) => {
-                    let mut body = lower_expression(value);
-                    body.push(Instruction::StoreVariable(name.clone()));
-                    body
-                }
-                Expression::Index { target, index } => match &**target {
-                    Expression::Variable(name) => {
-                        let mut body = lower_expression(target);
-                        body.extend(lower_expression(index));
-                        body.extend(lower_expression(value));
-                        body.push(Instruction::StoreIndex);
-                        body.push(Instruction::StoreVariable(name.clone()));
-                        body
-                    }
-                    _ => {
-                        let mut body = lower_expression(value);
-                        body.push(Instruction::StoreVariable("_tmp".to_string()));
-                        body
-                    }
-                },
-                _ => {
-                    let mut body = lower_expression(value);
-                    body.push(Instruction::StoreVariable("_tmp".to_string()));
-                    body
-                }
-            },
+            Statement::Assign { target, value } => lower_assignment(target, value, counter),
             Statement::While { condition, body } => {
                 let mut instructions = Vec::new();
                 instructions.push(Instruction::While {
                     condition: lower_expression(condition),
-                    body: lower_block(body),
+                    body: lower_block_with_counter(body, counter),
                 });
                 instructions
             }
         })
     }
     instructions
+}
+
+fn lower_assignment(
+    target: &Expression,
+    value: &Expression,
+    counter: &mut usize,
+) -> Vec<Instruction> {
+    match target {
+        Expression::Variable(name) => {
+            let mut body = lower_expression(value);
+            body.push(Instruction::StoreVariable(name.clone()));
+            body
+        }
+        Expression::Index { .. } => {
+            let mut indexes = Vec::new();
+            let mut current = target;
+            while let Expression::Index {
+                target: nested_target,
+                index,
+            } = current
+            {
+                indexes.push(index.as_ref().clone());
+                current = nested_target;
+            }
+            let Expression::Variable(base_name) = current else {
+                let mut body = lower_expression(value);
+                body.push(Instruction::StoreVariable("_tmp".to_string()));
+                return body;
+            };
+            indexes.reverse();
+
+            let mut body = Vec::new();
+            let mut current_var = base_name.clone();
+            let mut path_updates = Vec::new();
+
+            for index in &indexes[..indexes.len().saturating_sub(1)] {
+                body.push(Instruction::LoadVariable(current_var.clone()));
+                body.extend(lower_expression(index));
+                body.push(Instruction::Index);
+                let temp_name = format!("__axiom_tmp_{}", counter);
+                *counter += 1;
+                body.push(Instruction::StoreVariable(temp_name.clone()));
+                path_updates.push((current_var.clone(), index.clone()));
+                current_var = temp_name;
+            }
+
+            let final_index = indexes
+                .last()
+                .cloned()
+                .unwrap_or_else(|| Expression::Integer(0));
+            body.push(Instruction::LoadVariable(current_var.clone()));
+            body.extend(lower_expression(&final_index));
+            body.extend(lower_expression(value));
+            body.push(Instruction::StoreIndex);
+            body.push(Instruction::StoreVariable(current_var.clone()));
+
+            for (parent_var, index) in path_updates.into_iter().rev() {
+                body.push(Instruction::LoadVariable(parent_var.clone()));
+                body.extend(lower_expression(&index));
+                body.push(Instruction::LoadVariable(current_var.clone()));
+                body.push(Instruction::StoreIndex);
+                body.push(Instruction::StoreVariable(parent_var.clone()));
+                current_var = parent_var;
+            }
+
+            body
+        }
+        _ => {
+            let mut body = lower_expression(value);
+            body.push(Instruction::StoreVariable("_tmp".to_string()));
+            body
+        }
+    }
 }
 
 fn lower_expression(expression: &Expression) -> Vec<Instruction> {
