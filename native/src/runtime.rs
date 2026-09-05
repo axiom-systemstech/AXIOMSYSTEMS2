@@ -211,17 +211,13 @@ fn evaluate(
             right,
             operator: crate::parser::BinaryOperator::Add,
         } => {
-            let left = evaluate(left, variables, functions, output)?
-                .parse::<i64>()
-                .map_err(|_| RuntimeError {
-                    message: "+ expects integers".into(),
-                })?;
-            let right = evaluate(right, variables, functions, output)?
-                .parse::<i64>()
-                .map_err(|_| RuntimeError {
-                    message: "+ expects integers".into(),
-                })?;
-            Ok((left + right).to_string())
+            let left = evaluate(left, variables, functions, output)?;
+            let right = evaluate(right, variables, functions, output)?;
+            if let (Ok(left_value), Ok(right_value)) = (left.parse::<i64>(), right.parse::<i64>()) {
+                Ok((left_value + right_value).to_string())
+            } else {
+                Ok(format!("{left}{right}"))
+            }
         }
         Expression::Binary {
             left,
@@ -467,6 +463,14 @@ mod tests {
         assert_eq!(
             run("fn add(a, b) { return a + b } fn main() { print(add(20, 22)) }").unwrap(),
             "42\n"
+        );
+    }
+
+    #[test]
+    fn runs_string_concatenation() {
+        assert_eq!(
+            run("fn main() { print(\"Hello\" + \" \" + \"AXIOM\") }").unwrap(),
+            "Hello AXIOM\n"
         );
     }
 

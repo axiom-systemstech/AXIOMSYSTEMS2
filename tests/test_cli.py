@@ -379,6 +379,16 @@ def test_runtime_executes_all_integer_comparisons(tmp_path, capsys):
     assert capsys.readouterr().out == "1\n2\n3\n4\n"
 
 
+def test_runtime_executes_string_concatenation(tmp_path, capsys):
+    source = tmp_path / "strings.ax"
+    source.write_text(
+        'fn main() { let greeting: String = "Hello"; let name: String = "AXIOM"; print(greeting + " " + name) }',
+        encoding="utf-8",
+    )
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "Hello AXIOM\n"
+
+
 def test_runtime_executes_else_if_chains(tmp_path, capsys):
     source = tmp_path / "elif.ax"
     source.write_text(

@@ -72,8 +72,18 @@ fn check_expression(
             let left_type = check_expression(left, variables, functions)?;
             let right_type = check_expression(right, variables, functions)?;
             match operator {
-                BinaryOperator::Add
-                | BinaryOperator::Subtract
+                BinaryOperator::Add => {
+                    if left_type == right_type && (left_type == Some(Type::Int) || left_type == Some(Type::String)) {
+                        Ok(left_type.or(Some(Type::Int)))
+                    } else if left_type.is_none() && right_type.is_none() {
+                        Ok(Some(Type::Int))
+                    } else {
+                        Err(SemanticError {
+                            message: "+ requires Int or String operands".into(),
+                        })
+                    }
+                }
+                BinaryOperator::Subtract
                 | BinaryOperator::Multiply
                 | BinaryOperator::Divide => {
                     require_types(left_type, right_type, Type::Int, "arithmetic operators")?;

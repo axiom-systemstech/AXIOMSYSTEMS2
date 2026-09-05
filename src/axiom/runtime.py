@@ -127,7 +127,9 @@ def _evaluate(expression, variables, functions=None, emit=print):
         except (IndexError, TypeError):
             raise RuntimeError("index out of bounds") from None
     if isinstance(expression, Binary) and expression.operator == "+":
-        return _evaluate(expression.left, variables, functions, emit) + _evaluate(expression.right, variables, functions, emit)
+        left = _evaluate(expression.left, variables, functions, emit)
+        right = _evaluate(expression.right, variables, functions, emit)
+        return left + right
     if isinstance(expression, Binary) and expression.operator == ">":
         return _evaluate(expression.left, variables, functions, emit) > _evaluate(expression.right, variables, functions, emit)
     if isinstance(expression, Binary) and expression.operator == ">=":
