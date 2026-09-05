@@ -118,6 +118,16 @@ def test_semantic_analysis_rejects_unknown_call():
         raise AssertionError("expected SemanticError")
 
 
+def test_semantic_analysis_rejects_loop_control_outside_loop():
+    for keyword in ("break", "continue"):
+        try:
+            analyze(parse(f"fn main() {{ if true {{ {keyword} }} }}"))
+        except SemanticError as error:
+            assert str(error) == f"{keyword} must be inside a loop"
+        else:
+            raise AssertionError("expected SemanticError")
+
+
 def test_ir_lowers_main_print_call():
     program = parse('fn main() { print("Hello AXIOM") }')
     assert lower(program) == IRProgram([PrintInstruction(StringLiteral("Hello AXIOM"))])

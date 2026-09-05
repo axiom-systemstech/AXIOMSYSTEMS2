@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
 
 
 class SemanticError(ValueError):
@@ -58,7 +58,7 @@ def _check_function(function: Function, signatures) -> None:
         if isinstance(statement, While):
             if _expression_type(statement.condition, variables, signatures) != "Bool":
                 raise SemanticError("while condition must be Bool")
-            _check_block(statement.body, variables.copy(), signatures, function)
+            _check_block(statement.body, variables.copy(), signatures, function, loop_depth=1)
             continue
         if isinstance(statement, For):
             if statement.initializer is not None:
@@ -76,13 +76,15 @@ def _check_function(function: Function, signatures) -> None:
                         raise SemanticError(f"assignment expects {target_type}, got {value_type}")
             if _expression_type(statement.condition, variables, signatures) != "Bool":
                 raise SemanticError("for condition must be Bool")
-            _check_block(statement.body, variables.copy(), signatures, function)
+            _check_block(statement.body, variables.copy(), signatures, function, loop_depth=1)
             if statement.update is not None:
                 target_type = _expression_type(statement.update.target, variables, signatures)
                 value_type = _expression_type(statement.update.value, variables, signatures)
                 if value_type != target_type:
                     raise SemanticError(f"assignment expects {target_type}, got {value_type}")
             continue
+        if isinstance(statement, (Break, Continue)):
+            raise SemanticError(f"{type(statement).__name__.lower()} must be inside a loop")
         if isinstance(statement, Assign):
             target_type = _expression_type(statement.target, variables, signatures)
             value_type = _expression_type(statement.value, variables, signatures)
@@ -119,7 +121,7 @@ def _check_function(function: Function, signatures) -> None:
         raise SemanticError(f"function '{function.name}' must return {function.return_type}")
 
 
-def _check_block(statements, variables, signatures, function):
+def _check_block(statements, variables, signatures, function, loop_depth=0):
     for statement in statements:
         if isinstance(statement, Let):
             value_type = _expression_type(statement.value, variables, signatures)
@@ -134,12 +136,23 @@ def _check_block(statements, variables, signatures, function):
         elif isinstance(statement, If):
             if _expression_type(statement.condition, variables, signatures) != "Bool":
                 raise SemanticError("if condition must be Bool")
-            _check_block(statement.then_body, variables.copy(), signatures, function)
-            _check_block(statement.else_body, variables.copy(), signatures, function)
+            _check_block(statement.then_body, variables.copy(), signatures, function, loop_depth)
+            _check_block(statement.else_body, variables.copy(), signatures, function, loop_depth)
         elif isinstance(statement, While):
             if _expression_type(statement.condition, variables, signatures) != "Bool":
                 raise SemanticError("while condition must be Bool")
-            _check_block(statement.body, variables.copy(), signatures, function)
+            _check_block(statement.body, variables.copy(), signatures, function, loop_depth + 1)
+        elif isinstance(statement, For):
+            if statement.initializer is not None:
+                _check_block([statement.initializer], variables, signatures, function, loop_depth)
+            if _expression_type(statement.condition, variables, signatures) != "Bool":
+                raise SemanticError("for condition must be Bool")
+            _check_block(statement.body, variables.copy(), signatures, function, loop_depth + 1)
+            if statement.update is not None:
+                _check_block([statement.update], variables, signatures, function, loop_depth)
+        elif isinstance(statement, (Break, Continue)):
+            if loop_depth == 0:
+                raise SemanticError(f"{type(statement).__name__.lower()} must be inside a loop")
         elif isinstance(statement, Assign):
             target_type = _expression_type(statement.target, variables, signatures)
             if _expression_type(statement.value, variables, signatures) != target_type:
