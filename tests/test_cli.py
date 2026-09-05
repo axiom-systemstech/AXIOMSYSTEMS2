@@ -409,6 +409,13 @@ def test_runtime_executes_float_arithmetic(tmp_path, capsys):
     assert capsys.readouterr().out == "4.0\n2.0\n"
 
 
+def test_runtime_reports_float_division_by_zero(tmp_path, capsys):
+    source = tmp_path / "float_zero.ax"
+    source.write_text("fn main() { print(1.0 / 0.0) }", encoding="utf-8")
+    assert main(["run", str(source)]) == 1
+    assert capsys.readouterr().err == "error: division by zero\n"
+
+
 def test_runtime_executes_for_loop(tmp_path, capsys):
     source = tmp_path / "for.ax"
     source.write_text(

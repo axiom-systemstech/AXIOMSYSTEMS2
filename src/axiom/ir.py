@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, Expression, FloatLiteral, For, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, Unary, Variable, While
 
-IRValue = Expression | str | int | bool
+IRValue = Expression | str | int | float | bool
 
 
 @dataclass(frozen=True)

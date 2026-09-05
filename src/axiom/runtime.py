@@ -8,6 +8,10 @@ from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Cont
 from .ir import BreakInstruction, CallInstruction, ContinueInstruction, ForInstruction, IRFunction, IRProgram, IfInstruction, LetInstruction, ReturnInstruction, SetInstruction, WhileInstruction
 
 
+class RuntimeError(ValueError):
+    """Raised when an AXIOM program fails during IR execution."""
+
+
 def execute(program: IRProgram, emit: Callable[[str], None] = print) -> None:
     """Execute an IR program using the host output function."""
     functions = {function.name: function for function in program.functions}
@@ -217,6 +221,8 @@ def _evaluate(expression, variables, functions=None, emit=print):
     if isinstance(expression, Binary) and expression.operator == "/":
         left = _evaluate(expression.left, variables, functions, emit)
         right = _evaluate(expression.right, variables, functions, emit)
+        if right == 0:
+            raise RuntimeError("division by zero")
         return left // right if isinstance(left, int) and isinstance(right, int) else left / right
     if isinstance(expression, Binary) and expression.operator == "&&":
         return _evaluate(expression.left, variables, functions, emit) and _evaluate(expression.right, variables, functions, emit)
