@@ -73,7 +73,9 @@ fn check_expression(
             let right_type = check_expression(right, variables, functions)?;
             match operator {
                 BinaryOperator::Add => {
-                    if left_type == right_type && (left_type == Some(Type::Int) || left_type == Some(Type::String)) {
+                    if left_type == right_type
+                        && (left_type == Some(Type::Int) || left_type == Some(Type::String))
+                    {
                         Ok(left_type.or(Some(Type::Int)))
                     } else if left_type.is_none() && right_type.is_none() {
                         Ok(Some(Type::Int))
@@ -83,9 +85,7 @@ fn check_expression(
                         })
                     }
                 }
-                BinaryOperator::Subtract
-                | BinaryOperator::Multiply
-                | BinaryOperator::Divide => {
+                BinaryOperator::Subtract | BinaryOperator::Multiply | BinaryOperator::Divide => {
                     require_types(left_type, right_type, Type::Int, "arithmetic operators")?;
                     Ok(Some(Type::Int))
                 }
@@ -237,6 +237,33 @@ fn check_block(
                 require_bool(check_expression(condition, variables, functions)?)?;
                 check_block(body, &mut variables.clone(), functions, return_type.clone())?;
             }
+            Statement::For {
+                initializer,
+                condition,
+                update,
+                body,
+            } => {
+                let mut scoped = variables.clone();
+                if let Some(initializer) = initializer {
+                    check_block(
+                        std::slice::from_ref(initializer),
+                        &mut scoped,
+                        functions,
+                        return_type.clone(),
+                    )?;
+                }
+                require_bool(check_expression(condition, &scoped, functions)?)?;
+                if let Some(update) = update {
+                    check_block(
+                        std::slice::from_ref(update),
+                        &mut scoped,
+                        functions,
+                        return_type.clone(),
+                    )?;
+                }
+                check_block(body, &mut scoped, functions, return_type.clone())?;
+            }
+            Statement::Break | Statement::Continue => {}
             Statement::Assign { target, value } => {
                 let target_type = check_expression(target, variables, functions)?;
                 let value_type = check_expression(value, variables, functions)?;

@@ -49,6 +49,14 @@ pub enum Statement {
         condition: Expression,
         body: Vec<Statement>,
     },
+    For {
+        initializer: Option<Box<Statement>>,
+        condition: Expression,
+        update: Option<Box<Statement>>,
+        body: Vec<Statement>,
+    },
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -222,6 +230,39 @@ impl Parser {
             let body = self.block()?;
             return Ok(Statement::While { condition, body });
         }
+        if self.check(TokenKind::Break) {
+            self.position += 1;
+            return Ok(Statement::Break);
+        }
+        if self.check(TokenKind::Continue) {
+            self.position += 1;
+            return Ok(Statement::Continue);
+        }
+        if self.check(TokenKind::For) {
+            self.position += 1;
+            self.consume(TokenKind::LParen, "expected '('")?;
+            let initializer = if self.check(TokenKind::Semicolon) {
+                None
+            } else {
+                Some(Box::new(self.for_clause()?))
+            };
+            self.consume(TokenKind::Semicolon, "expected ';'")?;
+            let condition = self.expression()?;
+            self.consume(TokenKind::Semicolon, "expected ';'")?;
+            let update = if self.check(TokenKind::RParen) {
+                None
+            } else {
+                Some(Box::new(self.for_clause()?))
+            };
+            self.consume(TokenKind::RParen, "expected ')'")?;
+            let body = self.block()?;
+            return Ok(Statement::For {
+                initializer,
+                condition,
+                update,
+                body,
+            });
+        }
         if self.check(TokenKind::Let) {
             self.position += 1;
             let name = self
@@ -257,6 +298,33 @@ impl Parser {
             self.position = checkpoint;
         }
         self.call()
+    }
+
+    fn for_clause(&mut self) -> Result<Statement, ParseError> {
+        if self.check(TokenKind::Let) {
+            self.position += 1;
+            let name = self
+                .consume(TokenKind::Identifier, "expected variable name")?
+                .lexeme;
+            let type_name = if self.check(TokenKind::Colon) {
+                self.position += 1;
+                Some(self.type_name()?)
+            } else {
+                None
+            };
+            self.consume(TokenKind::Equal, "expected '='")?;
+            return Ok(Statement::Let {
+                name,
+                type_name,
+                value: self.expression()?,
+            });
+        }
+        let target = self.primary()?;
+        self.consume(TokenKind::Equal, "expected '='")?;
+        Ok(Statement::Assign {
+            target,
+            value: self.expression()?,
+        })
     }
 
     fn block(&mut self) -> Result<Vec<Statement>, ParseError> {

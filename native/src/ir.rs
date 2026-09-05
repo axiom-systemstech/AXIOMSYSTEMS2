@@ -32,6 +32,14 @@ pub enum Instruction {
         condition: Vec<Instruction>,
         body: Vec<Instruction>,
     },
+    For {
+        initializer: Vec<Instruction>,
+        condition: Vec<Instruction>,
+        update: Vec<Instruction>,
+        body: Vec<Instruction>,
+    },
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,6 +129,23 @@ fn lower_block_with_counter(statements: &[Statement], counter: &mut usize) -> Ve
                 });
                 instructions
             }
+            Statement::For {
+                initializer,
+                condition,
+                update,
+                body,
+            } => vec![Instruction::For {
+                initializer: initializer.as_deref().map_or_else(Vec::new, |statement| {
+                    lower_block_with_counter(std::slice::from_ref(statement), counter)
+                }),
+                condition: lower_expression(condition),
+                update: update.as_deref().map_or_else(Vec::new, |statement| {
+                    lower_block_with_counter(std::slice::from_ref(statement), counter)
+                }),
+                body: lower_block_with_counter(body, counter),
+            }],
+            Statement::Break => vec![Instruction::Break],
+            Statement::Continue => vec![Instruction::Continue],
         })
     }
     instructions

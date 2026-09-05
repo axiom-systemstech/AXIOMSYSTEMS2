@@ -6,6 +6,13 @@ pub struct RuntimeError {
     pub message: String,
 }
 
+enum Control {
+    None,
+    Return(String),
+    Break,
+    Continue,
+}
+
 pub fn run(source: &str) -> Result<String, RuntimeError> {
     let program = parser::parse(source).map_err(|error| RuntimeError {
         message: format!("{} at {}:{}", error.message, error.line, error.column),
@@ -71,8 +78,14 @@ fn invoke(
                 } else {
                     else_body
                 };
-                if let Some(value) = execute_block(branch, &mut variables, functions, output)? {
-                    return Ok(Some(value));
+                match execute_block(branch, &mut variables, functions, output)? {
+                    Control::None => {}
+                    Control::Return(value) => return Ok(Some(value)),
+                    Control::Break | Control::Continue => {
+                        return Err(RuntimeError {
+                            message: "loop control escaped its loop".into(),
+                        })
+                    }
                 }
             }
             Statement::Assign { target, value } => {
@@ -81,10 +94,63 @@ fn invoke(
             }
             Statement::While { condition, body } => {
                 while evaluate(condition, &variables, functions, output)? == "true" {
-                    if let Some(value) = execute_block(body, &mut variables, functions, output)? {
-                        return Ok(Some(value));
+                    match execute_block(body, &mut variables, functions, output)? {
+                        Control::None | Control::Continue => {}
+                        Control::Break => break,
+                        Control::Return(value) => return Ok(Some(value)),
                     }
                 }
+            }
+            Statement::For {
+                initializer,
+                condition,
+                update,
+                body,
+            } => {
+                if let Some(initializer) = initializer {
+                    match execute_block(
+                        std::slice::from_ref(initializer),
+                        &mut variables,
+                        functions,
+                        output,
+                    )? {
+                        Control::None => {}
+                        Control::Return(value) => return Ok(Some(value)),
+                        Control::Break | Control::Continue => {
+                            return Err(RuntimeError {
+                                message: "loop control escaped its loop".into(),
+                            })
+                        }
+                    }
+                }
+                while evaluate(condition, &variables, functions, output)? == "true" {
+                    match execute_block(body, &mut variables, functions, output)? {
+                        Control::None | Control::Continue => {}
+                        Control::Break => break,
+                        Control::Return(value) => return Ok(Some(value)),
+                    }
+                    if let Some(update) = update {
+                        match execute_block(
+                            std::slice::from_ref(update),
+                            &mut variables,
+                            functions,
+                            output,
+                        )? {
+                            Control::None => {}
+                            Control::Return(value) => return Ok(Some(value)),
+                            Control::Break | Control::Continue => {
+                                return Err(RuntimeError {
+                                    message: "loop control escaped its loop".into(),
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+            Statement::Break | Statement::Continue => {
+                return Err(RuntimeError {
+                    message: "loop control escaped its loop".into(),
+                })
             }
         }
     }
@@ -96,7 +162,7 @@ fn execute_block(
     variables: &mut std::collections::HashMap<String, String>,
     functions: &[crate::parser::Function],
     output: &mut String,
-) -> Result<Option<String>, RuntimeError> {
+) -> Result<Control, RuntimeError> {
     for statement in statements {
         match statement {
             Statement::Let { name, value, .. } => {
@@ -104,7 +170,9 @@ fn execute_block(
                 variables.insert(name.clone(), evaluated);
             }
             Statement::Return(value) => {
-                return Ok(Some(evaluate(value, variables, functions, output)?))
+                return Ok(Control::Return(evaluate(
+                    value, variables, functions, output,
+                )?))
             }
             Statement::Call(call) if call.name == "print" => {
                 let value = evaluate(&call.arguments[0], variables, functions, output)?;
@@ -129,8 +197,9 @@ fn execute_block(
                 } else {
                     else_body
                 };
-                if let Some(value) = execute_block(branch, variables, functions, output)? {
-                    return Ok(Some(value));
+                match execute_block(branch, variables, functions, output)? {
+                    Control::None => {}
+                    flow => return Ok(flow),
                 }
             }
             Statement::Assign { target, value } => {
@@ -139,14 +208,54 @@ fn execute_block(
             }
             Statement::While { condition, body } => {
                 while evaluate(condition, variables, functions, output)? == "true" {
-                    if let Some(value) = execute_block(body, variables, functions, output)? {
-                        return Ok(Some(value));
+                    match execute_block(body, variables, functions, output)? {
+                        Control::None | Control::Continue => {}
+                        Control::Break => break,
+                        flow => return Ok(flow),
                     }
                 }
             }
+            Statement::For {
+                initializer,
+                condition,
+                update,
+                body,
+            } => {
+                if let Some(initializer) = initializer {
+                    match execute_block(
+                        std::slice::from_ref(initializer),
+                        variables,
+                        functions,
+                        output,
+                    )? {
+                        Control::None => {}
+                        flow => return Ok(flow),
+                    }
+                }
+                while evaluate(condition, variables, functions, output)? == "true" {
+                    match execute_block(body, variables, functions, output)? {
+                        Control::None | Control::Continue => {}
+                        Control::Break => break,
+                        flow => return Ok(flow),
+                    }
+                    if let Some(update) = update {
+                        match execute_block(
+                            std::slice::from_ref(update),
+                            variables,
+                            functions,
+                            output,
+                        )? {
+                            Control::None => {}
+                            flow => return Ok(flow),
+                        }
+                    }
+                }
+            }
+            Statement::Break => return Ok(Control::Break),
+            Statement::Continue => return Ok(Control::Continue),
         }
     }
-    Ok(None)
+    Ok(Control::None)
 }
 
 fn assign_target(
@@ -490,6 +599,14 @@ mod tests {
             )
             .unwrap(),
             "0\n"
+        );
+    }
+
+    #[test]
+    fn runs_for_with_break_and_continue() {
+        assert_eq!(
+            run("fn main() { for (let i: Int = 0; i < 5; i = i + 1) { if i == 2 { continue } if i == 4 { break } print(i) } }").unwrap(),
+            "0\n1\n3\n"
         );
     }
 

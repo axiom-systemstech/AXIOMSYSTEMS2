@@ -150,6 +150,13 @@ pub struct VmError {
     pub message: String,
 }
 
+enum Flow {
+    None,
+    Return(Value),
+    Break,
+    Continue,
+}
+
 pub fn compile_program(program: &Program) -> Artifact {
     let lowered = lower_program(program);
     Artifact {
@@ -262,14 +269,20 @@ impl Machine {
             locals.insert(parameter.clone(), value);
         }
 
-        self.execute_block(&function.instructions, &mut locals)
+        match self.execute_block(&function.instructions, &mut locals)? {
+            Flow::None => Ok(None),
+            Flow::Return(value) => Ok(Some(value)),
+            Flow::Break | Flow::Continue => Err(VmError {
+                message: "loop control escaped its loop".into(),
+            }),
+        }
     }
 
     fn execute_block(
         &mut self,
         instructions: &[Instruction],
         locals: &mut HashMap<String, Value>,
-    ) -> Result<Option<Value>, VmError> {
+    ) -> Result<Flow, VmError> {
         let mut index = 0;
         while index < instructions.len() {
             match &instructions[index] {
@@ -381,7 +394,7 @@ impl Machine {
                 }
                 Instruction::Return => {
                     let value = self.pop_stack()?;
-                    return Ok(Some(value));
+                    return Ok(Flow::Return(value));
                 }
                 Instruction::If {
                     then_body,
@@ -389,8 +402,9 @@ impl Machine {
                 } => {
                     let condition = self.pop_stack()?.as_bool()?;
                     let block = if condition { then_body } else { else_body };
-                    if let Some(value) = self.execute_block(block, locals)? {
-                        return Ok(Some(value));
+                    match self.execute_block(block, locals)? {
+                        Flow::None => {}
+                        flow => return Ok(flow),
                     }
                 }
                 Instruction::While { condition, body } => loop {
@@ -399,14 +413,44 @@ impl Machine {
                     if !condition_value {
                         break;
                     }
-                    if let Some(value) = self.execute_block(body, locals)? {
-                        return Ok(Some(value));
+                    match self.execute_block(body, locals)? {
+                        Flow::None | Flow::Continue => {}
+                        Flow::Break => break,
+                        flow => return Ok(flow),
                     }
                 },
+                Instruction::For {
+                    initializer,
+                    condition,
+                    update,
+                    body,
+                } => {
+                    match self.execute_block(initializer, locals)? {
+                        Flow::None => {}
+                        flow => return Ok(flow),
+                    }
+                    loop {
+                        self.execute_block(condition, locals)?;
+                        if !self.pop_stack()?.as_bool()? {
+                            break;
+                        }
+                        match self.execute_block(body, locals)? {
+                            Flow::None | Flow::Continue => {}
+                            Flow::Break => break,
+                            flow => return Ok(flow),
+                        }
+                        match self.execute_block(update, locals)? {
+                            Flow::None => {}
+                            flow => return Ok(flow),
+                        }
+                    }
+                }
+                Instruction::Break => return Ok(Flow::Break),
+                Instruction::Continue => return Ok(Flow::Continue),
             }
             index += 1;
         }
-        Ok(None)
+        Ok(Flow::None)
     }
 
     fn pop_stack(&mut self) -> Result<Value, VmError> {
@@ -476,6 +520,20 @@ fn encode_instruction(instruction: &Instruction) -> String {
                 encode_sequence(body)
             )
         }
+        Instruction::For {
+            initializer,
+            condition,
+            update,
+            body,
+        } => format!(
+            "For[{}][{}][{}][{}]",
+            encode_sequence(initializer),
+            encode_sequence(condition),
+            encode_sequence(update),
+            encode_sequence(body)
+        ),
+        Instruction::Break => "Break".to_string(),
+        Instruction::Continue => "Continue".to_string(),
     }
 }
 
@@ -491,6 +549,12 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
     }
     if token == "StoreIndex" {
         return Ok(Instruction::StoreIndex);
+    }
+    if token == "Break" {
+        return Ok(Instruction::Break);
+    }
+    if token == "Continue" {
+        return Ok(Instruction::Continue);
     }
     if let Some(value) = token.strip_prefix("PushInt:") {
         let value = value.parse::<i64>().map_err(|_| VmError {
@@ -565,6 +629,18 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
         return Ok(Instruction::While {
             condition: decode_sequence(&condition_raw)?,
             body: decode_sequence(&body_raw)?,
+        });
+    }
+    if let Some(raw) = token.strip_prefix("For") {
+        let (initializer, rest) = extract_bracketed(raw)?;
+        let (condition, rest) = extract_bracketed(rest)?;
+        let (update, rest) = extract_bracketed(rest)?;
+        let (body, _) = extract_bracketed(rest)?;
+        return Ok(Instruction::For {
+            initializer: decode_sequence(&initializer)?,
+            condition: decode_sequence(&condition)?,
+            update: decode_sequence(&update)?,
+            body: decode_sequence(&body)?,
         });
     }
 
@@ -805,6 +881,17 @@ mod tests {
         let decoded = Artifact::deserialize(&encoded).unwrap();
         let output = execute_artifact(&decoded).unwrap();
         assert_eq!(output, "99\n");
+    }
+
+    #[test]
+    fn executes_compiled_for_with_break_and_continue() {
+        let program = parse(
+            "fn main() { for (let i: Int = 0; i < 5; i = i + 1) { if i == 2 { continue } if i == 4 { break } print(i) } }",
+        )
+        .unwrap();
+        let artifact = compile_program(&program);
+        let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
+        assert_eq!(execute_artifact(&decoded).unwrap(), "0\n1\n3\n");
     }
 
     #[test]
