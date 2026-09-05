@@ -156,6 +156,40 @@ fn loop_control_runs_in_source_and_compiled_artifact() {
 }
 
 #[test]
+fn short_circuit_runs_in_source_and_compiled_artifact() {
+    let source_path = temp_path("short_circuit_source.ax");
+    let artifact_path = temp_path("short_circuit_output.axm");
+    std::fs::write(
+        &source_path,
+        "fn main() { if false && 1 / 0 == 0 { print(\"bad\") } if true || 1 / 0 == 0 { print(\"ok\") } }",
+    )
+    .unwrap();
+    let expected = "ok\n";
+
+    let source_run = run_axiom(&["run", source_path.to_str().unwrap()]);
+    assert!(source_run.status.success());
+    assert_eq!(String::from_utf8_lossy(&source_run.stdout), expected);
+
+    let build = run_axiom(&[
+        "build",
+        source_path.to_str().unwrap(),
+        artifact_path.to_str().unwrap(),
+    ]);
+    assert!(
+        build.status.success(),
+        "build failed: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let artifact_run = run_axiom(&["run", artifact_path.to_str().unwrap()]);
+    assert!(artifact_run.status.success());
+    assert_eq!(String::from_utf8_lossy(&artifact_run.stdout), expected);
+
+    let _ = std::fs::remove_file(source_path);
+    let _ = std::fs::remove_file(artifact_path);
+}
+
+#[test]
 fn less_than_runs_in_source_and_compiled_artifact() {
     let source_path = temp_path("less_than_source.ax");
     let artifact_path = temp_path("less_than_output.axm");
