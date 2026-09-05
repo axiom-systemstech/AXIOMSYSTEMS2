@@ -231,6 +231,11 @@ fn check_block(
                 }
             }
             Statement::Return(value) => {
+                if return_type.is_none() {
+                    return Err(SemanticError {
+                        message: "function cannot return a value".into(),
+                    });
+                }
                 let value_type = check_expression(value, variables, functions)?;
                 if return_type.is_some() && value_type.is_some() && return_type != value_type {
                     return Err(SemanticError {
@@ -400,5 +405,11 @@ mod tests {
                     .unwrap_err();
             assert_eq!(error.message, expected);
         }
+    }
+
+    #[test]
+    fn rejects_return_without_declared_type() {
+        let error = analyze(&parse("fn main() { return 42 }").unwrap()).unwrap_err();
+        assert_eq!(error.message, "function cannot return a value");
     }
 }

@@ -648,7 +648,7 @@ mod tests {
     #[test]
     fn runs_function_with_parameters_and_return() {
         assert_eq!(
-            run("fn add(a, b) { return a + b } fn main() { print(add(20, 22)) }").unwrap(),
+            run("fn add(a, b) -> Int { return a + b } fn main() { print(add(20, 22)) }").unwrap(),
             "42\n"
         );
     }
