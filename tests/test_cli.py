@@ -24,6 +24,17 @@ def test_check_accepts_axiom_file(tmp_path, capsys):
     assert f"ok: {source}" in capsys.readouterr().out
 
 
+def test_run_executes_program_through_ir(tmp_path, capsys):
+    source = tmp_path / "functions.ax"
+    source.write_text(
+        "fn add(a: Int, b: Int) -> Int { return a + b } "
+        "fn main() { print(add(20, 22)) }",
+        encoding="utf-8",
+    )
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "42\n"
+
+
 def test_lexer_tokenizes_minimal_program():
     tokens = lex('fn main() { print("Hello AXIOM"); }')
     assert [token.kind for token in tokens] == [

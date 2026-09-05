@@ -10,7 +10,7 @@ from pathlib import Path
 from . import __version__
 from .ir import lower
 from .parser import parse
-from .runtime import execute_program
+from .runtime import execute
 from .semantic import analyze
 
 
@@ -59,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             program = parse(args.source.read_text(encoding="utf-8"))
             analyze(program)
-            execute_program(program)
+            execute(lower(program))
         except (OSError, ValueError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
