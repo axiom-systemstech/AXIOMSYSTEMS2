@@ -74,3 +74,11 @@ fn main() {
     print(total / 2.0)
 }
 ```
+
+El operador `%` calcula el resto de una división entre enteros:
+
+```axiom
+fn main() {
+    print(17 % 5)
+}
+```
