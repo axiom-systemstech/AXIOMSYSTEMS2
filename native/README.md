@@ -23,3 +23,6 @@ cargo build --manifest-path native/Cargo.toml
 native/target/debug/axiom check examples/hello.ax
 native/target/debug/axiom run examples/hello.ax
 ```
+
+Array literals and indexing are supported by the native pipeline. Array types
+use postfix brackets, for example `fn first(values: Int[]) -> Int[]`.

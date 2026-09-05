@@ -172,7 +172,7 @@ impl Parser {
 
     fn type_name(&mut self) -> Result<Type, ParseError> {
         let token = self.consume(TokenKind::Identifier, "expected type name")?;
-        match token.lexeme.as_str() {
+        let mut type_name = match token.lexeme.as_str() {
             "Int" => Ok(Type::Int),
             "Bool" => Ok(Type::Bool),
             "String" => Ok(Type::String),
@@ -181,7 +181,13 @@ impl Parser {
                 line: token.line,
                 column: token.column,
             }),
+        }?;
+        while self.check(TokenKind::LBracket) {
+            self.position += 1;
+            self.consume(TokenKind::RBracket, "expected ']' in array type")?;
+            type_name = Type::Array(Box::new(type_name));
         }
+        Ok(type_name)
     }
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
@@ -515,6 +521,19 @@ mod tests {
             Some(Type::Int)
         );
         assert_eq!(program.functions[0].return_type, Some(Type::Int));
+    }
+
+    #[test]
+    fn parses_array_types() {
+        let program = parse("fn first(values: Int[]) -> Int[] { return values }").unwrap();
+        assert_eq!(
+            program.functions[0].parameters[0].type_name,
+            Some(Type::Array(Box::new(Type::Int)))
+        );
+        assert_eq!(
+            program.functions[0].return_type,
+            Some(Type::Array(Box::new(Type::Int)))
+        );
     }
 
     #[test]
