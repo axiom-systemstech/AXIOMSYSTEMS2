@@ -32,7 +32,21 @@ fn check_function(function: &Function, functions: &[Function]) -> Result<(), Sem
         functions,
         function.return_type.clone(),
         0,
-    )
+    )?;
+    if function.return_type.is_some()
+        && !function
+            .body
+            .iter()
+            .any(|statement| matches!(statement, Statement::Return(_)))
+    {
+        return Err(SemanticError {
+            message: format!(
+                "function '{}' must return a value",
+                function.name
+            ),
+        });
+    }
+    Ok(())
 }
 
 fn check_expression(
@@ -411,5 +425,14 @@ mod tests {
     fn rejects_return_without_declared_type() {
         let error = analyze(&parse("fn main() { return 42 }").unwrap()).unwrap_err();
         assert_eq!(error.message, "function cannot return a value");
+    }
+
+    #[test]
+    fn rejects_declared_return_without_return_statement() {
+        let error = analyze(
+            &parse("fn answer() -> Int { print(1) } fn main() { print(0) }").unwrap(),
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "function 'answer' must return a value");
     }
 }
