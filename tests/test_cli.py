@@ -11,6 +11,7 @@ from axiom.lexer import LexError, TokenKind, lex
 from axiom.parser import ParseError, parse
 from axiom.runtime import execute, execute_program
 from axiom.semantic import SemanticError, analyze
+from axiom.studio import check_source, complete_source, workspace_info
 
 
 def test_new_creates_project(tmp_path, capsys):
@@ -568,3 +569,24 @@ def test_runtime_executes_break_and_continue(tmp_path, capsys):
     )
     assert main(["run", str(source)]) == 0
     assert capsys.readouterr().out == "0\n1\n3\n"
+
+def test_studio_checks_source_and_reports_diagnostics():
+    assert check_source('fn main() { print("ok") }')["ok"] is True
+    result = check_source("fn main() { display(1) }")
+    assert result["ok"] is False
+    assert result["diagnostics"][0]["message"] == "unknown function 'display'"
+
+
+def test_studio_completes_language_symbols():
+    assert "print" in complete_source("fn main() { pri", "pri")
+    assert "Int" in complete_source("fn main() { let value: I", "I")
+    assert "main" in complete_source("fn main() { ma", "ma")
+
+
+def test_studio_reports_workspace_sources(tmp_path):
+    (tmp_path / "axiom.toml").write_text("[package]\nname = \"demo\"\n", encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/main.ax").write_text("fn main() {}", encoding="utf-8")
+    info = workspace_info(tmp_path)
+    assert info["manifest"] is True
+    assert info["sources"] == ["src/main.ax"]

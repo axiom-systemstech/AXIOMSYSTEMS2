@@ -14,6 +14,7 @@ from .package import PackageError, add_package
 from .parser import parse
 from .runtime import execute
 from .semantic import analyze
+from .studio import serve as serve_studio
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,6 +38,10 @@ def build_parser() -> argparse.ArgumentParser:
     add_parser = subparsers.add_parser("add", help="add a package from the local AXIOM registry")
     add_parser.add_argument("name")
     add_parser.add_argument("--registry", type=Path)
+    studio_parser = subparsers.add_parser("studio", help="launch AXIOM Studio")
+    studio_parser.add_argument("path", type=Path, nargs="?", default=Path("."))
+    studio_parser.add_argument("--host", default="127.0.0.1")
+    studio_parser.add_argument("--port", type=int, default=8765)
     return parser
 
 
@@ -140,6 +145,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: {error}", file=sys.stderr)
             return 1
         print(f"added: {package.name} {package.version}")
+        return 0
+    if args.command == "studio":
+        if not args.path.is_dir():
+            print(f"error: studio path does not exist: {args.path}", file=sys.stderr)
+            return 1
+        serve_studio(args.path, args.host, args.port)
         return 0
     if args.command == "run":
         try:
