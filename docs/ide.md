@@ -22,10 +22,14 @@ axiom studio path/to/project --host 127.0.0.1 --port 9000
 - Browser-based source editor.
 - Source diagnostics using the real AXIOM parser and semantic analyzer.
 - Basic language completion for keywords, types, built-ins, functions, and structs.
+- Run the current editor buffer through the AXIOM compiler and runtime.
+- Run all project AXIOM sources as an integrated test action.
+- Inspect Git status from the workspace.
+- Build an `.axpkg` package from the workspace.
 - No external web framework or editor dependency.
 
-The Studio server is intended for local development. It does not expose project write operations yet; editing currently operates on the in-memory browser buffer and diagnostics are performed against that buffer.
+The Studio server is intended for local development. Source editing currently operates on the in-memory browser buffer; the Run action executes that buffer without writing it to disk. Project actions operate on the selected workspace.
 
 ## Roadmap
 
-Debugger, profiler, integrated terminal, package management, Git integration, testing controls, documentation navigation, and visual tooling will be added incrementally on top of this workspace and language-service foundation.
+Debugger, profiler, integrated terminal, richer package management, Git actions, testing controls, documentation navigation, and visual tooling will be added incrementally on top of this workspace and language-service foundation.

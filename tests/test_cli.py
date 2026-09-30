@@ -11,7 +11,7 @@ from axiom.lexer import LexError, TokenKind, lex
 from axiom.parser import ParseError, parse
 from axiom.runtime import execute, execute_program
 from axiom.semantic import SemanticError, analyze
-from axiom.studio import check_source, complete_source, workspace_info
+from axiom.studio import check_source, complete_source, package_workspace, run_source, run_workspace_tests, workspace_info
 
 
 def test_new_creates_project(tmp_path, capsys):
@@ -590,3 +590,31 @@ def test_studio_reports_workspace_sources(tmp_path):
     info = workspace_info(tmp_path)
     assert info["manifest"] is True
     assert info["sources"] == ["src/main.ax"]
+
+
+def test_studio_runs_source_and_captures_output():
+    result = run_source('fn main() { print("studio") }')
+    assert result == {"ok": True, "diagnostics": [], "output": "studio\n"}
+
+
+def test_studio_tests_workspace(tmp_path):
+    (tmp_path / "one.ax").write_text('fn main() { print(1) }', encoding="utf-8")
+    result = run_workspace_tests(tmp_path)
+    assert result["ok"] is True
+    assert result["count"] == 1
+
+
+def test_studio_reports_git_status(tmp_path):
+    from axiom.studio import git_status
+    result = git_status(tmp_path)
+    assert result["ok"] is False
+
+
+def test_studio_packages_workspace(tmp_path):
+    (tmp_path / "axiom.toml").write_text('[package]\nname = "demo"\nversion = "0.1.0"\n', encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/main.ax").write_text('fn main() {}', encoding="utf-8")
+    output = tmp_path / "demo.axpkg"
+    result = package_workspace(tmp_path, output)
+    assert result["ok"] is True
+    assert output.exists()

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import re
+import subprocess
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -12,6 +15,8 @@ from urllib.parse import urlparse
 from .ast import Function, Program
 from .lexer import LexError, lex
 from .parser import ParseError, parse
+from .ir import lower
+from .runtime import execute
 from .semantic import SemanticError, analyze
 
 _KEYWORDS = {
@@ -71,6 +76,65 @@ def complete_source(source: str, prefix: str = "") -> list[str]:
     return sorted({item for item in candidates if item.startswith(prefix)})
 
 
+
+def run_source(source: str) -> dict[str, object]:
+    output = io.StringIO()
+    try:
+        program = parse(source)
+        analyze(program)
+        execute(lower(program), emit=lambda value: output.write(value + "\n"))
+    except (LexError, ParseError, SemanticError, ValueError) as error:
+        return {"ok": False, "diagnostics": [_diagnostic(error)], "output": output.getvalue()}
+    return {"ok": True, "diagnostics": [], "output": output.getvalue()}
+
+
+def run_workspace_tests(root: Path) -> dict[str, object]:
+    failures: list[dict[str, str]] = []
+    sources = sorted(path for path in root.rglob("*.ax") if ".git" not in path.parts)
+    for path in sources:
+        try:
+            program = parse(path.read_text(encoding="utf-8"))
+            analyze(program)
+            execute(lower(program), emit=lambda _: None)
+        except (OSError, LexError, ParseError, SemanticError, ValueError) as error:
+            failures.append({"path": path.relative_to(root).as_posix(), **_diagnostic(error)})
+    return {"ok": not failures, "count": len(sources), "failures": failures}
+
+
+def git_status(root: Path) -> dict[str, object]:
+    try:
+        result = subprocess.run(
+            ["git", "status", "--short", "--branch"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as error:
+        return {"ok": False, "error": str(error)}
+    return {"ok": result.returncode == 0, "output": result.stdout, "error": result.stderr}
+
+
+def package_workspace(root: Path, output: Path | None = None) -> dict[str, object]:
+    manifest = root / "axiom.toml"
+    if not manifest.exists():
+        return {"ok": False, "error": "axiom.toml not found"}
+    target = output or root.with_suffix(".axpkg")
+    try:
+        with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for path in root.rglob("*"):
+                relative = path.relative_to(root)
+                if not path.is_file():
+                    continue
+                if target.parent == root and relative == target.relative_to(root):
+                    continue
+                if any(part in {".git", "__pycache__", "target"} for part in relative.parts) or path.suffix == ".axpkg":
+                    continue
+                archive.write(path, relative.as_posix())
+    except OSError as error:
+        return {"ok": False, "error": str(error)}
+    return {"ok": True, "output": str(target)}
+
 def workspace_info(root: Path) -> dict[str, object]:
     root = root.resolve()
     manifest = root / "axiom.toml"
@@ -103,7 +167,7 @@ button { background: #222; color: #eee; border: 1px solid #444; padding: 6px 10p
 </style>
 </head>
 <body>
-<header><strong>AXIOM Studio</strong><span id="status">Ready</span></header>
+<header><strong>AXIOM Studio</strong><span><button onclick="runCode()">Run</button> <button onclick="runTests()">Test</button> <button onclick="showGit()">Git</button> <button onclick="packageProject()">Package</button> <span id="status">Ready</span></span></header>
 <main>
 <aside id="files"></aside>
 <section><textarea id="editor" spellcheck="false"></textarea></section>
@@ -133,6 +197,10 @@ async function loadFile(path) {
   status.textContent = path;
   check();
 }
+async function runCode() { const data = await fetch('/api/run', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({source: editor.value})}).then(r => r.json()); diagnostics.textContent = data.ok ? data.output || 'Program completed with no output.' : data.diagnostics.map(d => d.line + ':' + d.column + ' ' + d.message).join('\n'); }
+async function runTests() { const data = await fetch('/api/test', {method:'POST'}).then(r => r.json()); diagnostics.textContent = data.ok ? 'Tests passed: ' + data.count + ' source file(s)' : data.failures.map(d => d.path + ' ' + d.line + ':' + d.column + ' ' + d.message).join('\n'); }
+async function showGit() { const data = await fetch('/api/git').then(r => r.json()); diagnostics.textContent = data.output || data.error || 'clean'; }
+async function packageProject() { const data = await fetch('/api/package', {method:'POST'}).then(r => r.json()); diagnostics.textContent = data.ok ? 'Packaged: ' + data.output : data.error; }
 async function check() {
   const data = await fetch('/api/check', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({source: editor.value})}).then(r => r.json());
   diagnostics.innerHTML = data.ok ? '<div class="ok">No diagnostics</div>' : data.diagnostics.map(d => '<div class="error">' + d.line + ':' + d.column + ' ' + d.message + '</div>').join('');
@@ -180,6 +248,9 @@ class StudioHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/workspace":
             self._send_json(workspace_info(self.root))
             return
+        if parsed.path == "/api/git":
+            self._send_json(git_status(self.root))
+            return
         if parsed.path == "/api/source":
             from urllib.parse import parse_qs
             relative = parse_qs(parsed.query).get("path", [""])[0]
@@ -198,7 +269,7 @@ class StudioHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         endpoint = urlparse(self.path).path
-        if endpoint not in {"/api/check", "/api/complete"}:
+        if endpoint not in {"/api/check", "/api/complete", "/api/run", "/api/test", "/api/package"}:
             self._send_json({"error": "not found"}, 404)
             return
         try:
@@ -212,6 +283,15 @@ class StudioHandler(BaseHTTPRequestHandler):
             return
         if endpoint == "/api/check":
             self._send_json(check_source(source))
+            return
+        if endpoint == "/api/run":
+            self._send_json(run_source(source))
+            return
+        if endpoint == "/api/test":
+            self._send_json(run_workspace_tests(self.root))
+            return
+        if endpoint == "/api/package":
+            self._send_json(package_workspace(self.root))
             return
         prefix = payload.get("prefix", "")
         if not isinstance(prefix, str):
