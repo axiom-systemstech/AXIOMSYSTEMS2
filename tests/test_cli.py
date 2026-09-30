@@ -95,6 +95,25 @@ def test_parser_builds_struct_literal_and_field_access():
     assert program.structs[0].fields[0].name == "x"
 
 
+def test_runtime_executes_struct_field_assignment(tmp_path, capsys):
+    source = tmp_path / "struct_assignment.ax"
+    source.write_text(
+        "struct Point { x: Int, y: Int } fn main() { let point: Point = Point { x: 10, y: 20 }; point.x = 42; print(point.x) }",
+        encoding="utf-8",
+    )
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "42\n"
+
+
+def test_semantic_analysis_rejects_unknown_struct_field_assignment():
+    try:
+        analyze(parse("struct Point { x: Int } fn main() { let point: Point = Point { x: 10 }; point.y = 42 }"))
+    except SemanticError as error:
+        assert str(error) == "unknown field 'y'"
+    else:
+        raise AssertionError("expected SemanticError")
+
+
 def test_runtime_executes_struct_field_access(tmp_path, capsys):
     source = tmp_path / "structs.ax"
     source.write_text(

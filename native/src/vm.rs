@@ -530,6 +530,22 @@ impl Machine {
                             message: format!("unknown field '{field}'"),
                         })?);
                 }
+                Instruction::StoreField(field) => {
+                    let value = self.pop_stack()?;
+                    let structure = self.pop_stack()?;
+                    let Value::Struct(mut fields) = structure else {
+                        return Err(VmError {
+                            message: "expected struct value".into(),
+                        });
+                    };
+                    if !fields.contains_key(field) {
+                        return Err(VmError {
+                            message: format!("unknown field '{field}'"),
+                        });
+                    }
+                    fields.insert(field.clone(), value);
+                    self.stack.push(Value::Struct(fields));
+                }
                 Instruction::StoreIndex => {
                     let value = self.pop_stack()?;
                     let index = self.pop_stack()?.as_int()?;
@@ -687,6 +703,7 @@ fn encode_instruction(instruction: &Instruction) -> String {
         Instruction::Index => "Index".to_string(),
         Instruction::StoreIndex => "StoreIndex".to_string(),
         Instruction::GetField(field) => format!("GetField:{}", escape_string(field)),
+        Instruction::StoreField(field) => format!("StoreField:{}", escape_string(field)),
         Instruction::Print => "Print".to_string(),
         Instruction::Return => "Return".to_string(),
         Instruction::If {
@@ -738,6 +755,9 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
     }
     if let Some(field) = token.strip_prefix("GetField:") {
         return Ok(Instruction::GetField(unescape_string(field)));
+    }
+    if let Some(field) = token.strip_prefix("StoreField:") {
+        return Ok(Instruction::StoreField(unescape_string(field)));
     }
     if token == "Break" {
         return Ok(Instruction::Break);
@@ -1085,6 +1105,17 @@ mod tests {
         let artifact = compile_program(&program);
         let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
         assert_eq!(execute_artifact(&decoded).unwrap(), "ok\n");
+    }
+
+    #[test]
+    fn executes_compiled_struct_field_assignment() {
+        let program = parse(
+            "struct Point { x: Int, y: Int } fn main() { let point: Point = Point { x: 10, y: 20 }; point.x = 42; print(point.x) }",
+        )
+        .unwrap();
+        let artifact = compile_program(&program);
+        let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
+        assert_eq!(execute_artifact(&decoded).unwrap(), "42\n");
     }
 
     #[test]

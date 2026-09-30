@@ -260,6 +260,12 @@ def _assign(target, value, variables, functions=None, emit=print):
     if isinstance(target, Variable):
         variables[target.name] = value
         return
+    if isinstance(target, FieldAccess):
+        container = _evaluate(target.target, variables, functions, emit)
+        if not isinstance(container, dict) or target.field not in container:
+            raise RuntimeError("unknown field")
+        container[target.field] = value
+        return
     if isinstance(target, Index):
         container = _evaluate(target.target, variables, functions, emit)
         index = _evaluate(target.index, variables, functions, emit)

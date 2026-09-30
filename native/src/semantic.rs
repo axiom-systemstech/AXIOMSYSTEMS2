@@ -8,20 +8,47 @@ pub struct SemanticError {
 }
 
 pub fn analyze(program: &Program) -> Result<(), SemanticError> {
-    let main = program
+    validate_structs(program)?;
+    if !program
         .functions
         .iter()
-        .find(|function| function.name == "main")
-        .ok_or_else(|| SemanticError {
+        .any(|function| function.name == "main")
+    {
+        return Err(SemanticError {
             message: "program must define 'main'".into(),
-        })?;
-    for function in &program.functions {
-        check_function(function, &program.functions)?;
+        });
     }
-    check_function(main, &program.functions)
+    for function in &program.functions {
+        check_function(function, &program.functions, &program.structs)?;
+    }
+    Ok(())
 }
 
-fn check_function(function: &Function, functions: &[Function]) -> Result<(), SemanticError> {
+fn validate_structs(program: &Program) -> Result<(), SemanticError> {
+    let mut names = std::collections::HashSet::new();
+    for structure in &program.structs {
+        if !names.insert(&structure.name) {
+            return Err(SemanticError {
+                message: format!("duplicate struct '{}'", structure.name),
+            });
+        }
+        let mut fields = std::collections::HashSet::new();
+        for field in &structure.fields {
+            if !fields.insert(&field.name) {
+                return Err(SemanticError {
+                    message: format!("struct '{}' has duplicate fields", structure.name),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn check_function(
+    function: &Function,
+    functions: &[Function],
+    structs: &[crate::parser::StructDefinition],
+) -> Result<(), SemanticError> {
     let mut variables = std::collections::HashMap::new();
     for Parameter { name, type_name } in &function.parameters {
         variables.insert(name.clone(), type_name.clone());
@@ -30,6 +57,7 @@ fn check_function(function: &Function, functions: &[Function]) -> Result<(), Sem
         &function.body,
         &mut variables,
         functions,
+        structs,
         function.return_type.clone(),
         0,
     )?;
@@ -50,6 +78,7 @@ fn check_expression(
     expression: &Expression,
     variables: &std::collections::HashMap<String, Option<Type>>,
     functions: &[Function],
+    structs: &[crate::parser::StructDefinition],
 ) -> Result<Option<Type>, SemanticError> {
     match expression {
         Expression::String(_) => Ok(Some(Type::String)),
@@ -59,7 +88,7 @@ fn check_expression(
         Expression::Array(elements) => {
             let mut inferred: Option<Type> = None;
             for element in elements {
-                let element_type = check_expression(element, variables, functions)?;
+                let element_type = check_expression(element, variables, functions, structs)?;
                 if let Some(element_type) = element_type {
                     if let Some(current) = inferred.as_ref() {
                         if *current != element_type {
@@ -74,7 +103,41 @@ fn check_expression(
             }
             Ok(inferred.map(|value| Type::Array(Box::new(value))))
         }
-        Expression::StructLiteral { type_name, .. } => Ok(Some(Type::Named(type_name.clone()))),
+        Expression::StructLiteral { type_name, fields } => {
+            let structure = structs
+                .iter()
+                .find(|structure| structure.name == *type_name)
+                .ok_or_else(|| SemanticError {
+                    message: format!("unknown struct '{type_name}'"),
+                })?;
+            let mut seen = std::collections::HashSet::new();
+            for (field_name, value) in fields {
+                if !seen.insert(field_name) {
+                    return Err(SemanticError {
+                        message: format!("struct '{type_name}' has duplicate fields"),
+                    });
+                }
+                let field = structure
+                    .fields
+                    .iter()
+                    .find(|field| field.name == *field_name)
+                    .ok_or_else(|| SemanticError {
+                        message: format!("unknown field '{field_name}'"),
+                    })?;
+                let value_type = check_expression(value, variables, functions, structs)?;
+                if value_type.is_some() && value_type != field.type_name {
+                    return Err(SemanticError {
+                        message: format!("field '{field_name}' has incompatible type"),
+                    });
+                }
+            }
+            if fields.len() != structure.fields.len() {
+                return Err(SemanticError {
+                    message: format!("struct '{type_name}' has incompatible fields"),
+                });
+            }
+            Ok(Some(Type::Named(type_name.clone())))
+        }
         Expression::Variable(name) => variables.get(name).cloned().ok_or_else(|| SemanticError {
             message: format!("unknown variable '{name}'"),
         }),
@@ -83,8 +146,8 @@ fn check_expression(
             operator,
             right,
         } => {
-            let left_type = check_expression(left, variables, functions)?;
-            let right_type = check_expression(right, variables, functions)?;
+            let left_type = check_expression(left, variables, functions, structs)?;
+            let right_type = check_expression(right, variables, functions, structs)?;
             match operator {
                 BinaryOperator::Add => {
                     if left_type == right_type
@@ -150,7 +213,7 @@ fn check_expression(
             operator: UnaryOperator::Not,
             operand,
         } => {
-            let operand_type = check_expression(operand, variables, functions)?;
+            let operand_type = check_expression(operand, variables, functions, structs)?;
             if operand_type.is_some() && operand_type != Some(Type::Bool) {
                 return Err(SemanticError {
                     message: "! requires Bool".into(),
@@ -162,7 +225,7 @@ fn check_expression(
             operator: UnaryOperator::Negate,
             operand,
         } => {
-            let operand_type = check_expression(operand, variables, functions)?;
+            let operand_type = check_expression(operand, variables, functions, structs)?;
             if operand_type.is_some()
                 && operand_type != Some(Type::Int)
                 && operand_type != Some(Type::Float)
@@ -174,8 +237,8 @@ fn check_expression(
             Ok(operand_type)
         }
         Expression::Index { target, index } => {
-            let target_type = check_expression(target, variables, functions)?;
-            let index_type = check_expression(index, variables, functions)?;
+            let target_type = check_expression(target, variables, functions, structs)?;
+            let index_type = check_expression(index, variables, functions, structs)?;
             if index_type.is_some() && index_type != Some(Type::Int) {
                 return Err(SemanticError {
                     message: "array index requires Int".into(),
@@ -188,7 +251,28 @@ fn check_expression(
                 }),
             }
         }
-        Expression::FieldAccess { .. } => Ok(None),
+        Expression::FieldAccess { target, field } => {
+            let target_type = check_expression(target, variables, functions, structs)?;
+            let Some(Type::Named(type_name)) = target_type else {
+                return Err(SemanticError {
+                    message: "field access requires a struct".into(),
+                });
+            };
+            let structure = structs
+                .iter()
+                .find(|structure| structure.name == type_name)
+                .ok_or_else(|| SemanticError {
+                    message: format!("unknown struct '{type_name}'"),
+                })?;
+            let field_definition = structure
+                .fields
+                .iter()
+                .find(|field_definition| field_definition.name == *field)
+                .ok_or_else(|| SemanticError {
+                    message: format!("unknown field '{field}'"),
+                })?;
+            Ok(field_definition.type_name.clone())
+        }
         Expression::Call(call) => {
             let function = functions
                 .iter()
@@ -206,7 +290,7 @@ fn check_expression(
                 });
             }
             for (argument, parameter) in call.arguments.iter().zip(&function.parameters) {
-                let argument_type = check_expression(argument, variables, functions)?;
+                let argument_type = check_expression(argument, variables, functions, structs)?;
                 if parameter.type_name.is_some()
                     && argument_type.is_some()
                     && parameter.type_name != argument_type
@@ -225,13 +309,14 @@ fn check_block(
     statements: &[Statement],
     variables: &mut std::collections::HashMap<String, Option<Type>>,
     functions: &[Function],
+    structs: &[crate::parser::StructDefinition],
     return_type: Option<Type>,
     loop_depth: usize,
 ) -> Result<(), SemanticError> {
     for statement in statements {
         match statement {
             Statement::Let { name, value, .. } => {
-                let value_type = check_expression(value, variables, functions)?;
+                let value_type = check_expression(value, variables, functions, structs)?;
                 if let Statement::Let {
                     type_name: Some(declared),
                     ..
@@ -253,7 +338,7 @@ fn check_block(
                         message: "function cannot return a value".into(),
                     });
                 }
-                let value_type = check_expression(value, variables, functions)?;
+                let value_type = check_expression(value, variables, functions, structs)?;
                 if return_type.is_some() && value_type.is_some() && return_type != value_type {
                     return Err(SemanticError {
                         message: "return value has incompatible type".into(),
@@ -265,11 +350,12 @@ fn check_block(
                 then_body,
                 else_body,
             } => {
-                require_bool(check_expression(condition, variables, functions)?)?;
+                require_bool(check_expression(condition, variables, functions, structs)?)?;
                 check_block(
                     then_body,
                     &mut variables.clone(),
                     functions,
+                    structs,
                     return_type.clone(),
                     loop_depth,
                 )?;
@@ -277,16 +363,18 @@ fn check_block(
                     else_body,
                     &mut variables.clone(),
                     functions,
+                    structs,
                     return_type.clone(),
                     loop_depth,
                 )?;
             }
             Statement::While { condition, body } => {
-                require_bool(check_expression(condition, variables, functions)?)?;
+                require_bool(check_expression(condition, variables, functions, structs)?)?;
                 check_block(
                     body,
                     &mut variables.clone(),
                     functions,
+                    structs,
                     return_type.clone(),
                     loop_depth + 1,
                 )?;
@@ -303,16 +391,18 @@ fn check_block(
                         std::slice::from_ref(initializer),
                         &mut scoped,
                         functions,
+                        structs,
                         return_type.clone(),
                         loop_depth,
                     )?;
                 }
-                require_bool(check_expression(condition, &scoped, functions)?)?;
+                require_bool(check_expression(condition, &scoped, functions, structs)?)?;
                 if let Some(update) = update {
                     check_block(
                         std::slice::from_ref(update),
                         &mut scoped,
                         functions,
+                        structs,
                         return_type.clone(),
                         loop_depth,
                     )?;
@@ -321,6 +411,7 @@ fn check_block(
                     body,
                     &mut scoped,
                     functions,
+                    structs,
                     return_type.clone(),
                     loop_depth + 1,
                 )?;
@@ -338,8 +429,8 @@ fn check_block(
                 });
             }
             Statement::Assign { target, value } => {
-                let target_type = check_expression(target, variables, functions)?;
-                let value_type = check_expression(value, variables, functions)?;
+                let target_type = check_expression(target, variables, functions, structs)?;
+                let value_type = check_expression(value, variables, functions, structs)?;
                 if target_type.is_some() && value_type.is_some() && target_type != value_type {
                     return Err(SemanticError {
                         message: "assignment has incompatible type".into(),
@@ -347,10 +438,15 @@ fn check_block(
                 }
             }
             Statement::Call(call) if call.name == "print" && call.arguments.len() == 1 => {
-                check_expression(&call.arguments[0], variables, functions)?;
+                check_expression(&call.arguments[0], variables, functions, structs)?;
             }
             Statement::Call(call) => {
-                check_expression(&Expression::Call(call.clone()), variables, functions)?;
+                check_expression(
+                    &Expression::Call(call.clone()),
+                    variables,
+                    functions,
+                    structs,
+                )?;
             }
         }
     }
@@ -436,6 +532,48 @@ mod tests {
             analyze(&parse("fn answer() -> Int { print(1) } fn main() { print(0) }").unwrap())
                 .unwrap_err();
         assert_eq!(error.message, "function 'answer' must return a value");
+    }
+
+    #[test]
+    fn accepts_valid_struct_access() {
+        let source = "struct Point { x: Int y: Int } fn main() { let point: Point = Point { x: 10 y: 20 } print(point.x) }";
+        analyze(&parse(source).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn rejects_unknown_struct_field() {
+        let source = "struct Point { x: Int } fn main() { let point: Point = Point { x: 10 } print(point.y) }";
+        let error = analyze(&parse(source).unwrap()).unwrap_err();
+        assert_eq!(error.message, "unknown field 'y'");
+    }
+
+    #[test]
+    fn rejects_struct_field_type_mismatch() {
+        let source = "struct Point { x: Int } fn main() { let point: Point = Point { x: true } }";
+        let error = analyze(&parse(source).unwrap()).unwrap_err();
+        assert_eq!(error.message, "field 'x' has incompatible type");
+    }
+
+    #[test]
+    fn rejects_duplicate_struct_fields() {
+        let source =
+            "struct Point { x: Int } fn main() { let point: Point = Point { x: 10 x: 20 } }";
+        let error = analyze(&parse(source).unwrap()).unwrap_err();
+        assert_eq!(error.message, "struct 'Point' has duplicate fields");
+    }
+
+    #[test]
+    fn rejects_duplicate_struct_definitions() {
+        let source = "struct Point { x: Int } struct Point { y: Int } fn main() { print(1) }";
+        let error = analyze(&parse(source).unwrap()).unwrap_err();
+        assert_eq!(error.message, "duplicate struct 'Point'");
+    }
+
+    #[test]
+    fn rejects_field_access_on_non_struct() {
+        let source = "fn main() { let value: Int = 10 print(value.x) }";
+        let error = analyze(&parse(source).unwrap()).unwrap_err();
+        assert_eq!(error.message, "field access requires a struct");
     }
 
     #[test]
