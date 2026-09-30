@@ -1,4 +1,6 @@
 from pathlib import Path
+import zipfile
+
 import pytest
 from axiom.cli import main
 from axiom.ast import BooleanLiteral, Call, Function, IntegerLiteral, Program, StringLiteral
@@ -9,6 +11,39 @@ from axiom.lexer import LexError, TokenKind, lex
 from axiom.parser import ParseError, parse
 from axiom.runtime import execute, execute_program
 from axiom.semantic import SemanticError, analyze
+
+
+def test_new_creates_project(tmp_path, capsys):
+    project = tmp_path / "hello"
+    assert main(["new", str(project)]) == 0
+    assert "created:" in capsys.readouterr().out
+    assert (project / "axiom.toml").exists()
+    assert (project / "src/main.ax").read_text(encoding="utf-8") == 'fn main() { print("Hello AXIOM") }\n'
+
+
+def test_test_command_runs_axiom_sources(tmp_path, capsys):
+    tests_path = tmp_path / "tests"
+    tests_path.mkdir()
+    source = tests_path / "hello.ax"
+    source.write_text('fn main() { print("ok") }', encoding="utf-8")
+    assert main(["test", str(tests_path)]) == 0
+    assert "test ok: 1 source file(s)" in capsys.readouterr().out
+
+
+def test_package_creates_archive(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "axiom.toml").write_text(
+        '[package]\nname = "demo"\nversion = "0.1.0"\n',
+        encoding="utf-8",
+    )
+    output = tmp_path / "demo.axpkg"
+    assert main(["package", "-o", str(output)]) == 0
+    assert "packaged:" in capsys.readouterr().out
+    assert output.exists()
+    with zipfile.ZipFile(output) as archive:
+        names = set(archive.namelist())
+    assert "axiom.toml" in names
+    assert all(not name.startswith(".git/") for name in names)
 
 
 def test_add_package_from_local_registry(tmp_path, monkeypatch, capsys):
