@@ -250,6 +250,8 @@ def _evaluate(expression, variables, functions=None, emit=print):
         return -_evaluate(expression.operand, variables, functions, emit)
     if isinstance(expression, Call):
         arguments = [_evaluate(argument, variables, functions, emit) for argument in expression.arguments]
+        if expression.name in {"len", "abs", "min", "max"}:
+            return _standard_library_call(expression.name, arguments)
         if isinstance(functions[expression.name], IRFunction):
             return _invoke_ir(functions[expression.name], arguments, functions, emit)
         return _invoke(functions[expression.name], arguments, functions, emit)
@@ -277,3 +279,13 @@ def _assign(target, value, variables, functions=None, emit=print):
             raise RuntimeError("index out of bounds") from None
         return
     raise RuntimeError("invalid assignment target")
+def _standard_library_call(name, arguments):
+    if name == "len":
+        return len(arguments[0])
+    if name == "abs":
+        return abs(arguments[0])
+    if name == "min":
+        return min(arguments)
+    if name == "max":
+        return max(arguments)
+    raise RuntimeError(f"unknown standard library function '{name}'")

@@ -266,6 +266,9 @@ impl Machine {
         name: &str,
         arguments: Vec<Value>,
     ) -> Result<Option<Value>, VmError> {
+        if let Some(value) = call_standard_library(name, &arguments)? {
+            return Ok(Some(value));
+        }
         let function = self
             .functions
             .iter()
@@ -643,6 +646,82 @@ impl Machine {
         self.stack.pop().ok_or_else(|| VmError {
             message: "stack underflow".into(),
         })
+    }
+}
+
+fn call_standard_library(name: &str, arguments: &[Value]) -> Result<Option<Value>, VmError> {
+    match name {
+        "len" => {
+            if arguments.len() != 1 {
+                return Err(VmError {
+                    message: "len expects one argument".into(),
+                });
+            }
+            let length = match &arguments[0] {
+                Value::String(value) => value.chars().count(),
+                Value::Array(values) => values.len(),
+                _ => {
+                    return Err(VmError {
+                        message: "len expects a String or array".into(),
+                    })
+                }
+            };
+            Ok(Some(Value::Int(length as i64)))
+        }
+        "abs" => {
+            if arguments.len() != 1 {
+                return Err(VmError {
+                    message: "abs expects one argument".into(),
+                });
+            }
+            match &arguments[0] {
+                Value::Int(value) => Ok(Some(Value::Int(value.abs()))),
+                Value::Float(value) => {
+                    let value = value.parse::<f64>().map_err(|_| VmError {
+                        message: "abs expects a numeric value".into(),
+                    })?;
+                    Ok(Some(Value::Float(render_float(value.abs()))))
+                }
+                _ => Err(VmError {
+                    message: "abs expects an Int or Float".into(),
+                }),
+            }
+        }
+        "min" | "max" => {
+            if arguments.len() != 2 {
+                return Err(VmError {
+                    message: format!("{name} expects two arguments"),
+                });
+            }
+            match (&arguments[0], &arguments[1]) {
+                (Value::Int(left), Value::Int(right)) => {
+                    let value = if name == "min" {
+                        (*left).min(*right)
+                    } else {
+                        (*left).max(*right)
+                    };
+                    Ok(Some(Value::Int(value)))
+                }
+                (Value::Float(left), Value::Float(right)) => {
+                    let left = left.parse::<f64>().map_err(|_| VmError {
+                        message: "expected Float value".into(),
+                    })?;
+                    let right = right.parse::<f64>().map_err(|_| VmError {
+                        message: "expected Float value".into(),
+                    })?;
+                    let value = if name == "min" {
+                        left.min(right)
+                    } else {
+                        left.max(right)
+                    };
+                    Ok(Some(Value::Float(render_float(value))))
+                }
+                _ => Err(VmError {
+                    message: format!("{name} expects two matching numeric arguments"),
+                }),
+            }
+        }
+        _ => Ok(None),
     }
 }
 
@@ -1116,6 +1195,24 @@ mod tests {
         let artifact = compile_program(&program);
         let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
         assert_eq!(execute_artifact(&decoded).unwrap(), "42\n");
+    }
+
+    #[test]
+    fn executes_compiled_standard_library_calls() {
+        let program = parse(
+            r#"fn main() { print(len("axiom")); print(abs(-7)); print(min(3, 5)); print(max(3.0, 5.0)) }"#,
+        )
+        .unwrap();
+        let artifact = compile_program(&program);
+        let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
+        assert_eq!(
+            execute_artifact(&decoded).unwrap(),
+            "5
+7
+3
+5.0
+"
+        );
     }
 
     #[test]

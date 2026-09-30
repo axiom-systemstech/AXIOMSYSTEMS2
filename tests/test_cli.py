@@ -1,3 +1,4 @@
+import pytest
 from axiom.cli import main
 from axiom.ast import BooleanLiteral, Call, Function, IntegerLiteral, Program, StringLiteral
 from axiom.ast import Binary
@@ -5,7 +6,7 @@ from axiom.ast import Variable
 from axiom.ir import IRProgram, IfInstruction, LetInstruction, PrintInstruction, SetInstruction, WhileInstruction, lower
 from axiom.lexer import LexError, TokenKind, lex
 from axiom.parser import ParseError, parse
-from axiom.runtime import execute
+from axiom.runtime import execute, execute_program
 from axiom.semantic import SemanticError, analyze
 
 
@@ -93,6 +94,20 @@ def test_parser_builds_struct_literal_and_field_access():
     )
     assert program.structs[0].name == "Point"
     assert program.structs[0].fields[0].name == "x"
+
+
+def test_runtime_executes_standard_library(capsys):
+    source = 'fn main() { print(len("axiom")); print(abs(-7)); print(min(3, 5)); print(max(3.0, 5.0)) }'
+    program = parse(source)
+    analyze(program)
+    execute_program(program)
+    assert capsys.readouterr().out == "5\n7\n3\n5.0\n"
+
+
+def test_semantic_rejects_invalid_standard_library_call():
+    program = parse("fn main() { print(len(1)) }")
+    with pytest.raises(SemanticError, match="len expects a String or array"):
+        analyze(program)
 
 
 def test_runtime_executes_struct_field_assignment(tmp_path, capsys):

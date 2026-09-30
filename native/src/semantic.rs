@@ -274,6 +274,9 @@ fn check_expression(
             Ok(field_definition.type_name.clone())
         }
         Expression::Call(call) => {
+            if let Some(return_type) = check_builtin(call, variables, functions, structs)? {
+                return Ok(Some(return_type));
+            }
             let function = functions
                 .iter()
                 .find(|function| function.name == call.name)
@@ -302,6 +305,53 @@ fn check_expression(
             }
             Ok(function.return_type.clone())
         }
+    }
+}
+
+fn check_builtin(
+    call: &crate::parser::Call,
+    variables: &std::collections::HashMap<String, Option<Type>>,
+    functions: &[Function],
+    structs: &[crate::parser::StructDefinition],
+) -> Result<Option<Type>, SemanticError> {
+    let argument_types = call
+        .arguments
+        .iter()
+        .map(|argument| check_expression(argument, variables, functions, structs))
+        .collect::<Result<Vec<_>, _>>()?;
+    match call.name.as_str() {
+        "len" => {
+            if argument_types.len() != 1
+                || !matches!(argument_types[0], Some(Type::String) | Some(Type::Array(_)))
+            {
+                return Err(SemanticError {
+                    message: "len expects a String or array".into(),
+                });
+            }
+            Ok(Some(Type::Int))
+        }
+        "abs" => {
+            if argument_types.len() != 1
+                || !matches!(argument_types[0], Some(Type::Int) | Some(Type::Float))
+            {
+                return Err(SemanticError {
+                    message: "abs expects an Int or Float".into(),
+                });
+            }
+            Ok(argument_types[0].clone())
+        }
+        "min" | "max" => {
+            if argument_types.len() != 2
+                || argument_types[0] != argument_types[1]
+                || !matches!(argument_types[0], Some(Type::Int) | Some(Type::Float))
+            {
+                return Err(SemanticError {
+                    message: format!("{} expects two matching numeric arguments", call.name),
+                });
+            }
+            Ok(argument_types[0].clone())
+        }
+        _ => Ok(None),
     }
 }
 
@@ -532,6 +582,19 @@ mod tests {
             analyze(&parse("fn answer() -> Int { print(1) } fn main() { print(0) }").unwrap())
                 .unwrap_err();
         assert_eq!(error.message, "function 'answer' must return a value");
+    }
+
+    #[test]
+    fn accepts_standard_library_calls() {
+        let program = parse(r#"fn main() { print(len("axiom")); print(abs(-7)); print(min(3, 5)); print(max(3.0, 5.0)) }"#).unwrap();
+        analyze(&program).unwrap();
+    }
+
+    #[test]
+    fn rejects_invalid_standard_library_call() {
+        let program = parse("fn main() { print(len(1)) }").unwrap();
+        let error = analyze(&program).unwrap_err();
+        assert_eq!(error.message, "len expects a String or array");
     }
 
     #[test]

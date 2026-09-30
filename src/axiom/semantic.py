@@ -11,6 +11,7 @@ class SemanticError(ValueError):
 
 _BUILTIN_TYPES = {"Int", "Float", "Bool", "String"}
 _STRUCTS: dict[str, dict[str, str]] = {}
+_STANDARD_LIBRARY = {'len', 'abs', 'min', 'max'}
 
 
 def _is_known_type(type_name: str) -> bool:
@@ -181,6 +182,8 @@ def _check_block(statements, variables, signatures, function, loop_depth=0):
 
 
 def _check_call(call: Call, variables: dict[str, str], signatures) -> str:
+    if call.name in _STANDARD_LIBRARY:
+        return _check_builtin(call, variables, signatures)
     if call.name not in signatures:
         raise SemanticError(f"unknown function '{call.name}'")
     parameter_types, return_type = signatures[call.name]
@@ -192,6 +195,24 @@ def _check_call(call: Call, variables: dict[str, str], signatures) -> str:
     if return_type is None:
         raise SemanticError(f"function '{call.name}' has no return value")
     return return_type
+
+
+
+def _check_builtin(call: Call, variables: dict[str, str], signatures) -> str:
+    argument_types = [_expression_type(argument, variables, signatures) for argument in call.arguments]
+    if call.name == "len":
+        if len(argument_types) != 1 or (argument_types[0] != "String" and not argument_types[0].endswith("[]")):
+            raise SemanticError("len expects a String or array")
+        return "Int"
+    if call.name == "abs":
+        if len(argument_types) != 1 or argument_types[0] not in {"Int", "Float"}:
+            raise SemanticError("abs expects an Int or Float")
+        return argument_types[0]
+    if call.name in {"min", "max"}:
+        if len(argument_types) != 2 or argument_types[0] != argument_types[1] or argument_types[0] not in {"Int", "Float"}:
+            raise SemanticError(f"{call.name} expects two matching numeric arguments")
+        return argument_types[0]
+    raise SemanticError(f"unknown standard library function '{call.name}'")
 
 
 def _expression_type(expression, variables: dict[str, str], signatures) -> str:
