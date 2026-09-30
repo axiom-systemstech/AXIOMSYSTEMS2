@@ -272,6 +272,12 @@ class StudioHandler(BaseHTTPRequestHandler):
         if endpoint not in {"/api/check", "/api/complete", "/api/run", "/api/test", "/api/package"}:
             self._send_json({"error": "not found"}, 404)
             return
+        if endpoint in {"/api/test", "/api/package"}:
+            if endpoint == "/api/test":
+                self._send_json(run_workspace_tests(self.root))
+            else:
+                self._send_json(package_workspace(self.root))
+            return
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
@@ -286,12 +292,6 @@ class StudioHandler(BaseHTTPRequestHandler):
             return
         if endpoint == "/api/run":
             self._send_json(run_source(source))
-            return
-        if endpoint == "/api/test":
-            self._send_json(run_workspace_tests(self.root))
-            return
-        if endpoint == "/api/package":
-            self._send_json(package_workspace(self.root))
             return
         prefix = payload.get("prefix", "")
         if not isinstance(prefix, str):
