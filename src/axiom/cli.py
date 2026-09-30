@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import __version__
 from .ir import lower
+from .package import PackageError, add_package
 from .parser import parse
 from .runtime import execute
 from .semantic import analyze
@@ -26,6 +27,9 @@ def build_parser() -> argparse.ArgumentParser:
     build_parser.add_argument("-o", "--output", type=Path)
     run_parser = subparsers.add_parser("run", help="compile and execute an AXIOM source file")
     run_parser.add_argument("source", type=Path)
+    add_parser = subparsers.add_parser("add", help="add a package from the local AXIOM registry")
+    add_parser.add_argument("name")
+    add_parser.add_argument("--registry", type=Path)
     return parser
 
 
@@ -54,6 +58,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: {error}", file=sys.stderr)
             return 1
         print(f"built: {output}")
+        return 0
+    if args.command == "add":
+        try:
+            registry = args.registry or Path("registry")
+            package = add_package(Path.cwd(), args.name, registry)
+        except (OSError, PackageError, ValueError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        print(f"added: {package.name} {package.version}")
         return 0
     if args.command == "run":
         try:

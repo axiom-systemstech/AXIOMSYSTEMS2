@@ -1,3 +1,4 @@
+from pathlib import Path
 import pytest
 from axiom.cli import main
 from axiom.ast import BooleanLiteral, Call, Function, IntegerLiteral, Program, StringLiteral
@@ -8,6 +9,25 @@ from axiom.lexer import LexError, TokenKind, lex
 from axiom.parser import ParseError, parse
 from axiom.runtime import execute, execute_program
 from axiom.semantic import SemanticError, analyze
+
+
+def test_add_package_from_local_registry(tmp_path, monkeypatch, capsys):
+    registry = tmp_path / "registry"
+    package = registry / "networking"
+    package.mkdir(parents=True)
+    (package / "axiom.toml").write_text(
+        '[package]\nname = "networking"\nversion = "0.1.0"\n',
+        encoding="utf-8",
+    )
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.chdir(project)
+
+    assert main(["add", "networking", "--registry", str(registry)]) == 0
+    assert "added: networking 0.1.0" in capsys.readouterr().out
+    assert (project / "vendor/networking/axiom.toml").exists()
+    assert 'networking = "0.1.0"' in (project / "axiom.toml").read_text(encoding="utf-8")
+    assert '"networking": {' in (project / "axiom.lock").read_text(encoding="utf-8")
 
 
 def test_doctor_reports_environment(capsys):
