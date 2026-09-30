@@ -7,6 +7,7 @@ import io
 import json
 import re
 import subprocess
+import time
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,6 +18,7 @@ from .lexer import LexError, lex
 from .parser import ParseError, parse
 from .ir import lower
 from .runtime import execute
+from .package import PackageError, add_package
 from .semantic import SemanticError, analyze
 
 _KEYWORDS = {
@@ -135,6 +137,140 @@ def package_workspace(root: Path, output: Path | None = None) -> dict[str, objec
         return {"ok": False, "error": str(error)}
     return {"ok": True, "output": str(target)}
 
+def debug_source(source: str, breakpoints: list[dict[str, object]] | None = None) -> dict[str, object]:
+    output = io.StringIO()
+    events: list[dict[str, object]] = []
+    hits: list[dict[str, object]] = []
+    configured = breakpoints or []
+
+    def trace(event: dict) -> None:
+        if event.get("event") != "instruction":
+            return
+        record = dict(event)
+        events.append(record)
+        if any(item.get("function") == event.get("function") and item.get("index") == event.get("index") for item in configured):
+            hits.append(record)
+
+    try:
+        program = parse(source)
+        analyze(program)
+        execute(lower(program), emit=lambda value: output.write(value + "\n"), trace=trace)
+    except (LexError, ParseError, SemanticError, ValueError) as error:
+        return {"ok": False, "diagnostics": [_diagnostic(error)], "output": output.getvalue(), "events": events, "breakpoints": hits}
+    return {"ok": True, "diagnostics": [], "output": output.getvalue(), "events": events, "breakpoints": hits}
+
+
+def profile_source(source: str) -> dict[str, object]:
+    output = io.StringIO()
+    functions: dict[str, dict[str, float | int]] = {}
+    stack: list[tuple[str, float]] = []
+    instructions: dict[str, int] = {}
+
+    def trace(event: dict) -> None:
+        kind = event.get("event")
+        name = str(event.get("function", "main"))
+        if kind == "function_enter":
+            stack.append((name, time.perf_counter()))
+            functions.setdefault(name, {"calls": 0, "seconds": 0.0})
+            functions[name]["calls"] += 1
+        elif kind == "instruction":
+            key = f"{name}:{event.get('instruction')}"
+            instructions[key] = instructions.get(key, 0) + 1
+        elif kind == "function_exit" and stack:
+            entered, started = stack.pop()
+            functions[entered]["seconds"] += time.perf_counter() - started
+
+    try:
+        program = parse(source)
+        analyze(program)
+        started = time.perf_counter()
+        execute(lower(program), emit=lambda value: output.write(value + "\n"), trace=trace)
+        elapsed = time.perf_counter() - started
+    except (LexError, ParseError, SemanticError, ValueError) as error:
+        return {"ok": False, "diagnostics": [_diagnostic(error)], "output": output.getvalue()}
+    return {
+        "ok": True,
+        "diagnostics": [],
+        "output": output.getvalue(),
+        "elapsed_seconds": elapsed,
+        "functions": [{"name": name, "calls": data["calls"], "seconds": data["seconds"]} for name, data in sorted(functions.items())],
+        "instructions": [{"location": name, "count": count} for name, count in sorted(instructions.items())],
+    }
+
+
+def run_source_file(root: Path, relative: str) -> dict[str, object]:
+    try:
+        path = (root / relative).resolve()
+        if root.resolve() not in path.parents or path.suffix != ".ax":
+            raise ValueError("invalid source path")
+        source = path.read_text(encoding="utf-8")
+    except (OSError, ValueError) as error:
+        return {"ok": False, "diagnostics": [{"severity": "error", "message": str(error), "line": "1", "column": "1"}]}
+    return run_source(source)
+
+
+def package_info(root: Path) -> dict[str, object]:
+    manifest = root / "axiom.toml"
+    lock = root / "axiom.lock"
+    return {
+        "manifest": manifest.read_text(encoding="utf-8") if manifest.exists() else None,
+        "lock": json.loads(lock.read_text(encoding="utf-8")) if lock.exists() else None,
+        "vendor": sorted(path.name for path in (root / "vendor").iterdir() if path.is_dir()) if (root / "vendor").exists() else [],
+    }
+
+
+def git_diff(root: Path) -> dict[str, object]:
+    try:
+        result = subprocess.run(["git", "diff", "--stat", "--", "."], cwd=root, capture_output=True, text=True, check=False)
+    except OSError as error:
+        return {"ok": False, "error": str(error)}
+    return {"ok": result.returncode == 0, "output": result.stdout, "error": result.stderr}
+
+
+def terminal_command(root: Path, command: str) -> dict[str, object]:
+    commands = {
+        "pwd": ["pwd"],
+        "ls": ["ls", "-la"],
+        "git status": ["git", "status", "--short", "--branch"],
+        "git diff": ["git", "diff", "--stat", "--", "."],
+        "git branch": ["git", "branch", "--show-current"],
+        "axiom test": ["python", "-m", "axiom", "test"],
+        "axiom package": ["python", "-m", "axiom", "package"],
+    }
+    argv = commands.get(command.strip())
+    if argv is None:
+        return {"ok": False, "error": "command not allowed"}
+    try:
+        result = subprocess.run(argv, cwd=root, capture_output=True, text=True, check=False, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return {"ok": False, "error": str(error)}
+    return {"ok": result.returncode == 0, "code": result.returncode, "output": result.stdout, "error": result.stderr}
+
+
+def documentation_index(root: Path) -> dict[str, object]:
+    docs = sorted(path.relative_to(root).as_posix() for path in (root / "docs").rglob("*.md") if path.is_file()) if (root / "docs").exists() else []
+    return {"docs": docs}
+
+
+def documentation_file(root: Path, relative: str) -> dict[str, object]:
+    try:
+        path = (root / relative).resolve()
+        if root.resolve() not in path.parents or path.suffix != ".md" or "docs" not in path.relative_to(root).parts:
+            raise ValueError("invalid documentation path")
+        return {"path": relative, "content": path.read_text(encoding="utf-8")}
+    except (OSError, ValueError) as error:
+        return {"error": str(error)}
+
+
+def visual_ir(source: str) -> dict[str, object]:
+    try:
+        program = parse(source)
+        analyze(program)
+        return {"ok": True, "ir": lower(program).render()}
+    except (LexError, ParseError, SemanticError) as error:
+        return {"ok": False, "diagnostics": [_diagnostic(error)]}
+
+
 def workspace_info(root: Path) -> dict[str, object]:
     root = root.resolve()
     manifest = root / "axiom.toml"
@@ -167,7 +303,7 @@ button { background: #222; color: #eee; border: 1px solid #444; padding: 6px 10p
 </style>
 </head>
 <body>
-<header><strong>AXIOM Studio</strong><span><button onclick="runCode()">Run</button> <button onclick="runTests()">Test</button> <button onclick="showGit()">Git</button> <button onclick="packageProject()">Package</button> <span id="status">Ready</span></span></header>
+<header><strong>AXIOM Studio</strong><span><button onclick="runCode()">Run</button> <button onclick="debugCode()">Debug</button> <button onclick="profileCode()">Profile</button> <button onclick="runTests()">Test</button> <button onclick="showGit()">Git</button> <button onclick="showIR()">IR</button> <button onclick="showDocs()">Docs</button> <button onclick="showTerminal()">Terminal</button> <button onclick="packageProject()">Package</button> <span id="status">Ready</span></span></header>
 <main>
 <aside id="files"></aside>
 <section><textarea id="editor" spellcheck="false"></textarea></section>
@@ -201,6 +337,11 @@ async function runCode() { const data = await fetch('/api/run', {method:'POST', 
 async function runTests() { const data = await fetch('/api/test', {method:'POST'}).then(r => r.json()); diagnostics.textContent = data.ok ? 'Tests passed: ' + data.count + ' source file(s)' : data.failures.map(d => d.path + ' ' + d.line + ':' + d.column + ' ' + d.message).join('\n'); }
 async function showGit() { const data = await fetch('/api/git').then(r => r.json()); diagnostics.textContent = data.output || data.error || 'clean'; }
 async function packageProject() { const data = await fetch('/api/package', {method:'POST'}).then(r => r.json()); diagnostics.textContent = data.ok ? 'Packaged: ' + data.output : data.error; }
+async function debugCode() { const data = await fetch('/api/debug', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({source: editor.value})}).then(r => r.json()); diagnostics.textContent = data.ok ? data.events.map(e => e.function + ':' + e.index + ' ' + e.instruction).join('\n') : data.diagnostics.map(d => d.message).join('\n'); }
+async function profileCode() { const data = await fetch('/api/profile', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({source: editor.value})}).then(r => r.json()); diagnostics.textContent = data.ok ? data.functions.map(f => f.name + ' calls=' + f.calls + ' time=' + f.seconds.toFixed(6) + 's').join('\n') : data.diagnostics.map(d => d.message).join('\n'); }
+async function showIR() { const data = await fetch('/api/ir', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({source: editor.value})}).then(r => r.json()); diagnostics.textContent = data.ok ? data.ir : data.diagnostics.map(d => d.message).join('\n'); }
+async function showDocs() { const data = await fetch('/api/docs').then(r => r.json()); diagnostics.textContent = data.docs.join('\n'); }
+async function showTerminal() { const data = await fetch('/api/terminal', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({command:'git status'})}).then(r => r.json()); diagnostics.textContent = data.output || data.error || ''; }
 async function check() {
   const data = await fetch('/api/check', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({source: editor.value})}).then(r => r.json());
   diagnostics.innerHTML = data.ok ? '<div class="ok">No diagnostics</div>' : data.diagnostics.map(d => '<div class="error">' + d.line + ':' + d.column + ' ' + d.message + '</div>').join('');
@@ -251,6 +392,20 @@ class StudioHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/git":
             self._send_json(git_status(self.root))
             return
+        if parsed.path == "/api/git/diff":
+            self._send_json(git_diff(self.root))
+            return
+        if parsed.path == "/api/package/info":
+            self._send_json(package_info(self.root))
+            return
+        if parsed.path == "/api/docs":
+            self._send_json(documentation_index(self.root))
+            return
+        if parsed.path == "/api/doc":
+            from urllib.parse import parse_qs
+            relative = parse_qs(parsed.query).get("path", [""])[0]
+            self._send_json(documentation_file(self.root, relative))
+            return
         if parsed.path == "/api/source":
             from urllib.parse import parse_qs
             relative = parse_qs(parsed.query).get("path", [""])[0]
@@ -269,29 +424,63 @@ class StudioHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         endpoint = urlparse(self.path).path
-        if endpoint not in {"/api/check", "/api/complete", "/api/run", "/api/test", "/api/package"}:
+        allowed = {"/api/check", "/api/complete", "/api/run", "/api/debug", "/api/profile", "/api/test",
+                   "/api/test-file", "/api/package", "/api/package/add", "/api/terminal", "/api/ir"}
+        if endpoint not in allowed:
             self._send_json({"error": "not found"}, 404)
             return
-        if endpoint in {"/api/test", "/api/package"}:
-            if endpoint == "/api/test":
-                self._send_json(run_workspace_tests(self.root))
-            else:
-                self._send_json(package_workspace(self.root))
+        if endpoint == "/api/test":
+            self._send_json(run_workspace_tests(self.root))
+            return
+        if endpoint == "/api/package":
+            self._send_json(package_workspace(self.root))
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            source = payload["source"]
-            if not isinstance(source, str):
-                raise ValueError("source must be a string")
-        except (ValueError, KeyError, json.JSONDecodeError) as error:
+        except (ValueError, json.JSONDecodeError) as error:
             self._send_json({"error": str(error)}, 400)
+            return
+        if endpoint == "/api/test-file":
+            relative = payload.get("path", "")
+            self._send_json(run_source_file(self.root, relative) if isinstance(relative, str) else {"ok": False, "error": "path must be a string"})
+            return
+        if endpoint == "/api/package/add":
+            name = payload.get("name", "")
+            registry = payload.get("registry", "")
+            if not isinstance(name, str) or not isinstance(registry, str):
+                self._send_json({"error": "name and registry must be strings"}, 400)
+                return
+            try:
+                package = add_package(self.root, name, Path(registry).resolve())
+            except (PackageError, OSError) as error:
+                self._send_json({"ok": False, "error": str(error)}, 400)
+                return
+            self._send_json({"ok": True, "name": package.name, "version": package.version})
+            return
+        if endpoint == "/api/terminal":
+            command = payload.get("command", "")
+            self._send_json(terminal_command(self.root, command) if isinstance(command, str) else {"ok": False, "error": "command must be a string"})
+            return
+        source = payload.get("source")
+        if not isinstance(source, str):
+            self._send_json({"error": "source must be a string"}, 400)
             return
         if endpoint == "/api/check":
             self._send_json(check_source(source))
             return
         if endpoint == "/api/run":
             self._send_json(run_source(source))
+            return
+        if endpoint == "/api/debug":
+            breakpoints = payload.get("breakpoints", [])
+            self._send_json(debug_source(source, breakpoints if isinstance(breakpoints, list) else []))
+            return
+        if endpoint == "/api/profile":
+            self._send_json(profile_source(source))
+            return
+        if endpoint == "/api/ir":
+            self._send_json(visual_ir(source))
             return
         prefix = payload.get("prefix", "")
         if not isinstance(prefix, str):

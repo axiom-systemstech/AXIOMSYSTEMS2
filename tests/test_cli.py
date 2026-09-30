@@ -11,7 +11,7 @@ from axiom.lexer import LexError, TokenKind, lex
 from axiom.parser import ParseError, parse
 from axiom.runtime import execute, execute_program
 from axiom.semantic import SemanticError, analyze
-from axiom.studio import check_source, complete_source, package_workspace, run_source, run_workspace_tests, workspace_info
+from axiom.studio import check_source, complete_source, debug_source, documentation_index, git_diff, package_info, package_workspace, profile_source, run_source, run_workspace_tests, terminal_command, run_source_file, visual_ir, workspace_info
 
 
 def test_new_creates_project(tmp_path, capsys):
@@ -618,3 +618,47 @@ def test_studio_packages_workspace(tmp_path):
     result = package_workspace(tmp_path, output)
     assert result["ok"] is True
     assert output.exists()
+
+
+def test_studio_debugger_traces_instructions_and_breakpoints():
+    result = debug_source('fn main() { let x: Int = 1; print(x) }', [{"function": "main", "index": 0}])
+    assert result["ok"] is True
+    assert result["events"]
+    assert result["breakpoints"][0]["index"] == 0
+
+
+def test_studio_profiler_collects_function_and_instruction_metrics():
+    result = profile_source('fn helper() -> Int { return 3 } fn main() { print(helper()) }')
+    assert result["ok"] is True
+    assert any(item["name"] == "helper" for item in result["functions"])
+    assert result["instructions"]
+
+
+def test_studio_tests_single_source(tmp_path):
+    source = tmp_path / "main.ax"
+    source.write_text('fn main() { print("ok") }', encoding="utf-8")
+    result = run_source_file(tmp_path, "main.ax")
+    assert result["ok"] is True
+
+
+def test_studio_package_info_and_docs(tmp_path):
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/guide.md").write_text("# Guide", encoding="utf-8")
+    result = documentation_index(tmp_path)
+    assert result["docs"] == ["docs/guide.md"]
+    info = package_info(tmp_path)
+    assert info["manifest"] is None
+
+
+def test_studio_terminal_is_allowlisted(tmp_path):
+    result = terminal_command(tmp_path, "git status")
+    assert result["ok"] is False
+    assert terminal_command(tmp_path, "rm -rf /")["ok"] is False
+
+
+def test_studio_visual_ir_and_git_diff(tmp_path):
+    result = visual_ir('fn main() { print("ir") }')
+    assert result["ok"] is True
+    assert "AXIOM-IR" in result["ir"]
+    diff = git_diff(tmp_path)
+    assert diff["ok"] is False

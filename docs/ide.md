@@ -18,18 +18,27 @@ axiom studio path/to/project --host 127.0.0.1 --port 9000
 
 ## Current capabilities
 
-- Project workspace discovery from `axiom.toml` and `.ax` files.
-- Browser-based source editor.
-- Source diagnostics using the real AXIOM parser and semantic analyzer.
-- Basic language completion for keywords, types, built-ins, functions, and structs.
-- Run the current editor buffer through the AXIOM compiler and runtime.
-- Run all project AXIOM sources as an integrated test action.
-- Inspect Git status from the workspace.
-- Build an `.axpkg` package from the workspace.
-- No external web framework or editor dependency.
+Studio now provides the complete Phase 12 development surface:
+
+- source editor, diagnostics, and completion
+- Run and workspace testing actions
+- source-level execution tracing with function/instruction breakpoints
+- function and instruction profiling
+- Git status and diff inspection
+- local package manifest, lockfile, vendor inspection, and package installation
+- a restricted integrated terminal for project-safe development commands
+- documentation index and document loading from the workspace
+- AXIOM IR visualization
+- local `.axpkg` packaging
+
+The debugger and profiler operate on the AXIOM IR executed by the runtime. Debug traces expose function entry/exit and instruction events, while configured breakpoints report matching function/instruction locations. Profiling reports elapsed execution time, function calls, and instruction counts.
+
+The integrated terminal intentionally exposes a fixed allowlist rather than arbitrary shell execution. Studio remains bound to `127.0.0.1` by default.
+
+Studio remains dependency-free and uses the real AXIOM compiler, semantic analyzer, IR, runtime, package manager, and Git tooling rather than parallel implementations.
 
 The Studio server is intended for local development. Source editing currently operates on the in-memory browser buffer; the Run action executes that buffer without writing it to disk. Project actions operate on the selected workspace.
 
-## Roadmap
+## Next phase
 
-Debugger, profiler, integrated terminal, richer package management, Git actions, testing controls, documentation navigation, and visual tooling will be added incrementally on top of this workspace and language-service foundation.
+Phase 12 establishes Studio as the local development environment for the current AXIOM toolchain. The next roadmap layer is AXIOM Core, which can consume these compiler, runtime, package, testing, and tooling interfaces without introducing a second development stack.
