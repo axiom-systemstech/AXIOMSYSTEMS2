@@ -164,7 +164,7 @@ Orden recomendado para continuar el proyecto:
 5. Diseñar y portar la siguiente capa de tipos ricos: enums, optionals y manejo explícito de errores.
 6. Automatizar formato, Clippy y las suites Python/Rust en CI.
 
-El roadmap de visión completa está en [Documento sin título.txt](Documento%20sin%20t%C3%ADtulo.txt). La documentación específica de sintaxis está en [docs/axiom-language.md](docs/axiom-language.md).
+El roadmap de visión completa está en [Documento sin título.txt](Documento%20sin%20t%C3%ADtulo.txt). La documentación específica de sintaxis está en [docs/axiom-language.md](docs/axiom-language.md). La especificación de los formatos intermedios está en [docs/ir-formats.md](docs/ir-formats.md).
 
 ## Principios del proyecto
 
