@@ -662,3 +662,55 @@ def test_studio_visual_ir_and_git_diff(tmp_path):
     assert "AXIOM-IR" in result["ir"]
     diff = git_diff(tmp_path)
     assert diff["ok"] is False
+
+
+def test_core_type_model_is_structural():
+    from axiom.types import Type, parse_type_name
+    assert parse_type_name("Int").render() == "Int"
+    assert parse_type_name("Int[][]").render() == "Int[][]"
+    assert Type.array(Type.named("Point")).render() == "Point[]"
+
+
+def test_module_imports_compile_as_one_program(tmp_path):
+    from axiom.core import Compiler
+    source_root = tmp_path / "src"
+    source_root.mkdir()
+    (source_root / "main.ax").write_text(
+        "module main\nimport math\nfn main() { print(double(21)) }\n",
+        encoding="utf-8",
+    )
+    (source_root / "math.ax").write_text(
+        "module math\nfn double(value: Int) -> Int { return value + value }\n",
+        encoding="utf-8",
+    )
+    compilation = Compiler().compile_project(tmp_path)
+    assert [unit.module for unit in compilation.units] == ["main", "math"]
+    assert "PRINT double(21)" in compilation.ir.render()
+
+
+def test_module_import_missing_is_reported(tmp_path):
+    from axiom.core import Compiler, CompilerError
+    source_root = tmp_path / "src"
+    source_root.mkdir()
+    (source_root / "main.ax").write_text(
+        "module main\nimport missing\nfn main() { print(1) }\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(CompilerError, match="module 'missing' not found"):
+        Compiler().compile_project(tmp_path)
+
+
+def test_module_import_cycle_is_reported(tmp_path):
+    from axiom.core import Compiler, CompilerError
+    source_root = tmp_path / "src"
+    source_root.mkdir()
+    (source_root / "main.ax").write_text(
+        "module main\nimport util\nfn main() { print(1) }\n",
+        encoding="utf-8",
+    )
+    (source_root / "util.ax").write_text(
+        "module util\nimport main\nfn helper() { print(2) }\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(CompilerError, match="cyclic module import"):
+        Compiler().compile_project(tmp_path)

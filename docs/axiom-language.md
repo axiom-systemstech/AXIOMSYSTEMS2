@@ -106,3 +106,47 @@ fn main() {
 
 Los operadores `&&` y `||` usan cortocircuito: el operando derecho solo se
 evalúa cuando el izquierdo no determina el resultado.
+
+## Módulos
+
+Los proyectos pueden dividirse en módulos `.ax` bajo `src/`. El nombre del módulo corresponde a su ruta relativa, usando puntos como separadores.
+
+Ejemplo de módulo:
+
+    module math
+    fn double(value: Int) -> Int {
+        return value + value
+    }
+
+Un archivo puede importar otros módulos con una ruta cualificada:
+
+    module main
+    import math
+
+    fn main() {
+        print(double(21))
+    }
+
+El compilador resuelve el grafo de módulos desde el archivo de entrada, rechaza módulos inexistentes y detecta ciclos de importación. Las unidades resueltas se analizan semánticamente como un único programa antes de generar AXIOM IR.
+
+## Compiler Core
+
+`axiom.core.Compiler` es la interfaz estable entre el workflow de proyecto y las capas internas del compilador:
+
+    sources
+      ↓
+    ModuleResolver
+      ↓
+    AST
+      ↓
+    Semantic Analysis
+      ↓
+    AXIOM IR
+
+El CLI usa esta misma interfaz cuando `axiom build` o `axiom run` reciben un directorio de proyecto. Studio puede consumir las mismas capas sin duplicar la lógica del compilador.
+
+El modelo estructural de tipos está definido en `axiom.types`, con tipos primitivos, tipos nominales y arrays. El modelo se mantiene independiente de la representación concreta del backend para facilitar futuros backends nativos y el bootstrap.
+
+## Contrato de compatibilidad
+
+Las implementaciones Python y Rust mantienen sus propios frontends/runtime durante esta etapa. Las nuevas decisiones de sintaxis y tipos deben quedar cubiertas por pruebas de compatibilidad antes de retirar cualquiera de las implementaciones. La independencia completa se reserva para las fases de bootstrap y self-hosting del roadmap.

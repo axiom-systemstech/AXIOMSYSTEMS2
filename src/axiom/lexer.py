@@ -8,6 +8,8 @@ from enum import Enum, auto
 
 class TokenKind(Enum):
     FN = auto()
+    IMPORT = auto()
+    MODULE = auto()
     LET = auto()
     RETURN = auto()
     IF = auto()
@@ -64,7 +66,7 @@ class LexError(ValueError):
     """Raised when source text cannot be converted into tokens."""
 
 
-_KEYWORDS = {"fn": TokenKind.FN, "let": TokenKind.LET, "return": TokenKind.RETURN, "if": TokenKind.IF, "else": TokenKind.ELSE, "while": TokenKind.WHILE, "for": TokenKind.FOR, "break": TokenKind.BREAK, "continue": TokenKind.CONTINUE, "struct": TokenKind.STRUCT, "true": TokenKind.TRUE, "false": TokenKind.FALSE}
+_KEYWORDS = {"fn": TokenKind.FN, "import": TokenKind.IMPORT, "module": TokenKind.MODULE, "let": TokenKind.LET, "return": TokenKind.RETURN, "if": TokenKind.IF, "else": TokenKind.ELSE, "while": TokenKind.WHILE, "for": TokenKind.FOR, "break": TokenKind.BREAK, "continue": TokenKind.CONTINUE, "struct": TokenKind.STRUCT, "true": TokenKind.TRUE, "false": TokenKind.FALSE}
 
 
 def lex(source: str) -> list[Token]:

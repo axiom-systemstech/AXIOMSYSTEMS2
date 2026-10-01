@@ -4,6 +4,8 @@ use crate::{lex, LexError, Token, TokenKind};
 pub struct Program {
     pub functions: Vec<Function>,
     pub structs: Vec<StructDefinition>,
+    pub module_name: Option<String>,
+    pub imports: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -156,14 +158,48 @@ impl Parser {
     fn parse(mut self) -> Result<Program, ParseError> {
         let mut functions = Vec::new();
         let mut structs = Vec::new();
+        let mut module_name = None;
+        let mut imports = Vec::new();
         while !self.check(TokenKind::Eof) {
-            if self.check(TokenKind::Struct) {
+            if self.check(TokenKind::Module) {
+                if module_name.is_some() {
+                    return Err(self.error("duplicate module declaration"));
+                }
+                self.position += 1;
+                module_name = Some(self.qualified_name()?);
+            } else if self.check(TokenKind::Import) {
+                self.position += 1;
+                imports.push(self.qualified_name()?);
+            } else if self.check(TokenKind::Struct) {
                 structs.push(self.struct_definition()?);
             } else {
                 functions.push(self.function()?);
             }
+            if self.check(TokenKind::Semicolon) {
+                self.position += 1;
+            }
         }
-        Ok(Program { functions, structs })
+        Ok(Program {
+            functions,
+            structs,
+            module_name,
+            imports,
+        })
+    }
+
+    fn qualified_name(&mut self) -> Result<String, ParseError> {
+        let mut parts = vec![
+            self.consume(TokenKind::Identifier, "expected module name")?
+                .lexeme,
+        ];
+        while self.check(TokenKind::Dot) {
+            self.position += 1;
+            parts.push(
+                self.consume(TokenKind::Identifier, "expected name after '.'")?
+                    .lexeme,
+            );
+        }
+        Ok(parts.join("."))
     }
 
     fn struct_definition(&mut self) -> Result<StructDefinition, ParseError> {
@@ -739,4 +775,11 @@ mod tests {
         let error = parse("fn main(value: Any) { print(value) }").unwrap_err();
         assert_eq!(error.message, "unknown type 'Any'");
     }
+}
+
+#[test]
+fn parses_module_and_imports() {
+    let program = parse("module main; import math.core; fn main() { print(1) }").unwrap();
+    assert_eq!(program.module_name.as_deref(), Some("main"));
+    assert_eq!(program.imports, vec!["math.core"]);
 }

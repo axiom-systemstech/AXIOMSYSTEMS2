@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 
 from . import __version__
+from .core import Compiler, CompilerError
 from .ir import lower
 from .package import PackageError, add_package
 from .parser import parse
@@ -62,10 +63,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "build":
         try:
-            program = parse(args.source.read_text(encoding="utf-8"))
-            analyze(program)
-            output = args.output or args.source.with_suffix(".air")
-            output.write_text(lower(program).render(), encoding="utf-8")
+            if args.source.is_dir():
+                compilation = Compiler().compile_project(args.source)
+                output = args.output or args.source / "build" / "main.air"
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text(compilation.ir.render(), encoding="utf-8")
+            else:
+                program = parse(args.source.read_text(encoding="utf-8"))
+                analyze(program)
+                output = args.output or args.source.with_suffix(".air")
+                output.write_text(lower(program).render(), encoding="utf-8")
         except (OSError, ValueError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
@@ -154,9 +161,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "run":
         try:
-            program = parse(args.source.read_text(encoding="utf-8"))
-            analyze(program)
-            execute(lower(program))
+            if args.source.is_dir():
+                compilation = Compiler().compile_project(args.source)
+                execute(compilation.ir)
+            else:
+                program = parse(args.source.read_text(encoding="utf-8"))
+                analyze(program)
+                execute(lower(program))
         except (OSError, ValueError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
