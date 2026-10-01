@@ -277,6 +277,7 @@ fn parse_block(tokens: String[], index: Int) -> Int {
         print_error("expected '{'")
         return index
     }
+    print("ScopeEnter")
     index = index + 1
     while index < len(tokens) && !is_kind(tokens, index, "RBRACE") {
         if is_kind(tokens, index, "SEMICOLON") {
@@ -285,7 +286,10 @@ fn parse_block(tokens: String[], index: Int) -> Int {
             index = parse_statement(tokens, index)
         }
     }
-    if is_kind(tokens, index, "RBRACE") { return index + 1 }
+    if is_kind(tokens, index, "RBRACE") {
+        print("ScopeExit")
+        return index + 1
+    }
     print_error("expected '}'")
     return index
 }

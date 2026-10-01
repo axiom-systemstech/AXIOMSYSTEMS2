@@ -1501,7 +1501,7 @@ mod tests {
         assert!(parser_test.contains("NODE|0|Program|"));
         assert!(parser_test.contains("NODE|0|Struct|Point"));
         assert!(parser_test.contains("NODE|0|Function|calculate"));
-        assert!(parser_test.contains("NODE|0|Return|"));
+        assert!(parser_test.contains("NODE|1|Return|"));
     }
 
     #[test]

@@ -6,8 +6,8 @@
 
 - Fases completadas: 1–16.
 - Fase actual: 17 — Self-hosting completo.
-- Hito alcanzado: lexer, parser, AST estructurado y primera capa semántica ejecutándose desde AXIOM.
-- Próximo hito: ampliar la semántica AXIOM hacia resolución de nombres, scopes y comprobación de expresiones.
+- Hito alcanzado: lexer, parser, AST estructurado y resolución inicial de nombres/scopes ejecutándose desde AXIOM.
+- Próximo hito: ampliar la semántica AXIOM hacia comprobación de expresiones, tipos y contratos de funciones.
 - Después: 18 — Independencia completa del ecosistema.
 - Objetivo de independencia: bootstrap en Fase 16, self-hosting en Fase 17 e independencia completa del toolchain en Fase 18.
 
@@ -43,7 +43,9 @@
   - [x] Parser self-hosted sobre una gramática amplia.
   - [x] Primera representación AST estructurada (`AXIOM_AST_V1`).
   - [x] Primera capa de análisis semántico sobre `AXIOM_AST_V1`.
-  - [ ] Resolución de nombres, scopes y comprobación de expresiones en AXIOM.
+  - [x] Resolución inicial de nombres, parámetros, locales y scopes en AXIOM.
+  - [ ] Comprobación de expresiones, tipos y contratos de funciones en AXIOM.
+  - [ ] Resolución semántica completa de structs, imports y símbolos del programa.
   - [ ] Análisis semántico completo migrado a AXIOM.
   - [ ] Lowering AST→IR migrado a AXIOM.
   - [ ] Compiler driver y self-build reproducible.

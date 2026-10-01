@@ -35,13 +35,16 @@ The native VM exposes only the host boundaries required by this stage:
 `read_file`, `write_file`, `split`, `split_lines`, `char_at`, `char_code`, and
 `int_to_string`.
 
-`ast.ax` is the first structured-AST normalization layer. It consumes the parser's
+`ast.ax` is the structured-AST normalization layer. It consumes the parser's
 deterministic output and emits `AXIOM_AST_V1` records in the form
-`NODE|depth|kind|value`, preserving the parser tree's indentation structure.
+`NODE|depth|kind|value`. Scope depth is derived from explicit `ScopeEnter` and
+`ScopeExit` nodes rather than from formatting whitespace.
 
-`semantic.ax` is the first self-hosted semantic-analysis layer. It consumes
-`AXIOM_AST_V1`, validates AST shape and declared types, requires `main`, and
-reports deterministic semantic diagnostics and declaration counts.
+`semantic.ax` is the first self-hosted name-resolution layer. It consumes
+`AXIOM_AST_V1`, tracks function scopes, parameters and local declarations,
+resolves variables across nested scopes, checks function and struct references,
+requires `main`, and reports deterministic semantic diagnostics and declaration
+counts.
 
 ## Verify
 
@@ -58,9 +61,9 @@ stream on every run for the fixture source.
 
 ## Scope
 
-This is a self-hosting milestone, not full self-hosting. The lexer and parser
-frontend have moved into AXIOM, but the current parser emits a deterministic textual
-AST representation rather than the native typed AST. Structured AST construction,
-semantic analysis, IR lowering, and compiler-driver integration still remain to be
-migrated. Rust remains the bootstrap host until AXIOM can build its own complete
-compiler source tree reproducibly.
+This is a self-hosting milestone, not full self-hosting. The lexer, parser,
+structured AST normalization, and an initial name-resolution layer now execute
+from AXIOM. The AST remains a textual bootstrap representation rather than the
+final native typed AST, and complete type checking, IR lowering, and compiler-driver
+integration still remain to be migrated. Rust remains the bootstrap host until AXIOM
+can build its own complete compiler source tree reproducibly.

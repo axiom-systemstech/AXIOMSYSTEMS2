@@ -40,18 +40,22 @@ fn node_depth(line: String) -> Int {
     return depth / 2
 }
 
-fn normalize_line(line: String) -> String {
-    return "NODE|" + int_to_string(node_depth(line)) + "|" + node_kind(line) + "|" + node_value(line)
+fn normalize_line(line: String, depth: Int) -> String {
+    return "NODE|" + int_to_string(depth) + "|" + node_kind(line) + "|" + node_value(line)
 }
 
 fn build(source: String) {
     print("AXIOM_AST_V1")
     let lines: String[] = split_lines(source)
     let index: Int = 0
+    let depth: Int = 0
     while index < len(lines) {
         let line: String = lines[index]
         if len(line) > 0 {
-            print(normalize_line(line))
+            let kind: String = node_kind(line)
+            if kind == "ScopeExit" { depth = depth - 1 }
+            print(normalize_line(line, depth))
+            if kind == "ScopeEnter" { depth = depth + 1 }
         }
         index = index + 1
     }
