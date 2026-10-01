@@ -1,0 +1,81 @@
+fn field(parts: String[], index: Int) -> String {
+    if index < len(parts) {
+        return parts[index]
+    }
+    return ""
+}
+
+fn type_valid(parts: String[]) -> Int {
+    let kind: String = field(parts, 2)
+    if kind == "Type" {
+        let value: String = field(parts, 3)
+        if value == "" {
+            print("SEMANTIC_ERROR|missing type")
+            return 0
+        }
+    }
+    return 1
+}
+
+fn analyze(source: String) {
+    let lines: String[] = split_lines(source)
+    let struct_count: Int = 0
+    let function_count: Int = 0
+    let has_main: Int = 0
+    let valid: Int = 1
+    let index: Int = 1
+
+
+    while index < len(lines) {
+        let line: String = lines[index]
+        if len(line) > 0 {
+            let parts: String[] = split(line, "|")
+            if len(parts) < 3 {
+                print("SEMANTIC_ERROR|malformed AST node")
+                valid = 0
+            } else {
+                if type_valid(parts) == 0 {
+                    valid = 0
+                }
+                let kind: String = field(parts, 2)
+                let value: String = field(parts, 3)
+
+                if kind == "Struct" {
+                    struct_count = struct_count + 1
+                    if value == "" {
+                        print("SEMANTIC_ERROR|struct requires a name")
+                        valid = 0
+                    }
+                }
+
+                if kind == "Function" {
+                    function_count = function_count + 1
+                    if value == "" {
+                        print("SEMANTIC_ERROR|function requires a name")
+                        valid = 0
+                    }
+                    if value == "main" {
+                        has_main = 1
+                    }
+                }
+            }
+        }
+        index = index + 1
+    }
+
+    if has_main == 0 {
+        print("SEMANTIC_ERROR|program must define 'main'")
+        valid = 0
+    }
+
+    if valid == 1 {
+        print("SEMANTIC_OK")
+        print("STRUCTS|" + int_to_string(struct_count))
+        print("FUNCTIONS|" + int_to_string(function_count))
+    }
+}
+
+fn main() {
+    let source: String = read_file("bootstrap/ast_output.txt")
+    analyze(source)
+}

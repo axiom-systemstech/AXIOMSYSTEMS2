@@ -39,6 +39,10 @@ The native VM exposes only the host boundaries required by this stage:
 deterministic output and emits `AXIOM_AST_V1` records in the form
 `NODE|depth|kind|value`, preserving the parser tree's indentation structure.
 
+`semantic.ax` is the first self-hosted semantic-analysis layer. It consumes
+`AXIOM_AST_V1`, validates AST shape and declared types, requires `main`, and
+reports deterministic semantic diagnostics and declaration counts.
+
 ## Verify
 
 ```bash

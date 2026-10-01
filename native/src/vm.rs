@@ -1505,6 +1505,75 @@ mod tests {
     }
 
     #[test]
+    fn executes_self_hosted_semantic_analysis() {
+        let lexer_source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/lexer.ax"
+        ))
+        .unwrap()
+        .replace(
+            "bootstrap/lexer_fixture.ax",
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../bootstrap/lexer_fixture.ax"),
+        );
+        let lexer_program = parse(&lexer_source).unwrap();
+        let tokens = execute_program(&lexer_program).unwrap();
+
+        let token_path = std::env::temp_dir().join(format!(
+            "axiom-self-hosted-semantic-{}.tokens",
+            std::process::id()
+        ));
+        let ast_path = std::env::temp_dir().join(format!(
+            "axiom-self-hosted-semantic-{}.ast",
+            std::process::id()
+        ));
+        std::fs::write(&token_path, tokens).unwrap();
+
+        let parser_source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/parser.ax"
+        ))
+        .unwrap()
+        .replace("bootstrap/lexer_tokens.txt", token_path.to_str().unwrap());
+        let parser_program = parse(&parser_source).unwrap();
+        let parser_output = execute_program(&parser_program).unwrap();
+        std::fs::write(&ast_path, parser_output).unwrap();
+
+        let ast_source =
+            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../bootstrap/ast.ax"))
+                .unwrap()
+                .replace("bootstrap/parser_ast.txt", ast_path.to_str().unwrap());
+        let ast_program = parse(&ast_source).unwrap();
+        let ast_output = execute_program(&ast_program).unwrap();
+
+        let semantic_source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/semantic.ax"
+        ))
+        .unwrap()
+        .replace("bootstrap/ast_output.txt", ast_path.to_str().unwrap());
+
+        let semantic_input_path = std::env::temp_dir().join(format!(
+            "axiom-self-hosted-semantic-input-{}.ast",
+            std::process::id()
+        ));
+        std::fs::write(&semantic_input_path, ast_output).unwrap();
+        let semantic_source = semantic_source.replace(
+            ast_path.to_str().unwrap(),
+            semantic_input_path.to_str().unwrap(),
+        );
+        let semantic_program = parse(&semantic_source).unwrap();
+        let semantic_output = execute_program(&semantic_program).unwrap();
+
+        std::fs::remove_file(token_path).unwrap();
+        std::fs::remove_file(ast_path).unwrap();
+        std::fs::remove_file(semantic_input_path).unwrap();
+
+        assert!(semantic_output.contains("SEMANTIC_OK\n"));
+        assert!(semantic_output.contains("STRUCTS|1\n"));
+        assert!(semantic_output.contains("FUNCTIONS|2\n"));
+    }
+
+    #[test]
     fn builds_ir_artifact() {
         let program = parse("fn main() { print(42) }").unwrap();
         let artifact = build_artifact(&program);
