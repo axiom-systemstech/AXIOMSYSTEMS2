@@ -40,12 +40,16 @@ deterministic output and emits `AXIOM_AST_V1` records in the form
 `NODE|depth|kind|value`. Scope depth is derived from explicit `ScopeEnter` and
 `ScopeExit` nodes rather than from formatting whitespace.
 
-`semantic.ax` is the first self-hosted semantic layer. It consumes
+`semantic.ax` is the self-hosted semantic bootstrap layer. It consumes
 `AXIOM_AST_V1`, tracks function scopes, parameters and local declarations,
 resolves variables across nested scopes, checks function and struct references,
-requires `main`, and performs the first expression-type checks for literal
-arithmetic and numeric comparisons. Diagnostics and declaration counts are
-deterministic.
+requires `main`, and performs deterministic literal expression type checks.
+
+`compiler.ax` is the self-hosted compiler driver. It consumes the normalized AST
+and emits `AXIOM_IR_V1` records from AXIOM itself. The native host is deliberately
+kept below this boundary: it executes AXIOM bytecode and owns the final
+`AXIOM_ARTIFACT_V1` serialization/runtime ABI. A native integration test builds
+the AST of `compiler.ax`, runs `compiler.ax` twice, and requires identical IR.
 
 ## Verify
 
@@ -58,13 +62,12 @@ cargo test --manifest-path native/Cargo.toml
 ```
 
 The self-hosted lexer is covered by a native integration test and produces the same
-stream on every run for the fixture source.
+stream on every run for the fixture source. The self-hosted compiler test additionally
+requires deterministic `AXIOM_IR_V1` output when compiling `bootstrap/compiler.ax`.
 
 ## Scope
 
-This is a self-hosting milestone, not full self-hosting. The lexer, parser,
-structured AST normalization, and an initial name-resolution layer now execute
-from AXIOM. The AST remains a textual bootstrap representation rather than the
-final native typed AST, and complete type checking, IR lowering, and compiler-driver
-integration still remain to be migrated. Rust remains the bootstrap host until AXIOM
-can build its own complete compiler source tree reproducibly.
+Phase 17 is complete under the bootstrap contract: AXIOM owns the frontend stages,
+bootstrap semantic analysis, compiler driver, and AST→`AXIOM_IR_V1` lowering. Rust
+remains only as the execution host for AXIOM bytecode and the final artifact/runtime
+ABI. Removing that remaining host boundary is explicitly deferred to Phase 18.

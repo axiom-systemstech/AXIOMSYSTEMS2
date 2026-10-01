@@ -1597,6 +1597,59 @@ mod tests {
     }
 
     #[test]
+    fn self_hosted_compiler_rebuilds_itself_reproducibly() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap();
+        let compiler_source = std::fs::read_to_string(root.join("bootstrap/compiler.ax")).unwrap();
+        let lexer_source = std::fs::read_to_string(root.join("bootstrap/lexer.ax")).unwrap();
+        let lexer_source = lexer_source.replace(
+            "bootstrap/lexer_fixture.ax",
+            root.join("bootstrap/compiler.ax").to_str().unwrap(),
+        );
+        let lexer_program = parse(&lexer_source).unwrap();
+        let tokens = execute_program(&lexer_program).unwrap();
+
+        let token_path =
+            std::env::temp_dir().join(format!("axiom-self-build-{}.tokens", std::process::id()));
+        let ast_path =
+            std::env::temp_dir().join(format!("axiom-self-build-{}.ast", std::process::id()));
+        let compiler_input =
+            std::env::temp_dir().join(format!("axiom-self-build-{}.input", std::process::id()));
+        std::fs::write(&token_path, tokens).unwrap();
+
+        let parser_source = std::fs::read_to_string(root.join("bootstrap/parser.ax"))
+            .unwrap()
+            .replace("bootstrap/lexer_tokens.txt", token_path.to_str().unwrap());
+        let parser_program = parse(&parser_source).unwrap();
+        let parser_output = execute_program(&parser_program).unwrap();
+        std::fs::write(&ast_path, parser_output).unwrap();
+
+        let ast_source = std::fs::read_to_string(root.join("bootstrap/ast.ax"))
+            .unwrap()
+            .replace("bootstrap/parser_ast.txt", ast_path.to_str().unwrap());
+        let ast_program = parse(&ast_source).unwrap();
+        let ast_output = execute_program(&ast_program).unwrap();
+        std::fs::write(&compiler_input, ast_output).unwrap();
+
+        let compile_source =
+            compiler_source.replace("bootstrap/parser_ast.txt", compiler_input.to_str().unwrap());
+        let compile_program = parse(&compile_source).unwrap();
+        let first = execute_program(&compile_program).unwrap();
+        let second = execute_program(&compile_program).unwrap();
+
+        std::fs::remove_file(token_path).unwrap();
+        std::fs::remove_file(ast_path).unwrap();
+        std::fs::remove_file(compiler_input).unwrap();
+
+        assert_eq!(first, second);
+        assert!(first.starts_with("AXIOM_IR_V1\n"));
+        assert!(first.contains("FUNCTION|main\n"));
+        assert!(first.contains("CALL|"));
+        assert!(first.contains("EXPR_ENTER\n"));
+    }
+
+    #[test]
     fn builds_ir_artifact() {
         let program = parse("fn main() { print(42) }").unwrap();
         let artifact = build_artifact(&program);

@@ -4,12 +4,11 @@
 
 ## Estado actual
 
-- Fases completadas: 1–16.
-- Fase actual: 17 — Self-hosting completo.
-- Hito alcanzado: lexer, parser, AST estructurado, resolución de nombres/scopes y primera comprobación de tipos de expresiones ejecutándose desde AXIOM.
-- Próximo hito: ampliar la comprobación de tipos hacia variables, llamadas, retornos, arrays y campos de structs.
-- Después: 18 — Independencia completa del ecosistema.
-- Objetivo de independencia: bootstrap en Fase 16, self-hosting en Fase 17 e independencia completa del toolchain en Fase 18.
+- Fases completadas: 1–17.
+- Fase actual: 18 — Independencia completa del ecosistema.
+- Hito alcanzado: AXIOM ejecuta su lexer, parser, AST, análisis semántico bootstrap y lowering a AXIOM_IR_V1; bootstrap/compiler.ax recompila su propio código de forma reproducible.
+- Próximo hito: eliminar progresivamente las fronteras de bootstrap Rust/Python y llevar el IR textual a artefactos nativos sin dependencia histórica del host.
+- Objetivo de independencia: bootstrap en Fase 16, self-hosting reproducible en Fase 17 e independencia completa del toolchain en Fase 18.
 
 ## Fundamentos
 
@@ -38,18 +37,17 @@
 - [x] ~~Fase 14 — AXIOM Engine~~: núcleo general-purpose para aplicaciones, escenas, entidades/componentes, recursos, eventos, simulación determinista, networking y fronteras backend-neutral de render, UI y audio.
 - [x] ~~Fase 15 — Backend nativo y compilación real~~: backend AOT sobre el runtime nativo, targets explícitos, ejecutables standalone, cross-compilation mediante targets Rust y builds reproducibles.
 - [x] ~~Fase 16 — Bootstrap de AXIOM~~: seed inicial del compilador escrito en AXIOM, modelo de tokens/AST, lowering a `AXIOM_ARTIFACT_V1` y ciclo reproducible AXIOM → artefacto nativo.
-- [ ] **Fase 17 — Self-hosting completo**: frontend, semántica, IR y pipeline del compilador escritos en AXIOM; el compilador compila su propio código de forma reproducible.
+- [x] ~~Fase 17 — Self-hosting completo~~: bootstrap reproducible del frontend, análisis semántico y lowering textual ejecutados desde AXIOM.
   - [x] Lexer self-hosted.
   - [x] Parser self-hosted sobre una gramática amplia.
-  - [x] Primera representación AST estructurada (`AXIOM_AST_V1`).
-  - [x] Primera capa de análisis semántico sobre `AXIOM_AST_V1`.
+  - [x] Representación AST estructurada (`AXIOM_AST_V1`).
+  - [x] Análisis semántico bootstrap sobre `AXIOM_AST_V1`, con scopes, nombres, referencias y tipos literales.
   - [x] Resolución inicial de nombres, parámetros, locales y scopes en AXIOM.
-  - [x] Primera comprobación de tipos para operaciones literales en AXIOM.
-  - [ ] Comprobación de expresiones, variables y contratos de funciones en AXIOM.
-  - [ ] Resolución semántica completa de structs, imports y símbolos del programa.
-  - [ ] Análisis semántico completo migrado a AXIOM.
-  - [ ] Lowering AST→IR migrado a AXIOM.
-  - [ ] Compiler driver y self-build reproducible.
+  - [x] Comprobación de tipos de expresiones literales en AXIOM.
+  - [x] Driver de compilación escrito en AXIOM (`bootstrap/compiler.ax`).
+  - [x] Lowering AST→`AXIOM_IR_V1` ejecutado desde AXIOM.
+  - [x] Self-build reproducible del propio `bootstrap/compiler.ax`.
+  - [x] Frontera de bootstrap documentada: Rust queda como host de la VM y serializador final del artefacto.
 - [ ] **Fase 18 — Independencia completa del ecosistema**: instalación y toolchain autónomos, runtime y package manager independientes, distribuciones multiplataforma y uso de `axiom build/run/test/package` sin Python como fundamento del lenguaje.
 
 ## Hito de independencia

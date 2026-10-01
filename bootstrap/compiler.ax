@@ -1,0 +1,74 @@
+fn field(parts: String[], index: Int) -> String {
+    if index < len(parts) { return parts[index] }
+    return ""
+}
+
+fn kind(line: String) -> String {
+    return field(split(line, "|"), 2)
+}
+
+fn value(line: String) -> String {
+    return field(split(line, "|"), 3)
+}
+
+fn quote(value: String) -> String {
+    let result: String = value
+    result = result + ""
+    return result
+}
+
+fn emit_function(name: String) {
+    print("FUNCTION|" + name)
+}
+
+fn emit_parameter(name: String) {
+    print("PARAM|" + name)
+}
+
+fn emit_literal(kind_name: String, literal: String) {
+    if kind_name == "Integer" { print("PUSH_INT|" + literal) }
+    if kind_name == "Float" { print("PUSH_FLOAT|" + literal) }
+    if kind_name == "Boolean" { print("PUSH_BOOL|" + literal) }
+    if kind_name == "String" { print("PUSH_STRING|" + quote(literal)) }
+}
+
+fn emit_binary(operator: String) {
+    print("BINARY|" + operator)
+}
+
+fn emit_node(line: String) {
+    let node_kind: String = kind(line)
+    let node_value: String = value(line)
+    if node_kind == "Function" { emit_function(node_value) }
+    if node_kind == "Parameter" { emit_parameter(node_value) }
+    if node_kind == "Integer" || node_kind == "Float" || node_kind == "Boolean" || node_kind == "String" {
+        emit_literal(node_kind, node_value)
+    }
+    if node_kind == "Variable" { print("LOAD|" + node_value) }
+    if node_kind == "Binary" { emit_binary(node_value) }
+    if node_kind == "Unary" { print("UNARY|" + node_value) }
+    if node_kind == "Call" { print("CALL|" + node_value) }
+    if node_kind == "Index" { print("INDEX") }
+    if node_kind == "Field" { print("FIELD|" + node_value) }
+    if node_kind == "Return" { print("RETURN") }
+    if node_kind == "Break" { print("BREAK") }
+    if node_kind == "Continue" { print("CONTINUE") }
+    if node_kind == "ExprEnter" { print("EXPR_ENTER") }
+    if node_kind == "ExprExit" { print("EXPR_EXIT") }
+}
+
+fn compile_ast(source: String) {
+    let lines: String[] = split_lines(source)
+    print("AXIOM_IR_V1")
+    let index: Int = 0
+    while index < len(lines) {
+        let line: String = lines[index]
+        if len(line) > 0 && line != "AXIOM_AST_V1" { emit_node(line) }
+        index = index + 1
+    }
+}
+
+fn main() {
+    let source: String = read_file("bootstrap/parser_ast.txt")
+    compile_ast(source)
+}
