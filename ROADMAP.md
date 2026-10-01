@@ -4,9 +4,9 @@
 
 ## Estado actual
 
-- Fases completadas: 1–12.
-- Fase actual: 13 — AXIOM Core.
-- Fases siguientes: 14–18.
+- Fases completadas: 1–16.
+- Fase actual: 17 — Self-hosting completo.
+- Fases siguientes: 17–18.
 - Objetivo de independencia: bootstrap en Fase 16, self-hosting en Fase 17 e independencia completa del toolchain en Fase 18.
 
 ## Fundamentos
@@ -35,7 +35,7 @@
 - [x] ~~Fase 13 — AXIOM Core~~: consolidar el modelo de tipos, módulos/imports/namespaces y resolución de nombres; separar formalmente frontend, IR y backend; definir API interna del compilador e interfaces estables de tooling; integrar CLI, Studio, paquetes y compiler; establecer fundamentos para bootstrap, compatibilidad entre implementaciones y especificación formal del lenguaje.
 - [x] ~~Fase 14 — AXIOM Engine~~: núcleo general-purpose para aplicaciones, escenas, entidades/componentes, recursos, eventos, simulación determinista, networking y fronteras backend-neutral de render, UI y audio.
 - [x] ~~Fase 15 — Backend nativo y compilación real~~: backend AOT sobre el runtime nativo, targets explícitos, ejecutables standalone, cross-compilation mediante targets Rust y builds reproducibles.
-- [ ] **Fase 16 — Bootstrap de AXIOM**: iniciar el compilador escrito en AXIOM, compilar progresivamente el propio compilador y establecer un bootstrap reproducible.
+- [x] ~~Fase 16 — Bootstrap de AXIOM~~: seed inicial del compilador escrito en AXIOM, modelo de tokens/AST, lowering a `AXIOM_ARTIFACT_V1` y ciclo reproducible AXIOM → artefacto nativo.
 - [ ] **Fase 17 — Self-hosting completo**: frontend, semántica, IR y pipeline del compilador escritos en AXIOM; el compilador compila su propio código de forma reproducible.
 - [ ] **Fase 18 — Independencia completa del ecosistema**: instalación y toolchain autónomos, runtime y package manager independientes, distribuciones multiplataforma y uso de `axiom build/run/test/package` sin Python como fundamento del lenguaje.
 
