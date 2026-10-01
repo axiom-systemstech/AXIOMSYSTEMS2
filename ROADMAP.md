@@ -6,7 +6,9 @@
 
 - Fases completadas: 1–16.
 - Fase actual: 17 — Self-hosting completo.
-- Fases siguientes: 17–18.
+- Hito alcanzado: lexer del compilador ejecutándose desde AXIOM.
+- Próximo hito: parser y frontend completo en AXIOM.
+- Después: 18 — Independencia completa del ecosistema.
 - Objetivo de independencia: bootstrap en Fase 16, self-hosting en Fase 17 e independencia completa del toolchain en Fase 18.
 
 ## Fundamentos

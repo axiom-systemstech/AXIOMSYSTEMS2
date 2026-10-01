@@ -320,6 +320,38 @@ fn check_builtin(
         .map(|argument| check_expression(argument, variables, functions, structs))
         .collect::<Result<Vec<_>, _>>()?;
     match call.name.as_str() {
+        "read_file" => {
+            if argument_types != vec![Some(Type::String)] {
+                return Err(SemanticError {
+                    message: "read_file expects a String path".into(),
+                });
+            }
+            Ok(Some(Type::String))
+        }
+        "write_file" => {
+            if argument_types != vec![Some(Type::String), Some(Type::String)] {
+                return Err(SemanticError {
+                    message: "write_file expects a path and String content".into(),
+                });
+            }
+            Ok(Some(Type::Bool))
+        }
+        "char_at" => {
+            if argument_types != vec![Some(Type::String), Some(Type::Int)] {
+                return Err(SemanticError {
+                    message: "char_at expects a String and an Int index".into(),
+                });
+            }
+            Ok(Some(Type::String))
+        }
+        "char_code" => {
+            if argument_types != vec![Some(Type::String)] {
+                return Err(SemanticError {
+                    message: "char_code expects one String character".into(),
+                });
+            }
+            Ok(Some(Type::Int))
+        }
         "len" => {
             if argument_types.len() != 1
                 || !matches!(argument_types[0], Some(Type::String) | Some(Type::Array(_)))

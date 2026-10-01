@@ -651,6 +651,102 @@ impl Machine {
 
 fn call_standard_library(name: &str, arguments: &[Value]) -> Result<Option<Value>, VmError> {
     match name {
+        "read_file" => {
+            if arguments.len() != 1 {
+                return Err(VmError {
+                    message: "read_file expects one argument".into(),
+                });
+            }
+            let path = match &arguments[0] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "read_file expects a String path".into(),
+                    })
+                }
+            };
+            let content = std::fs::read_to_string(path).map_err(|error| VmError {
+                message: format!("cannot read file '{path}': {error}"),
+            })?;
+            Ok(Some(Value::String(content)))
+        }
+        "write_file" => {
+            if arguments.len() != 2 {
+                return Err(VmError {
+                    message: "write_file expects a path and content".into(),
+                });
+            }
+            let path = match &arguments[0] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "write_file expects a String path".into(),
+                    })
+                }
+            };
+            let content = match &arguments[1] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "write_file expects String content".into(),
+                    })
+                }
+            };
+            std::fs::write(path, content).map_err(|error| VmError {
+                message: format!("cannot write file '{path}': {error}"),
+            })?;
+            Ok(Some(Value::Bool(true)))
+        }
+        "char_at" => {
+            if arguments.len() != 2 {
+                return Err(VmError {
+                    message: "char_at expects a String and an Int index".into(),
+                });
+            }
+            let value = match &arguments[0] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "char_at expects a String".into(),
+                    })
+                }
+            };
+            let index = arguments[1].as_int()?;
+            if index < 0 {
+                return Err(VmError {
+                    message: "char_at index must be non-negative".into(),
+                });
+            }
+            let character = value.chars().nth(index as usize).ok_or_else(|| VmError {
+                message: format!("char_at index {index} out of bounds"),
+            })?;
+            Ok(Some(Value::String(character.to_string())))
+        }
+        "char_code" => {
+            if arguments.len() != 1 {
+                return Err(VmError {
+                    message: "char_code expects one String character".into(),
+                });
+            }
+            let value = match &arguments[0] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "char_code expects a String".into(),
+                    })
+                }
+            };
+            let mut chars = value.chars();
+            let character = chars.next().ok_or_else(|| VmError {
+                message: "char_code expects a non-empty String".into(),
+            })?;
+            if chars.next().is_some() {
+                return Err(VmError {
+                    message: "char_code expects exactly one character".into(),
+                });
+            }
+            Ok(Some(Value::Int(character as i64)))
+        }
         "len" => {
             if arguments.len() != 1 {
                 return Err(VmError {
@@ -1234,6 +1330,26 @@ mod tests {
         let artifact = compile_program(&program);
         let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
         assert_eq!(execute_artifact(&decoded).unwrap(), "4.0\n2.0\n");
+    }
+
+    #[test]
+    fn executes_self_hosted_lexer() {
+        let source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/lexer.ax"
+        ))
+        .unwrap();
+        let source = source.replace(
+            "bootstrap/lexer_fixture.ax",
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../bootstrap/lexer_fixture.ax"),
+        );
+        let program = parse(&source).unwrap();
+        let output = execute_program(&program).unwrap();
+        assert_eq!(
+            output,
+            "FN|fn\nIDENT|main\nLPAREN|(".to_string()
+                + "\nRPAREN|)\nLBRACE|{\nPRINT|print\nLPAREN|(\nSTRING|hello\nRPAREN|)\nRBRACE|}\n"
+        );
     }
 
     #[test]

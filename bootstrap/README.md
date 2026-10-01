@@ -22,18 +22,30 @@ The seed models tokens and an AST-level program using AXIOM structs, performs a
 real lowering step for a `print` program, and emits the native artifact format.
 The emitted artifact can be consumed by the existing native VM.
 
+## Self-hosting milestone
+
+`lexer.ax` is the first compiler frontend subsystem executed from AXIOM itself.
+It reads `lexer_fixture.ax`, tokenizes identifiers, keywords, integers, strings,
+and core punctuation, and emits a deterministic token stream.
+
+The native VM exposes only the host boundary required by this stage:
+`read_file`, `write_file`, `char_at`, and `char_code`.
+
 ## Verify
 
 ```bash
 cargo run --manifest-path native/Cargo.toml -- check bootstrap/seed.ax
 cargo run --manifest-path native/Cargo.toml -- run bootstrap/seed.ax
+cargo run --manifest-path native/Cargo.toml -- run bootstrap/lexer.ax
+cargo test --manifest-path native/Cargo.toml
 ```
 
-The expected emitted artifact is deterministic for the same source and toolchain.
+The self-hosted lexer is covered by a native integration test and produces the same
+stream on every run for the fixture source.
 
 ## Scope
 
-This is the bootstrap starting point, not full self-hosting. File I/O, a complete
-AXIOM lexer/parser, semantic analysis, IR lowering, and compiler-driver integration
-still remain to be migrated from Rust. Those migrations are the work of the next
-self-hosting phase.
+This is a self-hosting milestone, not full self-hosting. The lexer has moved into
+AXIOM, while the parser, semantic analysis, IR lowering, and compiler-driver pipeline
+still remain to be migrated. Rust remains the bootstrap host until those stages are
+implemented and the compiler can build its own complete source tree reproducibly.
