@@ -4,11 +4,11 @@
 
 ## Estado actual
 
-- Fases completadas: 1–17.
-- Fase actual: 18 — Independencia completa del ecosistema.
-- Hito alcanzado: AXIOM ejecuta su lexer, parser, AST, análisis semántico bootstrap y lowering a AXIOM_IR_V1; bootstrap/compiler.ax recompila su propio código de forma reproducible.
-- Próximo hito: eliminar progresivamente las fronteras de bootstrap Rust/Python y llevar el IR textual a artefactos nativos sin dependencia histórica del host.
-- Objetivo de independencia: bootstrap en Fase 16, self-hosting reproducible en Fase 17 e independencia completa del toolchain en Fase 18.
+- Fases completadas: 1–18.
+- Fase actual: completada — Independencia completa del ecosistema.
+- Hito alcanzado: el binario nativo de AXIOM cubre el workflow de proyecto completo sin Python como fundamento: new, check, build, run, test, package, add, native-build e install.
+- Resultado: AXIOM_ARTIFACT_V1 y AXIOM_PACKAGE_V1 tienen rutas nativas deterministas; los ejecutables standalone no requieren Python ni el CLI de AXIOM en runtime.
+- Frontera restante: Rust continúa siendo el host de bootstrap y runtime nativo hasta que una futura etapa reemplace esa implementación por código nativo propiedad de AXIOM.
 
 ## Fundamentos
 
@@ -48,7 +48,15 @@
   - [x] Lowering AST→`AXIOM_IR_V1` ejecutado desde AXIOM.
   - [x] Self-build reproducible del propio `bootstrap/compiler.ax`.
   - [x] Frontera de bootstrap documentada: Rust queda como host de la VM y serializador final del artefacto.
-- [ ] **Fase 18 — Independencia completa del ecosistema**: instalación y toolchain autónomos, runtime y package manager independientes, distribuciones multiplataforma y uso de `axiom build/run/test/package` sin Python como fundamento del lenguaje.
+- [x] ~~Fase 18 — Independencia completa del ecosistema~~: instalación y toolchain autónomos, runtime y package manager independientes, workflow nativo de proyecto, paquetes deterministas, instalación self-contained y distribuciones multiplataforma mediante targets nativos.
+  - [x] CLI nativa de referencia sin Python.
+  - [x] Workflow de proyecto `new/check/build/run/test`.
+  - [x] Package manager nativo con `package/add` y lockfile.
+  - [x] Formato determinista `AXIOM_PACKAGE_V1`.
+  - [x] Instalación self-contained mediante `axiom install`.
+  - [x] Ejecutables standalone sin Python en runtime.
+  - [x] Targets nativos explícitos y documentación de distribución.
+  - [x] Validación end-to-end del workflow completo.
 
 ## Hito de independencia
 

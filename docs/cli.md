@@ -1,32 +1,40 @@
 # AXIOM CLI
 
-The AXIOM CLI is the single entry point for the bootstrap toolchain.
+The native axiom binary is the reference entry point for the independent
+toolchain. The historical Python CLI remains available for compatibility and
+development tooling.
 
 ## Commands
 
     axiom doctor
-    axiom check <source.ax>
-    axiom build <source.ax> [-o <output>]
-    axiom run <source.ax|artifact.axm>
     axiom new <project>
-    axiom test [path]
-    axiom add <package> [--registry <path>]
-    axiom package [-o <output>]
+    axiom check <source.ax|project>
+    axiom build <source.ax|project> [-o <output>]
+    axiom run <source.ax|project|artifact.axm>
+    axiom test <project>
+    axiom package <project> [-o <output>]
+    axiom add <project> <package> [registry]
+    axiom native-build <source.ax|project> [-o <output>]
+    axiom install <prefix>
 
-doctor reports the local toolchain environment.
+doctor reports the native toolchain environment.
 
-check parses and validates a source file.
+new creates a project with a manifest, source and test.
 
-build produces the textual bootstrap IR.
+check validates an AXIOM source file or project entry point.
 
-run executes source or a native AXIOM artifact.
+build produces AXIOM_ARTIFACT_V1.
 
-new creates a project manifest, source directory, test directory and starter program.
+run executes source, project or AXIOM artifact.
 
-test validates and executes AXIOM source files below the selected test path.
+test executes every .ax test below the project's tests directory.
 
-add resolves a package from the local registry and records the dependency and lock state.
+package creates deterministic AXIOM_PACKAGE_V1 output.
 
-package creates an .axpkg archive from the current project.
+add vendors a package from a local registry and writes axiom.lock.
 
-The command surface is intentionally small while the compiler, runtime and package formats are still stabilizing.
+native-build creates a standalone executable using the selected native target.
+
+install copies the running native axiom binary into a prefix/bin directory.
+
+The native workflow does not require Python.

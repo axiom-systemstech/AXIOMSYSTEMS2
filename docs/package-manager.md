@@ -1,6 +1,6 @@
 # AXIOM Package Manager
 
-The package manager is introduced with a local registry first. This keeps dependency resolution deterministic while the registry protocol is still being designed.
+The package manager has a native workflow as well as the historical Python implementation. The native workflow uses a local registry first, keeps dependency selection deterministic, vendors packages, and writes a minimal native lockfile.
 
 ## Project manifest
 

@@ -147,29 +147,27 @@ native/target/debug/axiom run examples/hello.ax
 
 Estado comprobado en el último ciclo de desarrollo:
 
-- Rust: **52 pruebas unitarias** pasando.
-- Rust CLI: **13 pruebas end-to-end** pasando.
-- Python: **45 pruebas** pasando.
+- Rust: suite nativa completa pasando.
+- Rust CLI: 15 pruebas end-to-end pasando.
+- Workflow nativo de Fase 18: new/check/run/build/test/package/install validado.
 - Clippy con `-D warnings`: limpio.
 - Formato Rust y `git diff --check`: limpios.
 
-## Próximos movimientos
+## Estado actual
 
-Orden recomendado para continuar el proyecto:
+Las fases 1–18 del sub-roadmap del lenguaje están completadas. El binario nativo
+es la referencia del toolchain: puede crear, comprobar, compilar, ejecutar,
+probar, empaquetar, instalar y producir ejecutables standalone sin Python.
 
-1. Completar la semántica de structs en Rust y Python: validar campos desconocidos, duplicados y tipos de cada campo de forma uniforme.
-2. Añadir asignación de campos, por ejemplo `point.x = 42`, y extenderla al IR y a los artefactos.
-3. Añadir pruebas CLI de errores semánticos con mensajes y ubicaciones precisas.
-4. Consolidar la paridad de `.air` y `.axm`, incluyendo una especificación versionada de ambos formatos.
-5. Diseñar y portar la siguiente capa de tipos ricos: enums, optionals y manejo explícito de errores.
-6. Automatizar formato, Clippy y las suites Python/Rust en CI.
+La documentación del workflow nativo está en docs/native-toolchain.md.
+La superficie de comandos está en docs/cli.md.
 
 El roadmap de visión completa está en [Documento sin título.txt](Documento%20sin%20t%C3%ADtulo.txt). La documentación específica de sintaxis está en [docs/axiom-language.md](docs/axiom-language.md). La especificación de los formatos intermedios está en [docs/ir-formats.md](docs/ir-formats.md). La primera capa de la librería estándar está en [docs/standard-library.md](docs/standard-library.md). El modelo inicial de paquetes está en [docs/package-manager.md](docs/package-manager.md). La superficie de comandos está en [docs/cli.md](docs/cli.md).
 
 ## Principios del proyecto
 
 - Construir la mínima pieza que habilite la siguiente.
-- Mantener Python como referencia rápida y Rust como implementación nativa.
+- Mantener el binario nativo como referencia del toolchain; Python queda como compatibilidad histórica.
 - No aceptar una feature sin pruebas de parser, semántica y ejecución cuando aplique.
 - Mantener interfaces pequeñas, artefactos reproducibles y errores comprensibles.
 - Portar capacidades por paridad, no por acumulación de implementaciones divergentes.

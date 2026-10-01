@@ -3,6 +3,7 @@ pub mod ir;
 pub mod parser;
 pub mod runtime;
 pub mod semantic;
+pub mod toolchain;
 pub mod vm;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
