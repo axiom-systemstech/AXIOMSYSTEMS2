@@ -40,11 +40,12 @@ deterministic output and emits `AXIOM_AST_V1` records in the form
 `NODE|depth|kind|value`. Scope depth is derived from explicit `ScopeEnter` and
 `ScopeExit` nodes rather than from formatting whitespace.
 
-`semantic.ax` is the first self-hosted name-resolution layer. It consumes
+`semantic.ax` is the first self-hosted semantic layer. It consumes
 `AXIOM_AST_V1`, tracks function scopes, parameters and local declarations,
 resolves variables across nested scopes, checks function and struct references,
-requires `main`, and reports deterministic semantic diagnostics and declaration
-counts.
+requires `main`, and performs the first expression-type checks for literal
+arithmetic and numeric comparisons. Diagnostics and declaration counts are
+deterministic.
 
 ## Verify
 

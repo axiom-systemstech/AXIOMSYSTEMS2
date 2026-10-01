@@ -37,7 +37,10 @@ fn parse_type(tokens: String[], index: Int) -> Int {
 }
 
 fn parse_expression(tokens: String[], index: Int) -> Int {
-    return parse_or(tokens, index)
+    print("ExprEnter")
+    index = parse_or(tokens, index)
+    print("ExprExit")
+    return index
 }
 
 fn parse_or(tokens: String[], index: Int) -> Int {

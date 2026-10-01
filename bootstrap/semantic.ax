@@ -21,6 +21,45 @@ fn has_named_node(lines: String[], kind_name: String, name: String) -> Int {
     return found
 }
 
+fn literal_type(kind: String) -> String {
+    if kind == "Integer" { return "Int" }
+    if kind == "Float" { return "Float" }
+    if kind == "String" { return "String" }
+    if kind == "Boolean" { return "Bool" }
+    return ""
+}
+
+fn check_binary_literals(lines: String[]) -> Int {
+    let index: Int = 0
+    let valid: Int = 1
+    while index + 2 < len(lines) {
+        let current: String[] = split(lines[index], "|")
+        let next: String[] = split(lines[index + 1], "|")
+        let after: String[] = split(lines[index + 2], "|")
+        if len(current) >= 3 && len(next) >= 3 && len(after) >= 3 {
+            let left_type: String = literal_type(field(current, 2))
+            let operator_kind: String = field(next, 3)
+            let right_type: String = literal_type(field(after, 2))
+            if left_type != "" && right_type != "" && operator_kind != "" {
+                if operator_kind == "+" || operator_kind == "-" || operator_kind == "*" || operator_kind == "/" || operator_kind == "%" {
+                    if left_type != right_type || (left_type != "Int" && left_type != "Float" && left_type != "String") {
+                        print("SEMANTIC_ERROR|binary operator '" + operator_kind + "' has incompatible operand types")
+                        valid = 0
+                    }
+                }
+                if operator_kind == ">" || operator_kind == ">=" || operator_kind == "<" || operator_kind == "<=" {
+                    if left_type != right_type || (left_type != "Int" && left_type != "Float") {
+                        print("SEMANTIC_ERROR|comparison requires matching numeric operands")
+                        valid = 0
+                    }
+                }
+            }
+        }
+        index = index + 1
+    }
+    return valid
+}
+
 fn resolve_variable(lines: String[], start: Int, name: String) -> Int {
     let index: Int = start - 1
     let blocked: Int = 0
@@ -98,6 +137,8 @@ fn analyze(source: String) {
         }
         index = index + 1
     }
+
+    if check_binary_literals(lines) == 0 { valid = 0 }
 
     if has_main == 0 {
         print("SEMANTIC_ERROR|program must define 'main'")

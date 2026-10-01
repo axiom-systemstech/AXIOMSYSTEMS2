@@ -1574,6 +1574,29 @@ mod tests {
     }
 
     #[test]
+    fn self_hosted_semantic_rejects_mixed_literal_arithmetic() {
+        let ast_path = std::env::temp_dir().join(format!(
+            "axiom-self-hosted-semantic-negative-{}.ast",
+            std::process::id()
+        ));
+        let ast = "AXIOM_AST_V1\nNODE|0|Program|\nNODE|0|Function|main\nNODE|0|ScopeEnter|\nNODE|1|ExprEnter|\nNODE|2|Integer|1\nNODE|2|Binary|+\nNODE|2|Float|2.0\nNODE|1|ExprExit|\nNODE|0|ScopeExit|\n";
+        std::fs::write(&ast_path, ast).unwrap();
+        let semantic_source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/semantic.ax"
+        ))
+        .unwrap()
+        .replace("bootstrap/ast_output.txt", ast_path.to_str().unwrap());
+        let program = parse(&semantic_source).unwrap();
+        let output = execute_program(&program).unwrap();
+        std::fs::remove_file(ast_path).unwrap();
+        assert!(
+            output.contains("SEMANTIC_ERROR|binary operator '+' has incompatible operand types")
+        );
+        assert!(!output.contains("SEMANTIC_OK"));
+    }
+
+    #[test]
     fn builds_ir_artifact() {
         let program = parse("fn main() { print(42) }").unwrap();
         let artifact = build_artifact(&program);
