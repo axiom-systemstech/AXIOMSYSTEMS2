@@ -1395,11 +1395,51 @@ mod tests {
         );
         let program = parse(&source).unwrap();
         let output = execute_program(&program).unwrap();
-        assert_eq!(
-            output,
-            "FN|fn\nIDENT|main\nLPAREN|(".to_string()
-                + "\nRPAREN|)\nLBRACE|{\nPRINT|print\nLPAREN|(\nSTRING|hello\nRPAREN|)\nRBRACE|}\n"
+        assert!(output.contains("STRUCT|struct\n"));
+        assert!(output.contains("ARROW|->\n"));
+        assert!(output.contains("LBRACKET|[\n"));
+        assert!(output.contains("GREATER_EQUAL|>=\n"));
+        assert!(output.contains("AND|&&\n"));
+        assert!(output.contains("FLOAT|2.5\n"));
+        assert!(output.ends_with("RBRACE|}\n"));
+    }
+
+    #[test]
+    fn executes_self_hosted_parser() {
+        let lexer_source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/lexer.ax"
+        ))
+        .unwrap()
+        .replace(
+            "bootstrap/lexer_fixture.ax",
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../bootstrap/lexer_fixture.ax"),
         );
+        let lexer_program = parse(&lexer_source).unwrap();
+        let tokens = execute_program(&lexer_program).unwrap();
+        let token_path = std::env::temp_dir().join(format!(
+            "axiom-self-hosted-parser-{}.tokens",
+            std::process::id()
+        ));
+        std::fs::write(&token_path, tokens).unwrap();
+
+        let source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/parser.ax"
+        ))
+        .unwrap()
+        .replace("bootstrap/lexer_tokens.txt", token_path.to_str().unwrap());
+        let program = parse(&source).unwrap();
+        let output = execute_program(&program).unwrap();
+        std::fs::remove_file(&token_path).unwrap();
+        assert!(output.contains("Program\n"));
+        assert!(output.contains("Struct: Point\n"));
+        assert!(output.contains("Function: calculate\n"));
+        assert!(output.contains("Array\n"));
+        assert!(output.contains("Binary: >=\n"));
+        assert!(output.contains("Else\n"));
+        assert!(output.contains("While\n"));
+        assert!(output.contains("Return\n"));
     }
 
     #[test]

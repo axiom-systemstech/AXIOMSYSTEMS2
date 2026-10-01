@@ -26,8 +26,10 @@ The emitted artifact can be consumed by the existing native VM.
 
 `lexer.ax` and `parser.ax` are now compiler frontend subsystems executed from
 AXIOM itself. The lexer reads `lexer_fixture.ax` and emits a deterministic token
-stream; the parser consumes that stream and recognizes the initial AST subset:
-`Program`, `Function`, `Call`, and `String`.
+stream; the parser consumes that stream and walks a broad AST subset covering
+structs, typed parameters and returns, arrays, literals, calls, field/index
+access, binary/unary expressions, assignments, conditionals, loops and control
+flow.
 
 The native VM exposes only the host boundaries required by this stage:
 `read_file`, `write_file`, `split`, `split_lines`, `char_at`, and `char_code`.
@@ -47,7 +49,9 @@ stream on every run for the fixture source.
 
 ## Scope
 
-This is a self-hosting milestone, not full self-hosting. The lexer and initial parser
-have moved into AXIOM. Semantic analysis, complete AST coverage, IR lowering, and
-compiler-driver integration still remain to be migrated. Rust remains the bootstrap
-host until AXIOM can build its own complete compiler source tree reproducibly.
+This is a self-hosting milestone, not full self-hosting. The lexer and parser
+frontend have moved into AXIOM, but the current parser emits a deterministic textual
+AST representation rather than the native typed AST. Structured AST construction,
+semantic analysis, IR lowering, and compiler-driver integration still remain to be
+migrated. Rust remains the bootstrap host until AXIOM can build its own complete
+compiler source tree reproducibly.

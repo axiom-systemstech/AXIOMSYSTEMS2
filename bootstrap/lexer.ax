@@ -6,8 +6,14 @@ fn kind(word: String) -> String {
     if word == "if" { return "IF" }
     if word == "else" { return "ELSE" }
     if word == "while" { return "WHILE" }
+    if word == "for" { return "FOR" }
+    if word == "break" { return "BREAK" }
+    if word == "continue" { return "CONTINUE" }
     if word == "true" { return "TRUE" }
     if word == "false" { return "FALSE" }
+    if word == "struct" { return "STRUCT" }
+    if word == "module" { return "MODULE" }
+    if word == "import" { return "IMPORT" }
     return "IDENT"
 }
 
@@ -28,7 +34,6 @@ fn lex(source: String) {
     while index < len(source) {
         let current: String = char_at(source, index)
         let code: Int = char_code(current)
-
         if code == 32 || code == 9 || code == 10 || code == 13 {
             index = index + 1
         } else if is_letter(code) {
@@ -44,7 +49,17 @@ fn lex(source: String) {
                 number = number + char_at(source, index)
                 index = index + 1
             }
-            emit("INTEGER", number)
+            if index < len(source) && char_at(source, index) == "." && index + 1 < len(source) && is_digit(char_code(char_at(source, index + 1))) {
+                number = number + "."
+                index = index + 1
+                while index < len(source) && is_digit(char_code(char_at(source, index))) {
+                    number = number + char_at(source, index)
+                    index = index + 1
+                }
+                emit("FLOAT", number)
+            } else {
+                emit("INTEGER", number)
+            }
         } else if code == 34 {
             index = index + 1
             let value: String = ""
@@ -58,10 +73,53 @@ fn lex(source: String) {
         } else if current == ")" { emit("RPAREN", current); index = index + 1
         } else if current == "{" { emit("LBRACE", current); index = index + 1
         } else if current == "}" { emit("RBRACE", current); index = index + 1
+        } else if current == "[" { emit("LBRACKET", current); index = index + 1
+        } else if current == "]" { emit("RBRACKET", current); index = index + 1
         } else if current == "," { emit("COMMA", current); index = index + 1
         } else if current == ":" { emit("COLON", current); index = index + 1
         } else if current == ";" { emit("SEMICOLON", current); index = index + 1
-        } else { emit("CHAR", current); index = index + 1 }
+        } else if current == "." { emit("DOT", current); index = index + 1
+        } else if current == "+" { emit("PLUS", current); index = index + 1
+        } else if current == "-" {
+            if index + 1 < len(source) && char_at(source, index + 1) == ">" {
+                emit("ARROW", "->"); index = index + 2
+            } else {
+                emit("MINUS", current); index = index + 1
+            }
+        } else if current == "*" { emit("STAR", current); index = index + 1
+        } else if current == "/" { emit("SLASH", current); index = index + 1
+        } else if current == "%" { emit("PERCENT", current); index = index + 1
+        } else if current == "!" {
+            if index + 1 < len(source) && char_at(source, index + 1) == "=" {
+                emit("NOT_EQUAL", "!="); index = index + 2
+            } else {
+                emit("NOT", current); index = index + 1
+            }
+        } else if current == "=" {
+            if index + 1 < len(source) && char_at(source, index + 1) == "=" {
+                emit("EQUAL", "=="); index = index + 2
+            } else {
+                emit("ASSIGN", current); index = index + 1
+            }
+        } else if current == ">" {
+            if index + 1 < len(source) && char_at(source, index + 1) == "=" {
+                emit("GREATER_EQUAL", ">="); index = index + 2
+            } else {
+                emit("GREATER", current); index = index + 1
+            }
+        } else if current == "<" {
+            if index + 1 < len(source) && char_at(source, index + 1) == "=" {
+                emit("LESS_EQUAL", "<="); index = index + 2
+            } else {
+                emit("LESS", current); index = index + 1
+            }
+        } else if current == "&" && index + 1 < len(source) && char_at(source, index + 1) == "&" {
+            emit("AND", "&&"); index = index + 2
+        } else if current == "|" && index + 1 < len(source) && char_at(source, index + 1) == "|" {
+            emit("OR", "||"); index = index + 2
+        } else {
+            emit("CHAR", current); index = index + 1
+        }
     }
 }
 
