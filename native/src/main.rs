@@ -24,11 +24,20 @@ fn main() -> ExitCode {
         eprintln!("error: expected a source file");
         return ExitCode::from(2);
     };
-    let output_path = if command == "build" {
-        arguments.next()
-    } else {
-        None
-    };
+    let mut output_path = None;
+    let mut target = "host".to_string();
+    if command == "build" || command == "native-build" {
+        while let Some(argument) = arguments.next() {
+            if argument == "--target" {
+                target = arguments.next().unwrap_or_else(|| "host".into());
+            } else if output_path.is_none() {
+                output_path = Some(argument);
+            } else {
+                eprintln!("error: unexpected argument '{argument}'");
+                return ExitCode::from(2);
+            }
+        }
+    }
 
     let source = match fs::read_to_string(&path) {
         Ok(source) => source,
@@ -52,6 +61,36 @@ fn main() -> ExitCode {
                 println!("ok: {path}");
                 ExitCode::SUCCESS
             }
+            Err(error) => {
+                eprintln!("{}", format_error(error.message, error.line, error.column));
+                ExitCode::from(1)
+            }
+        },
+        "native-build" => match axiom_native::parser::parse(&source).and_then(|program| {
+            axiom_native::semantic::analyze(&program)
+                .map(|_| program)
+                .map_err(|error| axiom_native::parser::ParseError {
+                    message: error.message,
+                    line: 0,
+                    column: 0,
+                })
+        }) {
+            Ok(program) => match axiom_native::backend::build_executable(
+                Path::new(&path),
+                &program,
+                output_path.as_deref().map(Path::new),
+                &target,
+            ) {
+                Ok(build) => {
+                    println!("native build ok: {}", build.output.display());
+                    println!("target: {}", build.target.triple);
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("error: {}", error.message);
+                    ExitCode::from(1)
+                }
+            },
             Err(error) => {
                 eprintln!("{}", format_error(error.message, error.line, error.column));
                 ExitCode::from(1)
@@ -151,7 +190,9 @@ fn main() -> ExitCode {
 
 fn print_help() {
     println!("AXIOM native compiler");
-    println!("Usage: axiom <check|build|run> <source.ax>");
+    println!(
+        "Usage: axiom <check|build|native-build|run> <source.ax> [output] [--target <triple>]"
+    );
 }
 
 fn format_error(message: String, line: usize, column: usize) -> String {

@@ -34,7 +34,7 @@
 
 - [x] ~~Fase 13 — AXIOM Core~~: consolidar el modelo de tipos, módulos/imports/namespaces y resolución de nombres; separar formalmente frontend, IR y backend; definir API interna del compilador e interfaces estables de tooling; integrar CLI, Studio, paquetes y compiler; establecer fundamentos para bootstrap, compatibilidad entre implementaciones y especificación formal del lenguaje.
 - [x] ~~Fase 14 — AXIOM Engine~~: núcleo general-purpose para aplicaciones, escenas, entidades/componentes, recursos, eventos, simulación determinista, networking y fronteras backend-neutral de render, UI y audio.
-- [ ] **Fase 15 — Backend nativo y compilación real**: generación de código nativo, targets, ABI, runtime nativo, ejecutables standalone, cross-compilation y artefactos reproducibles.
+- [x] ~~Fase 15 — Backend nativo y compilación real~~: backend AOT sobre el runtime nativo, targets explícitos, ejecutables standalone, cross-compilation mediante targets Rust y builds reproducibles.
 - [ ] **Fase 16 — Bootstrap de AXIOM**: iniciar el compilador escrito en AXIOM, compilar progresivamente el propio compilador y establecer un bootstrap reproducible.
 - [ ] **Fase 17 — Self-hosting completo**: frontend, semántica, IR y pipeline del compilador escritos en AXIOM; el compilador compila su propio código de forma reproducible.
 - [ ] **Fase 18 — Independencia completa del ecosistema**: instalación y toolchain autónomos, runtime y package manager independientes, distribuciones multiplataforma y uso de `axiom build/run/test/package` sin Python como fundamento del lenguaje.
