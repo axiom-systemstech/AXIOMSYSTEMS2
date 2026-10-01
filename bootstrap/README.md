@@ -24,12 +24,13 @@ The emitted artifact can be consumed by the existing native VM.
 
 ## Self-hosting milestone
 
-`lexer.ax` is the first compiler frontend subsystem executed from AXIOM itself.
-It reads `lexer_fixture.ax`, tokenizes identifiers, keywords, integers, strings,
-and core punctuation, and emits a deterministic token stream.
+`lexer.ax` and `parser.ax` are now compiler frontend subsystems executed from
+AXIOM itself. The lexer reads `lexer_fixture.ax` and emits a deterministic token
+stream; the parser consumes that stream and recognizes the initial AST subset:
+`Program`, `Function`, `Call`, and `String`.
 
-The native VM exposes only the host boundary required by this stage:
-`read_file`, `write_file`, `char_at`, and `char_code`.
+The native VM exposes only the host boundaries required by this stage:
+`read_file`, `write_file`, `split`, `split_lines`, `char_at`, and `char_code`.
 
 ## Verify
 
@@ -37,6 +38,7 @@ The native VM exposes only the host boundary required by this stage:
 cargo run --manifest-path native/Cargo.toml -- check bootstrap/seed.ax
 cargo run --manifest-path native/Cargo.toml -- run bootstrap/seed.ax
 cargo run --manifest-path native/Cargo.toml -- run bootstrap/lexer.ax
+cargo run --manifest-path native/Cargo.toml -- check bootstrap/parser.ax
 cargo test --manifest-path native/Cargo.toml
 ```
 
@@ -45,7 +47,7 @@ stream on every run for the fixture source.
 
 ## Scope
 
-This is a self-hosting milestone, not full self-hosting. The lexer has moved into
-AXIOM, while the parser, semantic analysis, IR lowering, and compiler-driver pipeline
-still remain to be migrated. Rust remains the bootstrap host until those stages are
-implemented and the compiler can build its own complete source tree reproducibly.
+This is a self-hosting milestone, not full self-hosting. The lexer and initial parser
+have moved into AXIOM. Semantic analysis, complete AST coverage, IR lowering, and
+compiler-driver integration still remain to be migrated. Rust remains the bootstrap
+host until AXIOM can build its own complete compiler source tree reproducibly.

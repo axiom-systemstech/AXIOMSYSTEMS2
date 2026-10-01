@@ -320,6 +320,22 @@ fn check_builtin(
         .map(|argument| check_expression(argument, variables, functions, structs))
         .collect::<Result<Vec<_>, _>>()?;
     match call.name.as_str() {
+        "split_lines" => {
+            if argument_types != vec![Some(Type::String)] {
+                return Err(SemanticError {
+                    message: "split_lines expects one String argument".into(),
+                });
+            }
+            Ok(Some(Type::Array(Box::new(Type::String))))
+        }
+        "split" => {
+            if argument_types != vec![Some(Type::String), Some(Type::String)] {
+                return Err(SemanticError {
+                    message: "split expects two String arguments".into(),
+                });
+            }
+            Ok(Some(Type::Array(Box::new(Type::String))))
+        }
         "read_file" => {
             if argument_types != vec![Some(Type::String)] {
                 return Err(SemanticError {

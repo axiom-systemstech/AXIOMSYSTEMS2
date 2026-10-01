@@ -651,6 +651,56 @@ impl Machine {
 
 fn call_standard_library(name: &str, arguments: &[Value]) -> Result<Option<Value>, VmError> {
     match name {
+        "split_lines" => {
+            if arguments.len() != 1 {
+                return Err(VmError {
+                    message: "split_lines expects one String argument".into(),
+                });
+            }
+            let value = match &arguments[0] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "split_lines expects a String".into(),
+                    })
+                }
+            };
+            Ok(Some(Value::Array(
+                value
+                    .lines()
+                    .map(|line| Value::String(line.to_owned()))
+                    .collect(),
+            )))
+        }
+        "split" => {
+            if arguments.len() != 2 {
+                return Err(VmError {
+                    message: "split expects a String value and separator".into(),
+                });
+            }
+            let value = match &arguments[0] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "split expects a String value".into(),
+                    })
+                }
+            };
+            let separator = match &arguments[1] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "split expects a String separator".into(),
+                    })
+                }
+            };
+            Ok(Some(Value::Array(
+                value
+                    .split(separator)
+                    .map(|part| Value::String(part.to_owned()))
+                    .collect(),
+            )))
+        }
         "read_file" => {
             if arguments.len() != 1 {
                 return Err(VmError {

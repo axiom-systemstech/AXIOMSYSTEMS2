@@ -1,0 +1,87 @@
+fn token_kind(token: String) -> String {
+    let parts: String[] = split(token, "|")
+    if len(parts) == 0 { return "" }
+    return parts[0]
+}
+
+fn token_text(token: String) -> String {
+    let parts: String[] = split(token, "|")
+    if len(parts) > 1 { return parts[1] }
+    return ""
+}
+
+fn parse_call(tokens: String[], index: Int) -> Int {
+    let current: String = tokens[index]
+    if token_kind(current) != "PRINT" {
+        print("PARSE_ERROR: expected call")
+        return index + 1
+    }
+    print("Call: print")
+    index = index + 1
+    if index >= len(tokens) || token_kind(tokens[index]) != "LPAREN" { print("PARSE_ERROR: expected '('"); return index }
+    index = index + 1
+    if index < len(tokens) && token_kind(tokens[index]) == "STRING" {
+        print("  String: " + token_text(tokens[index]))
+        index = index + 1
+    }
+    if index >= len(tokens) || token_kind(tokens[index]) != "RPAREN" { print("PARSE_ERROR: expected ')'"); return index }
+    return index + 1
+}
+
+fn parse_block(tokens: String[], index: Int) -> Int {
+    if index >= len(tokens) || token_kind(tokens[index]) != "LBRACE" {
+        print("PARSE_ERROR: expected '{'")
+        return index
+    }
+    index = index + 1
+    while index < len(tokens) && token_kind(tokens[index]) != "RBRACE" && token_kind(tokens[index]) != "" {
+        if token_kind(tokens[index]) == "PRINT" {
+            index = parse_call(tokens, index)
+        } else {
+            print("PARSE_ERROR: unsupported statement " + token_kind(tokens[index]))
+            index = index + 1
+        }
+    }
+    if index < len(tokens) && token_kind(tokens[index]) == "RBRACE" { return index + 1 }
+    print("PARSE_ERROR: expected '}'")
+    return index
+}
+
+fn parse_function(tokens: String[], index: Int) -> Int {
+    if token_kind(tokens[index]) != "FN" {
+        print("PARSE_ERROR: expected 'fn'")
+        return index + 1
+    }
+    index = index + 1
+    let name: String = token_text(tokens[index])
+    if token_kind(tokens[index]) != "IDENT" { print("PARSE_ERROR: expected function name"); return index }
+    print("Function: " + name)
+    index = index + 1
+    if token_kind(tokens[index]) != "LPAREN" { print("PARSE_ERROR: expected '('"); return index }
+    index = index + 1
+    while token_kind(tokens[index]) != "RPAREN" && token_kind(tokens[index]) != "" {
+        index = index + 1
+    }
+    if token_kind(tokens[index]) == "RPAREN" { index = index + 1 }
+    return parse_block(tokens, index)
+}
+
+fn parse_program(tokens: String[]) {
+    let index: Int = 0
+    print("Program")
+    while index < len(tokens) {
+        if token_kind(tokens[index]) == "" {
+            index = index + 1
+        } else if token_kind(tokens[index]) == "FN" {
+            index = parse_function(tokens, index)
+        } else {
+            index = index + 1
+        }
+    }
+}
+
+fn main() {
+    let source: String = read_file("bootstrap/lexer_tokens.txt")
+    let tokens: String[] = split_lines(source)
+    parse_program(tokens)
+}
