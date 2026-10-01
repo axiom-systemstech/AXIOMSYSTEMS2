@@ -1,0 +1,63 @@
+fn split_node(line: String) -> String[] {
+    return split(line, "|")
+}
+
+fn trim_left(value: String) -> String {
+    let index: Int = 0
+    while index < len(value) && char_at(value, index) == " " {
+        index = index + 1
+    }
+    let result: String = ""
+    while index < len(value) {
+        result = result + char_at(value, index)
+        index = index + 1
+    }
+    return result
+}
+
+fn node_kind(line: String) -> String {
+    let value: String = trim_left(line)
+    let parts: String[] = split(value, ": ")
+    return parts[0]
+}
+
+fn node_value(line: String) -> String {
+    let value: String = trim_left(line)
+    let parts: String[] = split(value, ": ")
+    if len(parts) > 1 {
+        return parts[1]
+    }
+    return ""
+}
+
+fn node_depth(line: String) -> Int {
+    let depth: Int = 0
+    let index: Int = 0
+    while index < len(line) && char_at(line, index) == " " {
+        depth = depth + 1
+        index = index + 1
+    }
+    return depth / 2
+}
+
+fn normalize_line(line: String) -> String {
+    return "NODE|" + int_to_string(node_depth(line)) + "|" + node_kind(line) + "|" + node_value(line)
+}
+
+fn build(source: String) {
+    print("AXIOM_AST_V1")
+    let lines: String[] = split_lines(source)
+    let index: Int = 0
+    while index < len(lines) {
+        let line: String = lines[index]
+        if len(line) > 0 {
+            print(normalize_line(line))
+        }
+        index = index + 1
+    }
+}
+
+fn main() {
+    let source: String = read_file("bootstrap/parser_ast.txt")
+    build(source)
+}

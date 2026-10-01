@@ -797,6 +797,14 @@ fn call_standard_library(name: &str, arguments: &[Value]) -> Result<Option<Value
             }
             Ok(Some(Value::Int(character as i64)))
         }
+        "int_to_string" => {
+            if arguments.len() != 1 {
+                return Err(VmError {
+                    message: "int_to_string expects one Int argument".into(),
+                });
+            }
+            Ok(Some(Value::String(arguments[0].as_int()?.to_string())))
+        }
         "len" => {
             if arguments.len() != 1 {
                 return Err(VmError {
@@ -1440,6 +1448,60 @@ mod tests {
         assert!(output.contains("Else\n"));
         assert!(output.contains("While\n"));
         assert!(output.contains("Return\n"));
+    }
+
+    #[test]
+    fn executes_self_hosted_ast_normalizer() {
+        let parser_test = {
+            let lexer_source = std::fs::read_to_string(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../bootstrap/lexer.ax"
+            ))
+            .unwrap()
+            .replace(
+                "bootstrap/lexer_fixture.ax",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../bootstrap/lexer_fixture.ax"),
+            );
+            let lexer_program = parse(&lexer_source).unwrap();
+            let tokens = execute_program(&lexer_program).unwrap();
+
+            let token_path = std::env::temp_dir().join(format!(
+                "axiom-self-hosted-ast-{}.tokens",
+                std::process::id()
+            ));
+            let ast_input_path = std::env::temp_dir()
+                .join(format!("axiom-self-hosted-ast-{}.txt", std::process::id()));
+            std::fs::write(&token_path, tokens).unwrap();
+
+            let parser_source = std::fs::read_to_string(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../bootstrap/parser.ax"
+            ))
+            .unwrap()
+            .replace("bootstrap/lexer_tokens.txt", token_path.to_str().unwrap());
+            let parser_program = parse(&parser_source).unwrap();
+            let parser_output = execute_program(&parser_program).unwrap();
+            std::fs::write(&ast_input_path, parser_output).unwrap();
+
+            let ast_source = std::fs::read_to_string(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../bootstrap/ast.ax"
+            ))
+            .unwrap()
+            .replace("bootstrap/parser_ast.txt", ast_input_path.to_str().unwrap());
+            let ast_program = parse(&ast_source).unwrap();
+            let ast_output = execute_program(&ast_program).unwrap();
+
+            std::fs::remove_file(token_path).unwrap();
+            std::fs::remove_file(ast_input_path).unwrap();
+            ast_output
+        };
+
+        assert!(parser_test.starts_with("AXIOM_AST_V1\n"));
+        assert!(parser_test.contains("NODE|0|Program|"));
+        assert!(parser_test.contains("NODE|0|Struct|Point"));
+        assert!(parser_test.contains("NODE|0|Function|calculate"));
+        assert!(parser_test.contains("NODE|0|Return|"));
     }
 
     #[test]

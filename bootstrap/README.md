@@ -32,7 +32,12 @@ access, binary/unary expressions, assignments, conditionals, loops and control
 flow.
 
 The native VM exposes only the host boundaries required by this stage:
-`read_file`, `write_file`, `split`, `split_lines`, `char_at`, and `char_code`.
+`read_file`, `write_file`, `split`, `split_lines`, `char_at`, `char_code`, and
+`int_to_string`.
+
+`ast.ax` is the first structured-AST normalization layer. It consumes the parser's
+deterministic output and emits `AXIOM_AST_V1` records in the form
+`NODE|depth|kind|value`, preserving the parser tree's indentation structure.
 
 ## Verify
 

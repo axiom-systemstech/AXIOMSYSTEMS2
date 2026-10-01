@@ -368,6 +368,14 @@ fn check_builtin(
             }
             Ok(Some(Type::Int))
         }
+        "int_to_string" => {
+            if argument_types != vec![Some(Type::Int)] {
+                return Err(SemanticError {
+                    message: "int_to_string expects one Int argument".into(),
+                });
+            }
+            Ok(Some(Type::String))
+        }
         "len" => {
             if argument_types.len() != 1
                 || !matches!(argument_types[0], Some(Type::String) | Some(Type::Array(_)))

@@ -6,8 +6,8 @@
 
 - Fases completadas: 1–16.
 - Fase actual: 17 — Self-hosting completo.
-- Hito alcanzado: lexer y parser del frontend ejecutándose desde AXIOM sobre una gramática amplia.
-- Próximo hito: representar el AST de forma estructurada y migrar el análisis semántico.
+- Hito alcanzado: lexer, parser y primera normalización estructurada del AST ejecutándose desde AXIOM.
+- Próximo hito: migrar el análisis semántico a AXIOM sobre `AXIOM_AST_V1`.
 - Después: 18 — Independencia completa del ecosistema.
 - Objetivo de independencia: bootstrap en Fase 16, self-hosting en Fase 17 e independencia completa del toolchain en Fase 18.
 
@@ -39,6 +39,12 @@
 - [x] ~~Fase 15 — Backend nativo y compilación real~~: backend AOT sobre el runtime nativo, targets explícitos, ejecutables standalone, cross-compilation mediante targets Rust y builds reproducibles.
 - [x] ~~Fase 16 — Bootstrap de AXIOM~~: seed inicial del compilador escrito en AXIOM, modelo de tokens/AST, lowering a `AXIOM_ARTIFACT_V1` y ciclo reproducible AXIOM → artefacto nativo.
 - [ ] **Fase 17 — Self-hosting completo**: frontend, semántica, IR y pipeline del compilador escritos en AXIOM; el compilador compila su propio código de forma reproducible.
+  - [x] Lexer self-hosted.
+  - [x] Parser self-hosted sobre una gramática amplia.
+  - [x] Primera representación AST estructurada (`AXIOM_AST_V1`).
+  - [ ] Análisis semántico migrado a AXIOM.
+  - [ ] Lowering AST→IR migrado a AXIOM.
+  - [ ] Compiler driver y self-build reproducible.
 - [ ] **Fase 18 — Independencia completa del ecosistema**: instalación y toolchain autónomos, runtime y package manager independientes, distribuciones multiplataforma y uso de `axiom build/run/test/package` sin Python como fundamento del lenguaje.
 
 ## Hito de independencia
