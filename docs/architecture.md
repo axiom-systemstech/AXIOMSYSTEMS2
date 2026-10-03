@@ -98,6 +98,8 @@ The semantic compiler resolves:
 - contracts;
 - execution feasibility.
 
+AXIOM 0.1 now has an explicit semantic-facts layer (`semantic_model.py`) between the AST and the historical IR. It records entity kinds, semantic relations, resources, capabilities, and effects, and propagates function effects through the call graph.
+
 Ambiguity is diagnosed rather than guessed.
 
 ## Intermediate representation

@@ -1,0 +1,264 @@
+"""Language-neutral semantic facts produced by the AXIOM 0.1 compiler.
+
+This layer deliberately sits between syntax and the historical IR.  It records
+meaning without choosing a machine representation.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+
+from .ast import Assign, Binary, Call, FieldAccess, For, Function, If, Index, Let, Program, Return, StructLiteral, Unary, Variable, While
+
+
+class EntityKind(str, Enum):
+    VALUE = "VALUE"
+    DATA = "DATA"
+    RESOURCE = "RESOURCE"
+    CAPABILITY = "CAPABILITY"
+    KNOWLEDGE = "KNOWLEDGE"
+
+
+class Relation(str, Enum):
+    PRODUCE = "PRODUCE"
+    CONSUME = "CONSUME"
+    TRANSFORM = "TRANSFORM"
+    READ = "READ"
+    WRITE = "WRITE"
+    DEPEND = "DEPEND"
+    CALL = "CALL"
+    COMMUNICATE = "COMMUNICATE"
+    CONTROL = "CONTROL"
+    CREATE = "CREATE"
+    RELEASE = "RELEASE"
+    CONTAIN = "CONTAIN"
+    MEASURE = "MEASURE"
+
+
+@dataclass(frozen=True)
+class EntityFact:
+    name: str
+    kind: EntityKind
+    type_name: str | None = None
+    scope: str = "main"
+
+
+@dataclass(frozen=True)
+class RelationFact:
+    source: str
+    relation: Relation
+    target: str
+    scope: str = "main"
+
+
+@dataclass(frozen=True)
+class EffectFact:
+    name: str
+    scope: str
+    source: str
+    transitive: bool = False
+
+
+@dataclass(frozen=True)
+class ResourceFact:
+    name: str
+    type_name: str | None
+    created_in: str
+    consumers: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class SemanticModel:
+    entities: tuple[EntityFact, ...] = ()
+    relations: tuple[RelationFact, ...] = ()
+    resources: tuple[ResourceFact, ...] = ()
+    effects: tuple[EffectFact, ...] = ()
+    capabilities: tuple[str, ...] = ()
+    diagnostics: tuple[str, ...] = ()
+
+    def effects_for(self, scope: str) -> tuple[EffectFact, ...]:
+        return tuple(effect for effect in self.effects if effect.scope == scope)
+
+    def relations_for(self, scope: str) -> tuple[RelationFact, ...]:
+        return tuple(relation for relation in self.relations if relation.scope == scope)
+
+
+_CALL_EFFECTS = {
+    "print": ("terminal.write", "terminal.write"),
+    "len": (None, None),
+    "abs": (None, None),
+    "min": (None, None),
+    "max": (None, None),
+}
+
+
+def build_semantic_model(program: Program) -> SemanticModel:
+    entities: list[EntityFact] = []
+    relations: list[RelationFact] = []
+    resources: list[ResourceFact] = []
+    effects: list[EffectFact] = []
+    capabilities: set[str] = set()
+
+    for struct in program.structs:
+        entities.append(EntityFact(struct.name, EntityKind.DATA, struct.name, "type"))
+
+    for function in program.functions:
+        _visit_function(function, entities, relations, resources, effects, capabilities)
+
+    # Calls through user functions propagate their effects to callers.
+    effects = _propagate_call_effects(program, effects)
+
+    return SemanticModel(
+        entities=tuple(entities),
+        relations=tuple(relations),
+        resources=tuple(resources),
+        effects=tuple(sorted(effects, key=lambda item: (item.scope, item.name, item.source, item.transitive))),
+        capabilities=tuple(sorted(capabilities)),
+    )
+
+
+def _visit_function(function: Function, entities, relations, resources, effects, capabilities) -> None:
+    scope = function.name
+    for parameter in function.parameters:
+        entities.append(EntityFact(parameter.name, EntityKind.VALUE, parameter.type_name, scope))
+
+    for statement in function.body:
+        _visit_statement(statement, scope, entities, relations, resources, effects, capabilities)
+
+
+def _visit_statement(statement, scope, entities, relations, resources, effects, capabilities) -> None:
+    if isinstance(statement, Let):
+        kind = EntityKind.RESOURCE if _looks_like_resource(statement.name, statement.type_name) else EntityKind.VALUE
+        entities.append(EntityFact(statement.name, kind, statement.type_name, scope))
+        relations.append(RelationFact(statement.name, Relation.PRODUCE, _expression_name(statement.value), scope))
+        if kind is EntityKind.RESOURCE:
+            resources.append(ResourceFact(statement.name, statement.type_name, scope))
+        _visit_expression(statement.value, scope, relations, effects, capabilities)
+    elif isinstance(statement, Assign):
+        target = _expression_name(statement.target)
+        relations.append(RelationFact(target, Relation.WRITE, _expression_name(statement.value), scope))
+        _visit_expression(statement.value, scope, relations, effects, capabilities)
+    elif isinstance(statement, Call):
+        _visit_call(statement, scope, relations, effects, capabilities)
+    elif isinstance(statement, Return):
+        relations.append(RelationFact(_expression_name(statement.value), Relation.PRODUCE, "return", scope))
+        _visit_expression(statement.value, scope, relations, effects, capabilities)
+    elif isinstance(statement, If):
+        _visit_expression(statement.condition, scope, relations, effects, capabilities)
+        for nested in statement.then_body:
+            _visit_statement(nested, scope, entities, relations, resources, effects, capabilities)
+        for nested in statement.else_body:
+            _visit_statement(nested, scope, entities, relations, resources, effects, capabilities)
+    elif isinstance(statement, While):
+        _visit_expression(statement.condition, scope, relations, effects, capabilities)
+        for nested in statement.body:
+            _visit_statement(nested, scope, entities, relations, resources, effects, capabilities)
+    elif isinstance(statement, For):
+        if statement.initializer is not None:
+            _visit_statement(statement.initializer, scope, entities, relations, resources, effects, capabilities)
+        _visit_expression(statement.condition, scope, relations, effects, capabilities)
+        for nested in statement.body:
+            _visit_statement(nested, scope, entities, relations, resources, effects, capabilities)
+        if statement.update is not None:
+            _visit_statement(statement.update, scope, entities, relations, resources, effects, capabilities)
+
+
+def _visit_expression(expression, scope, relations, effects, capabilities) -> None:
+    if isinstance(expression, Binary):
+        _visit_expression(expression.left, scope, relations, effects, capabilities)
+        _visit_expression(expression.right, scope, relations, effects, capabilities)
+        relations.append(RelationFact(_expression_name(expression.left), Relation.TRANSFORM, _expression_name(expression.right), scope))
+    elif isinstance(expression, Unary):
+        _visit_expression(expression.operand, scope, relations, effects, capabilities)
+    elif isinstance(expression, (Index, FieldAccess)):
+        _visit_expression(expression.target, scope, relations, effects, capabilities)
+        if isinstance(expression, Index):
+            _visit_expression(expression.index, scope, relations, effects, capabilities)
+    elif isinstance(expression, StructLiteral):
+        for _, value in expression.fields:
+            _visit_expression(value, scope, relations, effects, capabilities)
+    elif isinstance(expression, Call):
+        _visit_call(expression, scope, relations, effects, capabilities)
+
+
+def _visit_call(call: Call, scope, relations, effects, capabilities) -> None:
+    relations.append(RelationFact(scope, Relation.CALL, call.name, scope))
+    for argument in call.arguments:
+        relations.append(RelationFact(_expression_name(argument), Relation.CONSUME, call.name, scope))
+        _visit_expression(argument, scope, relations, effects, capabilities)
+
+    effect_name, capability = _CALL_EFFECTS.get(call.name, (f"call.{call.name}", None))
+    if effect_name:
+        effects.append(EffectFact(effect_name, scope, call.name))
+    if capability:
+        capabilities.add(capability)
+
+
+def _propagate_call_effects(program: Program, effects: list[EffectFact]) -> list[EffectFact]:
+    by_function: dict[str, set[str]] = {}
+    for effect in effects:
+        by_function.setdefault(effect.scope, set()).add(effect.name)
+
+    changed = True
+    while changed:
+        changed = False
+        for function in program.functions:
+            direct = by_function.setdefault(function.name, set())
+            called = _called_functions(function)
+            for target in called:
+                for effect_name in by_function.get(target, ()):
+                    if effect_name not in direct:
+                        direct.add(effect_name)
+                        changed = True
+
+    result = [effect for effect in effects if not effect.transitive]
+    for scope, names in by_function.items():
+        existing = {effect.name for effect in result if effect.scope == scope}
+        for name in sorted(names - existing):
+            result.append(EffectFact(name, scope, f"call-graph:{scope}", True))
+    return result
+
+
+def _called_functions(function: Function) -> set[str]:
+    called: set[str] = set()
+
+    def walk(statement) -> None:
+        if isinstance(statement, Call):
+            if statement.name not in _CALL_EFFECTS:
+                called.add(statement.name)
+        elif isinstance(statement, If):
+            for item in statement.then_body + statement.else_body:
+                walk(item)
+        elif isinstance(statement, While):
+            for item in statement.body:
+                walk(item)
+        elif isinstance(statement, For):
+            if statement.initializer:
+                walk(statement.initializer)
+            for item in statement.body:
+                walk(item)
+            if statement.update:
+                walk(statement.update)
+
+    for statement in function.body:
+        walk(statement)
+    return called
+
+
+def _looks_like_resource(name: str, type_name: str | None) -> bool:
+    haystack = f"{name} {type_name or ''}".lower()
+    markers = ("resource", "file", "socket", "device", "buffer", "handle", "connection", "process", "thread", "gpu")
+    return any(marker in haystack for marker in markers)
+
+
+def _expression_name(expression) -> str:
+    if isinstance(expression, Variable):
+        return expression.name
+    if isinstance(expression, FieldAccess):
+        return f"{_expression_name(expression.target)}.{expression.field}"
+    if isinstance(expression, Index):
+        return f"{_expression_name(expression.target)}[]"
+    if isinstance(expression, Call):
+        return f"{expression.name}()"
+    return "<expression>"

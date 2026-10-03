@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FieldAccess, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, StructLiteral, Unary, Variable, While
+from .semantic_model import SemanticModel, build_semantic_model
 
 
 class SemanticError(ValueError):
@@ -22,7 +23,7 @@ def _types_compatible(expected: str, actual: str) -> bool:
     return expected == "Any" or actual == "Any" or actual == expected or (actual == "Array" and expected.endswith("[]"))
 
 
-def analyze(program: Program) -> None:
+def analyze(program: Program) -> SemanticModel:
     global _STRUCTS
     _STRUCTS = {}
     for struct in program.structs:
@@ -57,6 +58,8 @@ def analyze(program: Program) -> None:
 
     for function in program.functions:
         _check_function(function, signatures)
+
+    return build_semantic_model(program)
 
 
 def _check_function(function: Function, signatures) -> None:
@@ -132,7 +135,7 @@ def _check_function(function: Function, signatures) -> None:
             _expression_type(statement.arguments[0], variables, signatures)
             continue
         _check_call(statement, variables, signatures)
-    if function.return_type is not None and not returned:
+    if function.return_type is not None and function.return_type != "Any" and not returned:
         raise SemanticError(f"function '{function.name}' must return {function.return_type}")
 
 
