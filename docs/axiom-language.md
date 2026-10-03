@@ -189,7 +189,7 @@ The compiler asks:
 
 This applies to memory, files, sockets, GPU buffers, devices, processes, handles, connections, energy, time, and information.
 
-The compiler may select copy, alias, view, move, sharing, local storage, GPU storage, or reuse when semantics permit it.
+The compiler may select copy, alias, view, move, sharing, local storage, GPU storage, or reuse when semantics permit it. Resource flow recognizes closures (fn(...) -> expression) and records resources captured by the closure, explicit array slices (value[start:end], including open bounds), and resource-typed collection elements as contained subresources.
 
 Explicit restrictions take priority.
 

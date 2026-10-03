@@ -155,9 +155,22 @@ class Index:
 
 
 @dataclass(frozen=True)
+class Slice:
+    target: "Expression"
+    start: "Expression | None"
+    end: "Expression | None"
+
+
+@dataclass(frozen=True)
+class Closure:
+    parameters: list["Parameter"]
+    body: "Expression"
+
+
+@dataclass(frozen=True)
 class FieldAccess:
     target: "Expression"
     field: str
 
 
-Expression = StringLiteral | IntegerLiteral | FloatLiteral | BooleanLiteral | ArrayLiteral | StructLiteral | Variable | Binary | Unary | Call | Index | FieldAccess
+Expression = StringLiteral | IntegerLiteral | FloatLiteral | BooleanLiteral | ArrayLiteral | StructLiteral | Variable | Binary | Unary | Call | Index | Slice | Closure | FieldAccess

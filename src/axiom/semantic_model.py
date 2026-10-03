@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .ast import Assign, Binary, Call, FieldAccess, For, Function, If, Index, Let, Program, Return, StructLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Call, Closure, FieldAccess, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, Slice, StringLiteral, StructLiteral, Unary, Variable, While
 
 
 class EntityKind(str, Enum):
@@ -36,6 +36,7 @@ class Relation(str, Enum):
     MEASURE = "MEASURE"
     SHARE = "SHARE"
     VIEW = "VIEW"
+    CAPTURE = "CAPTURE"
 
 
 @dataclass(frozen=True)
@@ -94,6 +95,7 @@ class ResourceFlowFact:
     consumers: tuple[str, ...] = ()
     aliases: tuple[str, ...] = ()
     views: tuple[str, ...] = ()
+    captures: tuple[str, ...] = ()
     released_by: str | None = None
 
 
@@ -156,6 +158,8 @@ def build_semantic_model(program: Program) -> SemanticModel:
         for view in item.views:
             relations.append(RelationFact(item.resource, Relation.VIEW, view, item.scope))
             relations.append(RelationFact(item.resource, Relation.CONTAIN, view, item.scope))
+        for closure in item.captures:
+            relations.append(RelationFact(item.resource, Relation.CAPTURE, closure, item.scope))
 
     explicit_needs = {item.value for item in program.directives if item.kind == "needs"}
     allowed = {item.value for item in program.directives if item.kind == "can"}
@@ -205,6 +209,20 @@ def _augment_structured_resources(program: Program, entities, relations, resourc
     ]
     expanded: set[tuple[str, str, str]] = set()
 
+    # Resource containers expose an element-resource identity as a contained
+    # subresource. This keeps collection identity distinct from element views.
+    for entity in tuple(entities):
+        element_type = _resource_element_type(entity.type_name)
+        if entity.kind is not EntityKind.RESOURCE and element_type is None:
+            continue
+        if element_type is None:
+            continue
+        element_name = f"{entity.name}[]"
+        if (element_name, entity.scope) not in existing:
+            resources.append(ResourceFact(element_name, element_type, entity.scope))
+            relations.append(RelationFact(entity.name, Relation.CONTAIN, element_name, entity.scope))
+            existing.add((element_name, entity.scope))
+
     while pending:
         parent_name, type_name, scope = pending.pop()
         marker = (parent_name, type_name, scope)
@@ -251,12 +269,13 @@ def _analyze_resource_flow(program: Program, resources: list[ResourceFact]) -> t
         state = {name: ResourceState.ACTIVE for name in roots.values()}
         aliases = {name: set() for name in roots.values()}
         views = {name: set() for name in roots.values()}
+        captures = {name: set() for name in roots.values()}
         consumers = {name: [] for name in roots.values()}
         released_by = {}
         kinds = {name: "root" for name in roots}
         _walk_resource_block(
             function.body, function.name, functions, resources, roots, state, aliases, views,
-            consumers, released_by, kinds, diagnostics, (function.name,),
+            captures, consumers, released_by, kinds, diagnostics, (function.name,),
         )
         for name in sorted(consumers):
             non_lifecycle = [item for item in consumers[name] if item not in {"release", "close", "free", "drop"}]
@@ -264,7 +283,7 @@ def _analyze_resource_flow(program: Program, resources: list[ResourceFact]) -> t
                 state[name] = ResourceState.SHARED
             flow.append(ResourceFlowFact(
                 name, function.name, state[name].value, tuple(consumers[name]),
-                tuple(sorted(aliases[name])), tuple(sorted(views[name])), released_by.get(name),
+                tuple(sorted(aliases[name])), tuple(sorted(views[name])), tuple(sorted(captures[name])), released_by.get(name),
             ))
     return flow, tuple(diagnostics)
 
@@ -279,7 +298,7 @@ def _join_resource_state(left: ResourceState, right: ResourceState) -> ResourceS
 
 def _walk_resource_block(
     statements, scope, functions, resources, roots, state, aliases, views,
-    consumers, released_by, kinds, diagnostics, call_stack,
+    captures, consumers, released_by, kinds, diagnostics, call_stack,
 ):
     release_calls = {"release", "close", "free", "drop"}
     for statement in statements:
@@ -287,7 +306,7 @@ def _walk_resource_block(
             if isinstance(statement.value, Call):
                 returned = _apply_resource_call(
                     statement.value, scope, functions, resources, roots, state, aliases, views,
-                    consumers, released_by, kinds, diagnostics, call_stack,
+                    captures, consumers, released_by, kinds, diagnostics, call_stack,
                 )
                 if returned is not None:
                     root, kind = returned
@@ -295,11 +314,18 @@ def _walk_resource_block(
                     kinds[statement.name] = kind
                     (views if kind == "view" else aliases)[root].add(statement.name)
                 continue
+            if isinstance(statement.value, Closure):
+                for source in _closure_resource_captures(statement.value, roots):
+                    root = roots[source]
+                    captures[root].add(statement.name)
+                    consumers[root].append(statement.name)
+                    state[root] = ResourceState.SHARED
+                continue
             source = _resource_argument_name(statement.value, roots)
             if source in roots:
                 root = roots[source]
                 roots[statement.name] = root
-                if isinstance(statement.value, Index):
+                if isinstance(statement.value, (Index, Slice)):
                     kinds[statement.name] = "view"
                     views[root].update({_resource_view_name(statement.value, roots), statement.name})
                 else:
@@ -312,9 +338,9 @@ def _walk_resource_block(
             if source in roots:
                 root = roots[source]
                 roots[statement.target.name] = root
-                if isinstance(statement.value, Index):
+                if isinstance(statement.value, (Index, Slice)):
                     kinds[statement.target.name] = "view"
-                    views[root].update({_expression_name(statement.value), statement.target.name})
+                    views[root].update({_resource_view_name(statement.value, roots), statement.target.name})
                 else:
                     kinds[statement.target.name] = "alias"
                     aliases[root].add(statement.target.name)
@@ -330,7 +356,7 @@ def _walk_resource_block(
         if isinstance(statement, Call):
             _apply_resource_call(
                 statement, scope, functions, resources, roots, state, aliases, views,
-                consumers, released_by, kinds, diagnostics, call_stack,
+                captures, consumers, released_by, kinds, diagnostics, call_stack,
             )
             continue
 
@@ -338,11 +364,11 @@ def _walk_resource_block(
             then_state, else_state = dict(state), dict(state)
             _walk_resource_block(
                 statement.then_body, scope, functions, resources, dict(roots), then_state,
-                aliases, views, consumers, released_by, dict(kinds), diagnostics, call_stack,
+                aliases, views, captures, consumers, released_by, dict(kinds), diagnostics, call_stack,
             )
             _walk_resource_block(
                 statement.else_body, scope, functions, resources, dict(roots), else_state,
-                aliases, views, consumers, released_by, dict(kinds), diagnostics, call_stack,
+                aliases, views, captures, consumers, released_by, dict(kinds), diagnostics, call_stack,
             )
             for root in state:
                 state[root] = _join_resource_state(then_state[root], else_state[root])
@@ -352,7 +378,7 @@ def _walk_resource_block(
             before, loop_state = dict(state), dict(state)
             _walk_resource_block(
                 statement.body, scope, functions, resources, dict(roots), loop_state,
-                aliases, views, consumers, released_by, dict(kinds), diagnostics, call_stack,
+                aliases, views, captures, consumers, released_by, dict(kinds), diagnostics, call_stack,
             )
             for root in state:
                 state[root] = _join_resource_state(before[root], loop_state[root])
@@ -362,12 +388,12 @@ def _walk_resource_block(
             if statement.initializer is not None:
                 _walk_resource_block(
                     [statement.initializer], scope, functions, resources, roots, state,
-                    aliases, views, consumers, released_by, kinds, diagnostics, call_stack,
+                    aliases, views, captures, consumers, released_by, kinds, diagnostics, call_stack,
                 )
             before, loop_state = dict(state), dict(state)
             _walk_resource_block(
                 statement.body, scope, functions, resources, dict(roots), loop_state,
-                aliases, views, consumers, released_by, dict(kinds), diagnostics, call_stack,
+                aliases, views, captures, consumers, released_by, dict(kinds), diagnostics, call_stack,
             )
             for root in state:
                 state[root] = _join_resource_state(before[root], loop_state[root])
@@ -375,7 +401,7 @@ def _walk_resource_block(
 
 def _apply_resource_call(
     call, scope, functions, resources, roots, state, aliases, views,
-    consumers, released_by, kinds, diagnostics, call_stack,
+    captures, consumers, released_by, kinds, diagnostics, call_stack,
 ):
     release_calls = {"release", "close", "free", "drop"}
     argument_roots = []
@@ -415,13 +441,14 @@ def _apply_resource_call(
     callee_state = {name: ResourceState.ACTIVE for name in callee_roots}
     callee_aliases = {name: set() for name in callee_roots}
     callee_views = {name: set() for name in callee_roots}
+    callee_captures = {name: set() for name in callee_roots}
     callee_consumers = {name: [] for name in callee_roots}
     callee_released = {}
     callee_kinds = {name: "root" for name in callee_roots}
     callee_diagnostics = []
     _walk_resource_block(
         callee.body, callee.name, functions, resources, callee_roots, callee_state,
-        callee_aliases, callee_views, callee_consumers, callee_released,
+        callee_aliases, callee_views, callee_captures, callee_consumers, callee_released,
         callee_kinds, callee_diagnostics, call_stack + (callee.name,),
     )
     diagnostics.extend(callee_diagnostics)
@@ -441,6 +468,7 @@ def _apply_resource_call(
             state[root] = _join_resource_state(state[root], nested_state)
         aliases[root].update(f"{call.name}.{item}" for item in callee_aliases[parameter.name])
         views[root].update(f"{call.name}.{item}" for item in callee_views[parameter.name])
+        captures[root].update(f"{call.name}.{item}" for item in callee_captures[parameter.name])
 
         # Structured resource fields retain identity across the call boundary.
         prefix = parameter.name + "."
@@ -531,10 +559,19 @@ def _visit_expression(expression, scope, relations, effects, capabilities) -> No
         relations.append(RelationFact(_expression_name(expression.left), Relation.TRANSFORM, _expression_name(expression.right), scope))
     elif isinstance(expression, Unary):
         _visit_expression(expression.operand, scope, relations, effects, capabilities)
-    elif isinstance(expression, (Index, FieldAccess)):
+    elif isinstance(expression, (Index, Slice, FieldAccess)):
         _visit_expression(expression.target, scope, relations, effects, capabilities)
         if isinstance(expression, Index):
             _visit_expression(expression.index, scope, relations, effects, capabilities)
+        elif isinstance(expression, Slice):
+            if expression.start is not None:
+                _visit_expression(expression.start, scope, relations, effects, capabilities)
+            if expression.end is not None:
+                _visit_expression(expression.end, scope, relations, effects, capabilities)
+    elif isinstance(expression, Closure):
+        for parameter in expression.parameters:
+            relations.append(RelationFact(parameter.name, Relation.PRODUCE, "closure-parameter", scope))
+        _visit_expression(expression.body, scope, relations, effects, capabilities)
     elif isinstance(expression, StructLiteral):
         for _, value in expression.fields:
             _visit_expression(value, scope, relations, effects, capabilities)
@@ -616,7 +653,55 @@ def _looks_like_resource(name: str, type_name: str | None) -> bool:
     return any(marker in haystack for marker in markers)
 
 
+def _resource_element_type(type_name: str | None) -> str | None:
+    if not type_name or not type_name.endswith("[]"):
+        return None
+    element = type_name[:-2]
+    return element if _looks_like_resource(element, element) else None
+
+
+def _closure_resource_captures(closure: Closure, roots) -> tuple[str, ...]:
+    parameters = {parameter.name for parameter in closure.parameters}
+    captures: set[str] = set()
+
+    def visit(expression) -> None:
+        if isinstance(expression, Variable):
+            if expression.name not in parameters and expression.name in roots:
+                captures.add(expression.name)
+        elif isinstance(expression, Binary):
+            visit(expression.left)
+            visit(expression.right)
+        elif isinstance(expression, Unary):
+            visit(expression.operand)
+        elif isinstance(expression, (Index, Slice, FieldAccess)):
+            visit(expression.target)
+            if isinstance(expression, Index):
+                visit(expression.index)
+            elif isinstance(expression, Slice):
+                if expression.start is not None:
+                    visit(expression.start)
+                if expression.end is not None:
+                    visit(expression.end)
+        elif isinstance(expression, Call):
+            for argument in expression.arguments:
+                visit(argument)
+        elif isinstance(expression, ArrayLiteral):
+            for element in expression.elements:
+                visit(element)
+        elif isinstance(expression, StructLiteral):
+            for _, value in expression.fields:
+                visit(value)
+
+    visit(closure.body)
+    return tuple(sorted(captures))
+
+
 def _resource_view_name(expression, roots) -> str:
+    if isinstance(expression, Slice):
+        root = roots.get(_resource_argument_name(expression.target, roots), _expression_name(expression.target))
+        start = _expression_name(expression.start) if expression.start is not None else ""
+        end = _expression_name(expression.end) if expression.end is not None else ""
+        return f"{root}[{start}:{end}]"
     if not isinstance(expression, Index):
         return _expression_name(expression)
     depth = 0
@@ -636,7 +721,7 @@ def _resource_argument_name(expression, roots=None) -> str:
         if roots is not None and full_name in roots:
             return full_name
         return _resource_argument_name(expression.target, roots)
-    if isinstance(expression, Index):
+    if isinstance(expression, (Index, Slice)):
         return _resource_argument_name(expression.target, roots)
     return _expression_name(expression)
 
@@ -644,10 +729,20 @@ def _resource_argument_name(expression, roots=None) -> str:
 def _expression_name(expression) -> str:
     if isinstance(expression, Variable):
         return expression.name
+    if isinstance(expression, (IntegerLiteral, FloatLiteral, BooleanLiteral)):
+        return str(expression.value).lower()
+    if isinstance(expression, StringLiteral):
+        return expression.value
     if isinstance(expression, FieldAccess):
         return f"{_expression_name(expression.target)}.{expression.field}"
     if isinstance(expression, Index):
         return f"{_expression_name(expression.target)}[]"
+    if isinstance(expression, Slice):
+        start = _expression_name(expression.start) if expression.start is not None else ""
+        end = _expression_name(expression.end) if expression.end is not None else ""
+        return f"{_expression_name(expression.target)}[{start}:{end}]"
+    if isinstance(expression, Closure):
+        return "closure"
     if isinstance(expression, Call):
         return f"{expression.name}()"
     return "<expression>"

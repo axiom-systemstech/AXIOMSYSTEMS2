@@ -182,13 +182,13 @@ AXIOM 1.0 is complete only when the language has:
 - [x] G14. Define the complete Resource Flow state lattice.
 - [x] G15. Track resource flow through function parameters interprocedurally.
 - [x] G16. Track resources returned from functions.
-- [ ] G17. Track resources captured by closures.
+- [x] G17. Track resources captured by closures.
 - [x] G18. Track resources through nested/composed views.
-- [ ] G19. Track slices/subranges/subresources completely.
+- [x] G19. Track slices/subranges/subresources completely.
 - [ ] G20. Distinguish aliasing, copying, moving, sharing, reuse, and views semantically.
 - [ ] G21. Define sound transfer/move semantics through explicit contracts.
 - [x] G22. Handle resource fields and structured resources.
-- [ ] G23. Handle resource containers and collections.
+- [x] G23. Handle resource containers and collections.
 - [ ] G24. Handle resource flow across concurrency boundaries.
 - [ ] G25. Handle resource flow across process/machine boundaries.
 - [ ] G26. Handle device/GPU/NPU/QPU resources.

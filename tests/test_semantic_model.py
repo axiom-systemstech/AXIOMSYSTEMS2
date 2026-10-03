@@ -357,6 +357,68 @@ def test_resource_flow_models_collection_views_as_contained_subresources():
         for relation in model.relations
     )
 
+
+def test_resource_flow_tracks_closure_captures():
+    from axiom.parser import parse
+
+    program = parse(
+        "struct Socket {}\n"
+        "fn main() {\n"
+        "    let socket: Socket = Socket {};\n"
+        "    let handler = fn() -> socket;\n"
+        "}\n"
+    )
+    model = analyze(program)
+
+    flow = next(item for item in model.resource_flow if item.resource == "socket")
+    assert "handler" in flow.captures
+    assert flow.state == "SHARED"
+    assert any(
+        relation.relation is Relation.CAPTURE
+        and relation.source == "socket"
+        and relation.target == "handler"
+        for relation in model.relations
+    )
+
+
+def test_resource_flow_tracks_slice_views_and_open_ended_ranges():
+    from axiom.parser import parse
+
+    program = parse(
+        "struct Buffer {}\n"
+        "fn main() {\n"
+        "    let buffer: Buffer[] = [Buffer {}, Buffer {}];\n"
+        "    let middle = buffer[2:8];\n"
+        "    let tail = buffer[8:];\n"
+
+        "}\n"
+    )
+    model = analyze(program)
+
+    flow = next(item for item in model.resource_flow if item.resource == "buffer")
+    assert "buffer[2:8]" in flow.views
+    assert "buffer[8:]" in flow.views
+
+
+def test_resource_flow_tracks_resource_collection_elements():
+    from axiom.parser import parse
+
+    program = parse(
+        "struct Socket {}\n"
+        "fn main() {\n"
+        "    let sockets: Socket[] = [Socket {}, Socket {}];\n"
+        "}\n"
+    )
+    model = analyze(program)
+
+    assert any(item.name == "sockets[]" and item.type_name == "Socket" for item in model.resources)
+    assert any(
+        relation.relation is Relation.CONTAIN
+        and relation.source == "sockets"
+        and relation.target == "sockets[]"
+        for relation in model.relations
+    )
+
 def test_resource_flow_state_join_is_an_explicit_lattice():
     from axiom.semantic_model import ResourceState, _join_resource_state
 

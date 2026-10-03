@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FieldAccess, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, StructLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Closure, Continue, FieldAccess, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, Slice, StringLiteral, StructLiteral, Unary, Variable, While
 from .semantic_model import SemanticModel, build_semantic_model
 
 
@@ -259,6 +259,21 @@ def _expression_type(expression, variables: dict[str, str], signatures) -> str:
         if not target_type.endswith("[]"):
             raise SemanticError("index requires an array")
         return target_type[:-2]
+    if isinstance(expression, Slice):
+        target_type = _expression_type(expression.target, variables, signatures)
+        if not target_type.endswith("[]"):
+            raise SemanticError("slice requires an array")
+        if expression.start is not None and _expression_type(expression.start, variables, signatures) != "Int":
+            raise SemanticError("slice start requires Int")
+        if expression.end is not None and _expression_type(expression.end, variables, signatures) != "Int":
+            raise SemanticError("slice end requires Int")
+        return target_type
+    if isinstance(expression, Closure):
+        closure_variables = dict(variables)
+        for parameter in expression.parameters:
+            closure_variables[parameter.name] = parameter.type_name
+        _expression_type(expression.body, closure_variables, signatures)
+        return "Closure"
     if isinstance(expression, FieldAccess):
         target_type = _expression_type(expression.target, variables, signatures)
         fields = _STRUCTS.get(target_type)
