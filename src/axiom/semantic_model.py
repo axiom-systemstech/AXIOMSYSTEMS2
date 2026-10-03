@@ -143,6 +143,8 @@ def build_semantic_model(program: Program) -> SemanticModel:
     for function in program.functions:
         _visit_function(function, entities, relations, resources, effects, capabilities)
 
+    _augment_structured_resources(program, entities, relations, resources)
+
     # Calls through user functions propagate their effects to callers.
     effects = _propagate_call_effects(program, effects)
     resource_flow, resource_diagnostics = _analyze_resource_flow(program, resources)
@@ -153,6 +155,7 @@ def build_semantic_model(program: Program) -> SemanticModel:
                     relations.append(RelationFact(item.resource, Relation.SHARE, consumer, item.scope))
         for view in item.views:
             relations.append(RelationFact(item.resource, Relation.VIEW, view, item.scope))
+            relations.append(RelationFact(item.resource, Relation.CONTAIN, view, item.scope))
 
     explicit_needs = {item.value for item in program.directives if item.kind == "needs"}
     allowed = {item.value for item in program.directives if item.kind == "can"}
@@ -192,6 +195,52 @@ def build_semantic_model(program: Program) -> SemanticModel:
     )
 
 
+def _augment_structured_resources(program: Program, entities, relations, resources) -> None:
+    structs = {struct.name: struct for struct in program.structs}
+    existing = {(resource.name, resource.created_in) for resource in resources}
+    pending = [
+        (entity.name, entity.type_name, entity.scope)
+        for entity in entities
+        if entity.kind is EntityKind.RESOURCE and entity.type_name in structs
+    ]
+    expanded: set[tuple[str, str, str]] = set()
+
+    while pending:
+        parent_name, type_name, scope = pending.pop()
+        marker = (parent_name, type_name, scope)
+        if marker in expanded:
+            continue
+        expanded.add(marker)
+        struct = structs[type_name]
+        for field in struct.fields:
+            if not (
+                _looks_like_resource(field.name, field.type_name)
+                or _struct_contains_resource(field.type_name, structs)
+            ):
+                continue
+            resource_name = f"{parent_name}.{field.name}"
+            if (resource_name, scope) not in existing:
+                resources.append(ResourceFact(resource_name, field.type_name, scope))
+                relations.append(RelationFact(parent_name, Relation.CONTAIN, resource_name, scope))
+                existing.add((resource_name, scope))
+            if field.type_name in structs:
+                pending.append((resource_name, field.type_name, scope))
+
+
+def _struct_contains_resource(type_name: str | None, structs, seen: set[str] | None = None) -> bool:
+    if type_name not in structs:
+        return False
+    seen = set() if seen is None else seen
+    if type_name in seen:
+        return False
+    seen.add(type_name)
+    return any(
+        _looks_like_resource(field.name, field.type_name)
+        or _struct_contains_resource(field.type_name, structs, seen)
+        for field in structs[type_name].fields
+    )
+
+
 def _analyze_resource_flow(program: Program, resources: list[ResourceFact]) -> tuple[list[ResourceFlowFact], tuple[str, ...]]:
     functions = {function.name: function for function in program.functions}
     flow: list[ResourceFlowFact] = []
@@ -206,7 +255,7 @@ def _analyze_resource_flow(program: Program, resources: list[ResourceFact]) -> t
         released_by = {}
         kinds = {name: "root" for name in roots}
         _walk_resource_block(
-            function.body, function.name, functions, roots, state, aliases, views,
+            function.body, function.name, functions, resources, roots, state, aliases, views,
             consumers, released_by, kinds, diagnostics, (function.name,),
         )
         for name in sorted(consumers):
@@ -229,7 +278,7 @@ def _join_resource_state(left: ResourceState, right: ResourceState) -> ResourceS
 
 
 def _walk_resource_block(
-    statements, scope, functions, roots, state, aliases, views,
+    statements, scope, functions, resources, roots, state, aliases, views,
     consumers, released_by, kinds, diagnostics, call_stack,
 ):
     release_calls = {"release", "close", "free", "drop"}
@@ -237,7 +286,7 @@ def _walk_resource_block(
         if isinstance(statement, Let):
             if isinstance(statement.value, Call):
                 returned = _apply_resource_call(
-                    statement.value, scope, functions, roots, state, aliases, views,
+                    statement.value, scope, functions, resources, roots, state, aliases, views,
                     consumers, released_by, kinds, diagnostics, call_stack,
                 )
                 if returned is not None:
@@ -246,7 +295,7 @@ def _walk_resource_block(
                     kinds[statement.name] = kind
                     (views if kind == "view" else aliases)[root].add(statement.name)
                 continue
-            source = _resource_argument_name(statement.value)
+            source = _resource_argument_name(statement.value, roots)
             if source in roots:
                 root = roots[source]
                 roots[statement.name] = root
@@ -259,7 +308,7 @@ def _walk_resource_block(
             continue
 
         if isinstance(statement, Assign) and isinstance(statement.target, Variable):
-            source = _resource_argument_name(statement.value)
+            source = _resource_argument_name(statement.value, roots)
             if source in roots:
                 root = roots[source]
                 roots[statement.target.name] = root
@@ -272,7 +321,7 @@ def _walk_resource_block(
             continue
 
         if isinstance(statement, Return):
-            source = _resource_argument_name(statement.value)
+            source = _resource_argument_name(statement.value, roots)
             if source in roots:
                 roots["__return__"] = roots[source]
                 kinds["__return__"] = kinds.get(source, "root")
@@ -280,7 +329,7 @@ def _walk_resource_block(
 
         if isinstance(statement, Call):
             _apply_resource_call(
-                statement, scope, functions, roots, state, aliases, views,
+                statement, scope, functions, resources, roots, state, aliases, views,
                 consumers, released_by, kinds, diagnostics, call_stack,
             )
             continue
@@ -288,11 +337,11 @@ def _walk_resource_block(
         if isinstance(statement, If):
             then_state, else_state = dict(state), dict(state)
             _walk_resource_block(
-                statement.then_body, scope, functions, dict(roots), then_state,
+                statement.then_body, scope, functions, resources, dict(roots), then_state,
                 aliases, views, consumers, released_by, dict(kinds), diagnostics, call_stack,
             )
             _walk_resource_block(
-                statement.else_body, scope, functions, dict(roots), else_state,
+                statement.else_body, scope, functions, resources, dict(roots), else_state,
                 aliases, views, consumers, released_by, dict(kinds), diagnostics, call_stack,
             )
             for root in state:
@@ -302,7 +351,7 @@ def _walk_resource_block(
         if isinstance(statement, While):
             before, loop_state = dict(state), dict(state)
             _walk_resource_block(
-                statement.body, scope, functions, dict(roots), loop_state,
+                statement.body, scope, functions, resources, dict(roots), loop_state,
                 aliases, views, consumers, released_by, dict(kinds), diagnostics, call_stack,
             )
             for root in state:
@@ -312,12 +361,12 @@ def _walk_resource_block(
         if isinstance(statement, For):
             if statement.initializer is not None:
                 _walk_resource_block(
-                    [statement.initializer], scope, functions, roots, state,
+                    [statement.initializer], scope, functions, resources, roots, state,
                     aliases, views, consumers, released_by, kinds, diagnostics, call_stack,
                 )
             before, loop_state = dict(state), dict(state)
             _walk_resource_block(
-                statement.body, scope, functions, dict(roots), loop_state,
+                statement.body, scope, functions, resources, dict(roots), loop_state,
                 aliases, views, consumers, released_by, dict(kinds), diagnostics, call_stack,
             )
             for root in state:
@@ -325,13 +374,13 @@ def _walk_resource_block(
 
 
 def _apply_resource_call(
-    call, scope, functions, roots, state, aliases, views,
+    call, scope, functions, resources, roots, state, aliases, views,
     consumers, released_by, kinds, diagnostics, call_stack,
 ):
     release_calls = {"release", "close", "free", "drop"}
     argument_roots = []
     for argument in call.arguments:
-        name = _resource_argument_name(argument)
+        name = _resource_argument_name(argument, roots)
         if name not in roots:
             continue
         root = roots[name]
@@ -358,15 +407,20 @@ def _apply_resource_call(
         return None
 
     callee_roots = {p.name: p.name for p in resource_params}
-    callee_state = {p.name: ResourceState.ACTIVE for p in resource_params}
-    callee_aliases = {p.name: set() for p in resource_params}
-    callee_views = {p.name: set() for p in resource_params}
-    callee_consumers = {p.name: [] for p in resource_params}
+    for resource in resources:
+        if resource.created_in != callee.name:
+            continue
+        if any(resource.name.startswith(p.name + ".") for p in resource_params):
+            callee_roots[resource.name] = resource.name
+    callee_state = {name: ResourceState.ACTIVE for name in callee_roots}
+    callee_aliases = {name: set() for name in callee_roots}
+    callee_views = {name: set() for name in callee_roots}
+    callee_consumers = {name: [] for name in callee_roots}
     callee_released = {}
-    callee_kinds = {p.name: "root" for p in resource_params}
+    callee_kinds = {name: "root" for name in callee_roots}
     callee_diagnostics = []
     _walk_resource_block(
-        callee.body, callee.name, functions, callee_roots, callee_state,
+        callee.body, callee.name, functions, resources, callee_roots, callee_state,
         callee_aliases, callee_views, callee_consumers, callee_released,
         callee_kinds, callee_diagnostics, call_stack + (callee.name,),
     )
@@ -375,7 +429,7 @@ def _apply_resource_call(
     for index, parameter in enumerate(callee.parameters):
         if parameter.name not in callee_roots or index >= len(call.arguments):
             continue
-        source = _resource_argument_name(call.arguments[index])
+        source = _resource_argument_name(call.arguments[index], roots)
         if source not in roots:
             continue
         root = roots[source]
@@ -388,11 +442,33 @@ def _apply_resource_call(
         aliases[root].update(f"{call.name}.{item}" for item in callee_aliases[parameter.name])
         views[root].update(f"{call.name}.{item}" for item in callee_views[parameter.name])
 
+        # Structured resource fields retain identity across the call boundary.
+        prefix = parameter.name + "."
+        for callee_root in callee_roots:
+            if not callee_root.startswith(prefix):
+                continue
+            suffix = callee_root[len(prefix):]
+            caller_root = f"{root}.{suffix}"
+            if caller_root not in roots:
+                continue
+            nested_field_state = callee_state[callee_root]
+            if nested_field_state == ResourceState.RELEASED:
+                state[caller_root] = ResourceState.RELEASED
+                released_by[caller_root] = callee_released.get(callee_root, call.name)
+            elif nested_field_state != ResourceState.ACTIVE:
+                state[caller_root] = _join_resource_state(state[caller_root], nested_field_state)
+            aliases[caller_root].update(
+                f"{call.name}.{item}" for item in callee_aliases[callee_root]
+            )
+            views[caller_root].update(
+                f"{call.name}.{item}" for item in callee_views[callee_root]
+            )
+
     returned = callee_roots.get("__return__")
     if returned is not None:
         for index, parameter in enumerate(callee.parameters):
             if parameter.name == returned and index < len(call.arguments):
-                source = _resource_argument_name(call.arguments[index])
+                source = _resource_argument_name(call.arguments[index], roots)
                 if source in roots:
                     return roots[source], "alias"
     return None
@@ -548,17 +624,20 @@ def _resource_view_name(expression, roots) -> str:
     while isinstance(target, Index):
         depth += 1
         target = target.target
-    root = roots.get(_resource_argument_name(target), _expression_name(target))
+    root = roots.get(_resource_argument_name(target, roots), _expression_name(target))
     return root + "[]" * depth
 
 
-def _resource_argument_name(expression) -> str:
+def _resource_argument_name(expression, roots=None) -> str:
     if isinstance(expression, Variable):
         return expression.name
     if isinstance(expression, FieldAccess):
-        return _resource_argument_name(expression.target)
+        full_name = _expression_name(expression)
+        if roots is not None and full_name in roots:
+            return full_name
+        return _resource_argument_name(expression.target, roots)
     if isinstance(expression, Index):
-        return _resource_argument_name(expression.target)
+        return _resource_argument_name(expression.target, roots)
     return _expression_name(expression)
 
 

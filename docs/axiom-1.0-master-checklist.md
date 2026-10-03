@@ -187,7 +187,7 @@ AXIOM 1.0 is complete only when the language has:
 - [ ] G19. Track slices/subranges/subresources completely.
 - [ ] G20. Distinguish aliasing, copying, moving, sharing, reuse, and views semantically.
 - [ ] G21. Define sound transfer/move semantics through explicit contracts.
-- [ ] G22. Handle resource fields and structured resources.
+- [x] G22. Handle resource fields and structured resources.
 - [ ] G23. Handle resource containers and collections.
 - [ ] G24. Handle resource flow across concurrency boundaries.
 - [ ] G25. Handle resource flow across process/machine boundaries.

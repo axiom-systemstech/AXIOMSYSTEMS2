@@ -312,6 +312,51 @@ def test_resource_flow_distinguishes_nested_views_from_aliases():
     assert "first" in flow.views
 
 
+
+def test_resource_flow_tracks_structured_resource_fields_and_containment():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Socket:\n"
+        "    endpoint: String\n"
+        "Device:\n"
+        "    socket: Socket\n"
+        "close_device(device: Device):\n"
+        "    release(device.socket)\n"
+        "device: Device\n"
+        "    socket = Socket { endpoint: \"local\" }\n"
+        "close_device(device)\n"
+    )
+    model = analyze(program)
+
+    flow = next(item for item in model.resource_flow if item.resource == "device.socket" and item.scope == "main")
+    assert flow.state == "RELEASED"
+    assert flow.released_by == "release"
+    assert any(
+        relation.relation is Relation.CONTAIN
+        and relation.source == "device"
+        and relation.target == "device.socket"
+        for relation in model.relations
+    )
+
+
+def test_resource_flow_models_collection_views_as_contained_subresources():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "buffers = [1, 2, 3]\n"
+        "first = buffers[0]\n"
+        "show(first)\n"
+    )
+    model = analyze(program)
+
+    assert any(
+        relation.relation is Relation.CONTAIN
+        and relation.source == "buffers"
+        and relation.target == "buffers[]"
+        for relation in model.relations
+    )
+
 def test_resource_flow_state_join_is_an_explicit_lattice():
     from axiom.semantic_model import ResourceState, _join_resource_state
 
