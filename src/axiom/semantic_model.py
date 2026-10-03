@@ -83,6 +83,7 @@ class ResourceFlowFact:
     scope: str
     state: str
     consumers: tuple[str, ...] = ()
+    aliases: tuple[str, ...] = ()
     released_by: str | None = None
 
 
@@ -178,48 +179,85 @@ def _analyze_resource_flow(program: Program, resources: list[ResourceFact]) -> t
     known = {(resource.created_in, resource.name) for resource in resources}
     flow: list[ResourceFlowFact] = []
     diagnostics: list[str] = []
-    release_calls = {"release", "close", "free", "drop"}
-
     for function in program.functions:
-        active = {name for scope, name in known if scope == function.name}
-        consumers: dict[str, list[str]] = {name: [] for name in active}
-        released_by: dict[str, str] = {}
-
-        for statement in function.body:
-            if not isinstance(statement, Call):
-                continue
-            arguments = [_resource_argument_name(argument) for argument in statement.arguments]
-            for name in arguments:
-                if name not in consumers:
-                    continue
-                if name in released_by:
-                    diagnostics.append(
-                        f"resource '{name}' is used after release in '{function.name}'"
-                    )
-                    continue
-                consumers[name].append(statement.name)
-                if statement.name in release_calls:
-                    released_by[name] = statement.name
-                    active.remove(name)
-            if statement.name in release_calls:
-                for name in arguments:
-                    if (function.name, name) in known:
-                        # Release is explicit resource-flow semantics.
-                        pass
-
+        roots = {name: name for scope, name in known if scope == function.name}
+        state = {name: "ACTIVE" for name in roots.values()}
+        aliases = {name: set() for name in roots.values()}
+        consumers = {name: [] for name in roots.values()}
+        released_by = {}
+        _walk_resource_block(function.body, function.name, roots, state, aliases, consumers, released_by, diagnostics)
         for name in sorted(consumers):
-            released = name in released_by
-            flow.append(
-                ResourceFlowFact(
-                    resource=name,
-                    scope=function.name,
-                    state="RELEASED" if released else "ACTIVE",
-                    consumers=tuple(consumers[name]),
-                    released_by=released_by.get(name),
-                )
-            )
-
+            flow.append(ResourceFlowFact(
+                resource=name,
+                scope=function.name,
+                state=state[name],
+                consumers=tuple(consumers[name]),
+                aliases=tuple(sorted(aliases[name])),
+                released_by=released_by.get(name),
+            ))
     return flow, tuple(diagnostics)
+
+
+def _walk_resource_block(statements, scope, roots, state, aliases, consumers, released_by, diagnostics):
+    release_calls = {"release", "close", "free", "drop"}
+    for statement in statements:
+        if isinstance(statement, Let) and isinstance(statement.value, (Variable, FieldAccess, Index)):
+            source = _resource_argument_name(statement.value)
+            if source in roots:
+                root = roots[source]
+                roots[statement.name] = root
+                aliases[root].add(statement.name)
+            continue
+        if isinstance(statement, Assign) and isinstance(statement.target, Variable):
+            source = _resource_argument_name(statement.value)
+            if source in roots:
+                root = roots[source]
+                roots[statement.target.name] = root
+                aliases[root].add(statement.target.name)
+            continue
+        if isinstance(statement, Call):
+            for argument in statement.arguments:
+                name = _resource_argument_name(argument)
+                if name not in roots:
+                    continue
+                root = roots[name]
+                if state[root] in {"RELEASED", "MAYBE_RELEASED"}:
+                    diagnostics.append(f"resource '{root}' is used after release in '{scope}'")
+                    continue
+                consumers[root].append(statement.name)
+                if statement.name in release_calls:
+                    state[root] = "RELEASED"
+                    released_by[root] = statement.name
+            continue
+        if isinstance(statement, If):
+            before = dict(state)
+            then_state = dict(state)
+            else_state = dict(state)
+            _walk_resource_block(statement.then_body, scope, dict(roots), then_state, aliases, consumers, released_by, diagnostics)
+            _walk_resource_block(statement.else_body, scope, dict(roots), else_state, aliases, consumers, released_by, diagnostics)
+            for root in state:
+                left, right = then_state[root], else_state[root]
+                state[root] = left if left == right else ("MAYBE_RELEASED" if "RELEASED" in {left, right} else before[root])
+            continue
+        if isinstance(statement, While):
+            before = dict(state)
+            loop_state = dict(state)
+            _walk_resource_block(statement.body, scope, dict(roots), loop_state, aliases, consumers, released_by, diagnostics)
+            for root in state:
+                if loop_state[root] == "RELEASED" and before[root] == "ACTIVE":
+                    state[root] = "MAYBE_RELEASED"
+                elif loop_state[root] != before[root]:
+                    state[root] = "MAYBE_RELEASED"
+            continue
+        if isinstance(statement, For):
+            if statement.initializer is not None:
+                _walk_resource_block([statement.initializer], scope, roots, state, aliases, consumers, released_by, diagnostics)
+            before = dict(state)
+            loop_state = dict(state)
+            _walk_resource_block(statement.body, scope, dict(roots), loop_state, aliases, consumers, released_by, diagnostics)
+            for root in state:
+                if loop_state[root] != before[root]:
+                    state[root] = "MAYBE_RELEASED"
 
 
 def _visit_function(function: Function, entities, relations, resources, effects, capabilities) -> None:

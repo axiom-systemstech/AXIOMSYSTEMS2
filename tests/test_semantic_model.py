@@ -130,3 +130,42 @@ def test_resource_flow_reports_use_after_release():
     model = analyze(program)
 
     assert "resource 'buffer' is used after release in 'main'" in model.diagnostics
+
+
+def test_resource_flow_preserves_identity_through_alias():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "alias = buffer\n"
+        "show(alias.value)\n"
+        "release(alias)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffer")
+
+    assert flow.state == "RELEASED"
+    assert flow.aliases == ("alias",)
+    assert flow.released_by == "release"
+
+
+def test_resource_flow_branch_join_is_conservative():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "if true:\n"
+        "    release(buffer)\n"
+        "show(buffer.value)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffer")
+
+    assert flow.state == "MAYBE_RELEASED"
+    assert "resource 'buffer' is used after release in 'main'" in model.diagnostics
