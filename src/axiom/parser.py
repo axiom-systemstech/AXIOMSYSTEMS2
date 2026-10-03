@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FieldAccess, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Parameter, Program, Return, StringLiteral, StructDefinition, StructLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Closure, Continue, FieldAccess, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Parameter, Program, Return, Slice, StringLiteral, StructDefinition, StructLiteral, Unary, Variable, While
 from .lexer import Token, TokenKind, lex
 
 
@@ -90,8 +90,11 @@ class Parser:
 
     def _parameter(self) -> Parameter:
         name = self._consume(TokenKind.IDENTIFIER, "expected parameter name").lexeme
-        self._consume(TokenKind.COLON, "expected ':'")
-        type_name = self._type_name()
+        if self._check(TokenKind.COLON):
+            self.position += 1
+            type_name = self._type_name()
+        else:
+            type_name = "Any"
         return Parameter(name, type_name)
 
     def _type_name(self) -> str:
@@ -263,6 +266,18 @@ class Parser:
 
     def _primary(self):
         token = self._current()
+        if token.kind == TokenKind.FN:
+            self.position += 1
+            self._consume(TokenKind.LPAREN, "expected '(' after 'fn'")
+            parameters = []
+            if not self._check(TokenKind.RPAREN):
+                parameters.append(self._parameter())
+                while self._check(TokenKind.COMMA):
+                    self.position += 1
+                    parameters.append(self._parameter())
+            self._consume(TokenKind.RPAREN, "expected ')' after closure parameters")
+            self._consume(TokenKind.ARROW, "expected '->' after closure parameters")
+            return Closure(parameters, self._expression())
         if token.kind == TokenKind.LPAREN:
             self.position += 1
             expression = self._expression()
@@ -310,9 +325,22 @@ class Parser:
             self._error(token, "expected expression")
         while self._check(TokenKind.LBRACKET):
             self.position += 1
-            index = self._expression()
+            if self._check(TokenKind.COLON):
+                start = None
+                self.position += 1
+                end = None if self._check(TokenKind.RBRACKET) else self._expression()
+                self._consume(TokenKind.RBRACKET, "expected ']'")
+                expression = Slice(expression, start, end)
+                continue
+            start = self._expression()
+            if self._check(TokenKind.COLON):
+                self.position += 1
+                end = None if self._check(TokenKind.RBRACKET) else self._expression()
+                self._consume(TokenKind.RBRACKET, "expected ']'")
+                expression = Slice(expression, start, end)
+                continue
             self._consume(TokenKind.RBRACKET, "expected ']'")
-            expression = Index(expression, index)
+            expression = Index(expression, start)
         while self._check(TokenKind.DOT):
             self.position += 1
             field = self._consume(TokenKind.IDENTIFIER, "expected field name").lexeme

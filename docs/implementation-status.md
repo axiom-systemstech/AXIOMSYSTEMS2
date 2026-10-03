@@ -29,16 +29,23 @@ The historical language/toolchain program has established:
 
 The repository also contains the consolidated AXIOM 0.1 semantic specification.
 
-## What is not complete
+## Current 0.1 implementation state
 
-The following are design commitments or transition infrastructure, not finished AXIOM 1.0 features:
+The canonical AXIOM 0.1 English frontend is now executable and covered by conformance tests. It supports the stable source kernel used by the repository: expressions, assignments, indentation blocks, decisions, repetition over collections, structures, typed entities, function definitions, calls, and final-expression functions.
 
-- canonical AXIOM 0.1 frontend;
+The historical brace-based parser remains available as transition infrastructure.
+
+The following are still design commitments or transition infrastructure rather than complete AXIOM 1.0 capabilities:
+
 - complete AXIOM 0.1 semantic compiler;
+
 - complete Resource Flow implementation;
 - complete Information Flow enforcement;
 - complete effects/capabilities system;
 - complete contracts and verification engine;
+
+Implemented slice: canonical `needs`, `can`, `prefer`, `restrict`, `prove`, and `mode` directives survive parsing into the AST and are exposed by the semantic model. Effect-derived capabilities become requirements, explicit `can` declarations constrain them, and unauthorized inferred capabilities produce diagnostics. Resource-like values emit explicit creation relations, lifecycle calls (`release`, `close`, `free`, `drop`) emit release relations, and the semantic model tracks resource state, consumers, release provenance, and use-after-release diagnostics. This is an implementation slice, not the final Resource Flow or verification engine.
+Implemented slice: Resource Flow now has an explicit four-state lattice (`ACTIVE`, `RELEASED`, `MAYBE_RELEASED`, `SHARED`) with conservative branch/loop joins. Resource identities transfer through resource parameters across function calls, release effects propagate back to callers, returned parameter resources preserve identity, and nested indexed views are distinguished from aliases. These behaviors are covered by semantic-model tests. Resource Flow remains incomplete for copy/move/reuse semantics, concurrency, distribution, devices, and complete normative verification. Structured resource fields are modeled as contained resource identities, closures record captured resource identities, slices/subranges are explicit views, and resource containers expose contained element-resource identities.
 - compiler-directed execution planning;
 - final AXIOM IR;
 - final AXIOM ABI;

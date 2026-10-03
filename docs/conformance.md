@@ -82,26 +82,26 @@ Bootstrap is a transition mechanism, not the final language specification.
 A minimal canonical program is:
 
 ```axiom
-mostrar("Hello, AXIOM")
+show("Hello, AXIOM")
 ```
 
 A canonical entity definition is:
 
 ```axiom
-usuario:
-    nombre: texto
-    edad: entero
+user:
+    name: String
+    age: Int
 ```
 
 A canonical entity instance is:
 
 ```axiom
-alex: usuario
-    nombre = "Alex"
-    edad = 25
+alex: user
+    name = "Alex"
+    age = 25
 ```
 
-These examples become executable conformance fixtures as the AXIOM 0.1 frontend advances.
+These examples are executable conformance fixtures in tests/test_canonical.py.
 
 ## Historical compatibility tests
 
@@ -115,6 +115,29 @@ When a historical feature is intentionally retired:
 2. add the canonical replacement test;
 3. document the migration;
 4. remove the obsolete test only after the replacement is verified.
+
+## AXIOM verification command
+
+The repository exposes verification gates through the canonical CLI:
+
+```text
+axiom test
+axiom test language
+axiom test conformance
+axiom test bootstrap
+axiom test independence
+axiom test reproducible
+```
+
+`axiom test` keeps the historical source-test workflow. The named gates make architectural claims executable:
+
+- `language` checks the canonical language suite;
+- `conformance` checks canonical semantic conformance;
+- `bootstrap` verifies the AXIOM-written bootstrap boundary is present;
+- `independence` reports which external implementation foundations still remain;
+- `reproducible` builds the same fixture twice and compares artifact hashes.
+
+A failing independence gate is intentional evidence of remaining work. It must not be converted into a passing placeholder merely to make the dashboard green.
 
 ## Completion gate
 

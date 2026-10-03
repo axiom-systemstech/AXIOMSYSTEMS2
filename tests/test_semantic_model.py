@@ -1,0 +1,427 @@
+from axiom.parser import parse
+from axiom.semantic import analyze
+from axiom.semantic_model import EntityKind, Relation
+
+
+def test_semantic_model_records_entities_relations_and_effects():
+    program = parse(
+        'show("hello")\n'
+        'value = 2\n'
+        'show(value)\n'
+    )
+    model = analyze(program)
+
+    assert any(entity.name == "value" and entity.kind is EntityKind.VALUE for entity in model.entities)
+    assert any(relation.relation is Relation.PRODUCE and relation.source == "value" for relation in model.relations)
+    assert any(effect.name == "terminal.write" and effect.scope == "main" for effect in model.effects)
+    assert "terminal.write" in model.capabilities
+
+
+def test_semantic_model_propagates_function_effects():
+    program = parse(
+        'announce():\n'
+        '    show("hello")\n'
+        '\n'
+        'announce()\n'
+    )
+    model = analyze(program)
+
+    assert any(effect.name == "terminal.write" and effect.scope == "announce" for effect in model.effects)
+    assert any(
+        effect.name == "terminal.write"
+        and effect.scope == "main"
+        and effect.transitive
+        for effect in model.effects
+    )
+
+
+def test_semantic_model_marks_resource_like_entities():
+    program = parse(
+        'Buffer:\n'
+        '    size: Int\n'
+        '\n'
+        'buffer: Buffer\n'
+        '    size = 4\n'
+        '\n'
+        'show(buffer.size)\n'
+    )
+    model = analyze(program)
+
+    assert any(entity.name == "buffer" and entity.kind is EntityKind.RESOURCE for entity in model.entities)
+
+
+def test_canonical_directives_become_semantic_constraints():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "needs:\n"
+        "    terminal.write\n"
+        "can:\n"
+        "    terminal.write\n"
+        "restrict:\n"
+        "    execution = sequential\n"
+        "prefer:\n"
+        "    placement = local\n"
+        "mode:\n"
+        "    real_time\n"
+        "prove:\n"
+        "    deterministic\n"
+        "show(\"hello\")\n"
+    )
+    model = analyze(program)
+
+    assert model.requirements == ("terminal.write",)
+    assert model.allowed_capabilities == ("terminal.write",)
+    assert model.restrictions == ("execution = sequential",)
+    assert model.preferences == ("placement = local",)
+    assert model.modes == ("real_time",)
+    assert model.contracts == ("deterministic",)
+    assert not model.diagnostics
+
+
+def test_capability_restriction_is_diagnostic():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "can:\n"
+        "    filesystem.read\n"
+        "show(\"hello\")\n"
+    )
+    model = analyze(program)
+    assert "capability 'terminal.write' is not allowed by the program" in model.diagnostics
+
+
+def test_resource_flow_tracks_release_and_consumers():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "show(buffer.value)\n"
+        "release(buffer)\n"
+    )
+    model = analyze(program)
+    flow = model.resource_flow[0]
+
+    assert flow.resource == "buffer"
+    assert flow.state == "RELEASED"
+    assert flow.consumers == ("print", "release")
+    assert flow.released_by == "release"
+    assert any(
+        relation.relation.value == "RELEASE"
+        and relation.source == "buffer"
+        for relation in model.relations
+    )
+
+
+def test_resource_flow_reports_use_after_release():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "release(buffer)\n"
+        "show(buffer.value)\n"
+    )
+    model = analyze(program)
+
+    assert "resource 'buffer' is used after release in 'main'" in model.diagnostics
+
+
+def test_resource_flow_preserves_identity_through_alias():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "alias = buffer\n"
+        "show(alias.value)\n"
+        "release(alias)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffer")
+
+    assert flow.state == "RELEASED"
+    assert flow.aliases == ("alias",)
+    assert flow.released_by == "release"
+
+
+def test_resource_flow_branch_join_is_conservative():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "if true:\n"
+        "    release(buffer)\n"
+        "show(buffer.value)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffer")
+
+    assert flow.state == "MAYBE_RELEASED"
+    assert "resource 'buffer' is used after release in 'main'" in model.diagnostics
+
+
+def test_resource_flow_marks_multiple_consumers_as_shared():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "inspect(buffer: Buffer):\n"
+        "    show(buffer.value)\n"
+        "consume(buffer: Buffer):\n"
+        "    show(buffer.value)\n"
+        "inspect(buffer)\n"
+        "consume(buffer)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffer" and item.scope == "main")
+
+    assert flow.state == "SHARED"
+    assert flow.consumers == ("inspect", "consume")
+
+
+def test_resource_flow_emits_share_relations_for_multiple_consumers():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "inspect(buffer: Buffer):\n"
+        "    show(buffer.value)\n"
+        "consume(buffer: Buffer):\n"
+        "    show(buffer.value)\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "inspect(buffer)\n"
+        "consume(buffer)\n"
+    )
+    model = analyze(program)
+
+    shares = [relation for relation in model.relations if relation.relation is Relation.SHARE]
+    assert {(item.source, item.target, item.scope) for item in shares} == {
+        ("buffer", "inspect", "main"),
+        ("buffer", "consume", "main"),
+    }
+
+
+def test_resource_flow_tracks_index_as_view_of_resource():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "buffers = [1, 2]\n"
+        "show(buffers[0])\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffers")
+
+    assert flow.views == ("buffers[]",)
+    assert any(
+        relation.relation is Relation.VIEW
+        and relation.source == "buffers"
+        and relation.target == "buffers[]"
+        for relation in model.relations
+    )
+
+def test_resource_flow_transfers_parameter_identity_interprocedurally():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "inspect(buffer: Buffer):\n"
+        "    show(buffer.value)\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "inspect(buffer)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffer" and item.scope == "main")
+
+    assert flow.consumers == ("inspect",)
+    assert flow.state == "ACTIVE"
+
+
+def test_resource_flow_propagates_interprocedural_release():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "dispose(buffer: Buffer):\n"
+        "    release(buffer)\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "dispose(buffer)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffer" and item.scope == "main")
+
+    assert flow.state == "RELEASED"
+    assert flow.released_by == "release"
+
+
+def test_resource_flow_preserves_resource_identity_through_return():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "forward(buffer: Buffer):\n"
+        "    return buffer\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "alias = forward(buffer)\n"
+        "release(alias)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffer" and item.scope == "main")
+
+    assert flow.state == "RELEASED"
+    assert "alias" in flow.aliases
+
+
+def test_resource_flow_distinguishes_nested_views_from_aliases():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "buffers = [[1, 2], [3, 4]]\n"
+        "first = buffers[0]\n"
+        "nested = first[0]\n"
+        "show(nested)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffers")
+
+    assert "first" not in flow.aliases
+    assert "nested" not in flow.aliases
+    assert "first" in flow.views
+    assert "nested" in flow.views
+    assert "first" in flow.views
+
+
+
+def test_resource_flow_tracks_structured_resource_fields_and_containment():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Socket:\n"
+        "    endpoint: String\n"
+        "Device:\n"
+        "    socket: Socket\n"
+        "close_device(device: Device):\n"
+        "    release(device.socket)\n"
+        "device: Device\n"
+        "    socket = Socket { endpoint: \"local\" }\n"
+        "close_device(device)\n"
+    )
+    model = analyze(program)
+
+    flow = next(item for item in model.resource_flow if item.resource == "device.socket" and item.scope == "main")
+    assert flow.state == "RELEASED"
+    assert flow.released_by == "release"
+    assert any(
+        relation.relation is Relation.CONTAIN
+        and relation.source == "device"
+        and relation.target == "device.socket"
+        for relation in model.relations
+    )
+
+
+def test_resource_flow_models_collection_views_as_contained_subresources():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "buffers = [1, 2, 3]\n"
+        "first = buffers[0]\n"
+        "show(first)\n"
+    )
+    model = analyze(program)
+
+    assert any(
+        relation.relation is Relation.CONTAIN
+        and relation.source == "buffers"
+        and relation.target == "buffers[]"
+        for relation in model.relations
+    )
+
+
+def test_resource_flow_tracks_closure_captures():
+    from axiom.parser import parse
+
+    program = parse(
+        "struct Socket {}\n"
+        "fn main() {\n"
+        "    let socket: Socket = Socket {};\n"
+        "    let handler = fn() -> socket;\n"
+        "}\n"
+    )
+    model = analyze(program)
+
+    flow = next(item for item in model.resource_flow if item.resource == "socket")
+    assert "handler" in flow.captures
+    assert flow.state == "SHARED"
+    assert any(
+        relation.relation is Relation.CAPTURE
+        and relation.source == "socket"
+        and relation.target == "handler"
+        for relation in model.relations
+    )
+
+
+def test_resource_flow_tracks_slice_views_and_open_ended_ranges():
+    from axiom.parser import parse
+
+    program = parse(
+        "struct Buffer {}\n"
+        "fn main() {\n"
+        "    let buffer: Buffer[] = [Buffer {}, Buffer {}];\n"
+        "    let middle = buffer[2:8];\n"
+        "    let tail = buffer[8:];\n"
+
+        "}\n"
+    )
+    model = analyze(program)
+
+    flow = next(item for item in model.resource_flow if item.resource == "buffer")
+    assert "buffer[2:8]" in flow.views
+    assert "buffer[8:]" in flow.views
+
+
+def test_resource_flow_tracks_resource_collection_elements():
+    from axiom.parser import parse
+
+    program = parse(
+        "struct Socket {}\n"
+        "fn main() {\n"
+        "    let sockets: Socket[] = [Socket {}, Socket {}];\n"
+        "}\n"
+    )
+    model = analyze(program)
+
+    assert any(item.name == "sockets[]" and item.type_name == "Socket" for item in model.resources)
+    assert any(
+        relation.relation is Relation.CONTAIN
+        and relation.source == "sockets"
+        and relation.target == "sockets[]"
+        for relation in model.relations
+    )
+
+def test_resource_flow_state_join_is_an_explicit_lattice():
+    from axiom.semantic_model import ResourceState, _join_resource_state
+
+    assert _join_resource_state(ResourceState.ACTIVE, ResourceState.RELEASED) is ResourceState.MAYBE_RELEASED
+    assert _join_resource_state(ResourceState.RELEASED, ResourceState.RELEASED) is ResourceState.RELEASED
+    assert _join_resource_state(ResourceState.SHARED, ResourceState.ACTIVE) is ResourceState.SHARED

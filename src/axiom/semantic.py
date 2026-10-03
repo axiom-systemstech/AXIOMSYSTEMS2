@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FieldAccess, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, StructLiteral, Unary, Variable, While
+from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Closure, Continue, FieldAccess, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, Slice, StringLiteral, StructLiteral, Unary, Variable, While
+from .semantic_model import SemanticModel, build_semantic_model
 
 
 class SemanticError(ValueError):
@@ -11,7 +12,7 @@ class SemanticError(ValueError):
 
 _BUILTIN_TYPES = {"Int", "Float", "Bool", "String"}
 _STRUCTS: dict[str, dict[str, str]] = {}
-_STANDARD_LIBRARY = {'len', 'abs', 'min', 'max'}
+_STANDARD_LIBRARY = {'len', 'abs', 'min', 'max', 'release', 'close', 'free', 'drop'}
 
 
 def _is_known_type(type_name: str) -> bool:
@@ -19,10 +20,10 @@ def _is_known_type(type_name: str) -> bool:
 
 
 def _types_compatible(expected: str, actual: str) -> bool:
-    return actual == expected or (actual == "Array" and expected.endswith("[]"))
+    return expected == "Any" or actual == "Any" or actual == expected or (actual == "Array" and expected.endswith("[]"))
 
 
-def analyze(program: Program) -> None:
+def analyze(program: Program) -> SemanticModel:
     global _STRUCTS
     _STRUCTS = {}
     for struct in program.structs:
@@ -43,9 +44,9 @@ def analyze(program: Program) -> None:
             raise SemanticError(f"duplicate function '{function.name}'")
         function_names.add(function.name)
         parameter_types = [parameter.type_name for parameter in function.parameters]
-        if any(not _is_known_type(type_name) for type_name in parameter_types):
+        if any(not _is_known_type(type_name) and not (program.canonical and type_name == "Any") for type_name in parameter_types):
             raise SemanticError(f"function '{function.name}' uses an unknown parameter type")
-        if function.return_type is not None and not _is_known_type(function.return_type):
+        if function.return_type is not None and not _is_known_type(function.return_type) and not (program.canonical and function.return_type == "Any"):
             raise SemanticError(f"function '{function.name}' uses an unknown return type")
         if len({parameter.name for parameter in function.parameters}) != len(function.parameters):
             raise SemanticError(f"function '{function.name}' has duplicate parameters")
@@ -57,6 +58,8 @@ def analyze(program: Program) -> None:
 
     for function in program.functions:
         _check_function(function, signatures)
+
+    return build_semantic_model(program)
 
 
 def _check_function(function: Function, signatures) -> None:
@@ -132,7 +135,7 @@ def _check_function(function: Function, signatures) -> None:
             _expression_type(statement.arguments[0], variables, signatures)
             continue
         _check_call(statement, variables, signatures)
-    if function.return_type is not None and not returned:
+    if function.return_type is not None and function.return_type != "Any" and not returned:
         raise SemanticError(f"function '{function.name}' must return {function.return_type}")
 
 
@@ -190,7 +193,7 @@ def _check_call(call: Call, variables: dict[str, str], signatures) -> str:
     if len(call.arguments) != len(parameter_types):
         raise SemanticError(f"function '{call.name}' expects {len(parameter_types)} arguments")
     argument_types = [_expression_type(argument, variables, signatures) for argument in call.arguments]
-    if argument_types != parameter_types:
+    if any(not _types_compatible(expected, actual) for expected, actual in zip(parameter_types, argument_types)):
         raise SemanticError(f"function '{call.name}' received {argument_types}, expected {parameter_types}")
     if return_type is None:
         raise SemanticError(f"function '{call.name}' has no return value")
@@ -200,6 +203,10 @@ def _check_call(call: Call, variables: dict[str, str], signatures) -> str:
 
 def _check_builtin(call: Call, variables: dict[str, str], signatures) -> str:
     argument_types = [_expression_type(argument, variables, signatures) for argument in call.arguments]
+    if call.name in {"release", "close", "free", "drop"}:
+        if len(argument_types) != 1:
+            raise SemanticError(f"{call.name} expects exactly one resource")
+        return "Any"
     if call.name == "len":
         if len(argument_types) != 1 or (argument_types[0] != "String" and not argument_types[0].endswith("[]")):
             raise SemanticError("len expects a String or array")
@@ -252,6 +259,21 @@ def _expression_type(expression, variables: dict[str, str], signatures) -> str:
         if not target_type.endswith("[]"):
             raise SemanticError("index requires an array")
         return target_type[:-2]
+    if isinstance(expression, Slice):
+        target_type = _expression_type(expression.target, variables, signatures)
+        if not target_type.endswith("[]"):
+            raise SemanticError("slice requires an array")
+        if expression.start is not None and _expression_type(expression.start, variables, signatures) != "Int":
+            raise SemanticError("slice start requires Int")
+        if expression.end is not None and _expression_type(expression.end, variables, signatures) != "Int":
+            raise SemanticError("slice end requires Int")
+        return target_type
+    if isinstance(expression, Closure):
+        closure_variables = dict(variables)
+        for parameter in expression.parameters:
+            closure_variables[parameter.name] = parameter.type_name
+        _expression_type(expression.body, closure_variables, signatures)
+        return "Closure"
     if isinstance(expression, FieldAccess):
         target_type = _expression_type(expression.target, variables, signatures)
         fields = _STRUCTS.get(target_type)
@@ -263,6 +285,8 @@ def _expression_type(expression, variables: dict[str, str], signatures) -> str:
     if isinstance(expression, Binary):
         left_type = _expression_type(expression.left, variables, signatures)
         right_type = _expression_type(expression.right, variables, signatures)
+        if left_type == "Any" or right_type == "Any":
+            return "Any"
         if expression.operator in {"+", "-", "*", "/"} and left_type == right_type in {"Int", "Float"}:
             return left_type
         if expression.operator == "%" and left_type == right_type == "Int":

@@ -10,49 +10,44 @@ AXIOM keeps the visible syntax small while making the compiler semantically powe
 
 ## Canonical syntax
 
+AXIOM 0.1 uses English as its canonical human-facing syntax. The semantic core is independent of human language; future Spanish and other frontends can lower into the same semantic representation.
+
 The visible kernel is intentionally small:
 
 ```text
 name:
 name = expression
 name(...)
-decidir ...
-repetir ...
-cuando ...
-usar ...
-ofrecer ...
-necesita ...
-puede ...
-prefiere ...
-restringir ...
-demostrar ...
-modo ...
+if condition:
+while condition:
+repeat item in collection:
+when condition:
 ```
 
-Blocks use indentation. Braces are not normal block delimiters.
+Blocks use four-space indentation. Braces are not normal block delimiters.
 
 ### Values and calls
 
 ```axiom
-mostrar("Hello, AXIOM")
+show("Hello, AXIOM")
 
-nombre = "Alex"
-edad = 25
-activo = verdadero
+name = "Alex"
+age = 25
+active = true
 ```
 
 ### Entities and forms
 
 ```axiom
-usuario:
-    nombre: texto
-    edad: entero
+user:
+    name: String
+    age: Int
 
-alex: usuario
-    nombre = "Alex"
-    edad = 25
+alex: user
+    name = "Alex"
+    age = 25
 
-mostrar(alex.nombre)
+show(alex.name)
 ```
 
 A definition describes a form/type. An entity declaration instantiates or specializes that form.
@@ -62,7 +57,7 @@ A definition describes a form/type. An entity declaration instantiates or specia
 Functions do not require `fn`, `def`, or `function`.
 
 ```axiom
-sumar(a, b):
+sum(a, b):
     a + b
 ```
 
@@ -71,18 +66,17 @@ A block normally produces the value of its final expression. Explicit return syn
 ### Decisions
 
 ```axiom
-decidir edad >= 18:
-    verdadero:
-        mostrar("Adult")
-    falso:
-        mostrar("Minor")
+if age >= 18:
+    show("Adult")
+else:
+    show("Minor")
 ```
 
 ### Repetition
 
 ```axiom
-repetir usuario en usuarios:
-    mostrar(usuario.nombre)
+repeat user in users:
+    show(user.name)
 ```
 
 The exact repetition grammar is being stabilized by executable conformance tests.
@@ -90,8 +84,8 @@ The exact repetition grammar is being stabilized by executable conformance tests
 ### Events
 
 ```axiom
-cuando temperatura > 90 °C:
-    detener(motor)
+when temperature > 90:
+    stop(motor)
 ```
 
 Time and periodic execution are semantic properties rather than a second asynchronous language.
@@ -195,7 +189,7 @@ The compiler asks:
 
 This applies to memory, files, sockets, GPU buffers, devices, processes, handles, connections, energy, time, and information.
 
-The compiler may select copy, alias, view, move, sharing, local storage, GPU storage, or reuse when semantics permit it.
+The compiler may select copy, alias, view, move, sharing, local storage, GPU storage, or reuse when semantics permit it. Resource flow recognizes closures (fn(...) -> expression) and records resources captured by the closure, explicit array slices (value[start:end], including open bounds), and resource-typed collection elements as contained subresources.
 
 Explicit restrictions take priority.
 

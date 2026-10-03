@@ -98,6 +98,9 @@ The semantic compiler resolves:
 - contracts;
 - execution feasibility.
 
+AXIOM 0.1 now has an explicit semantic-facts layer (`semantic_model.py`) between the AST and the historical IR. It records entity kinds, semantic relations, resources, capabilities, and effects, and propagates function effects through the call graph.
+Resource Flow in this layer uses an explicit state lattice and conservative joins. Resource identities can cross resource-typed function parameters and return through those parameters without changing identity; structured resource fields are modeled as contained identities and retain their state across calls; closures record captured resource identities; indexed expressions and explicit slices/subranges remain views rather than aliases; resource containers expose contained element-resource identities.
+
 Ambiguity is diagnosed rather than guessed.
 
 ## Intermediate representation

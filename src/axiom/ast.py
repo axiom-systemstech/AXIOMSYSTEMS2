@@ -6,11 +6,19 @@ from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
+class Directive:
+    kind: str
+    value: str
+
+
+@dataclass(frozen=True)
 class Program:
     functions: list["Function"]
     structs: list["StructDefinition"] = field(default_factory=list)
     module_name: str | None = None
     imports: list[str] = field(default_factory=list)
+    canonical: bool = False
+    directives: tuple[Directive, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -147,9 +155,22 @@ class Index:
 
 
 @dataclass(frozen=True)
+class Slice:
+    target: "Expression"
+    start: "Expression | None"
+    end: "Expression | None"
+
+
+@dataclass(frozen=True)
+class Closure:
+    parameters: list["Parameter"]
+    body: "Expression"
+
+
+@dataclass(frozen=True)
 class FieldAccess:
     target: "Expression"
     field: str
 
 
-Expression = StringLiteral | IntegerLiteral | FloatLiteral | BooleanLiteral | ArrayLiteral | StructLiteral | Variable | Binary | Unary | Call | Index | FieldAccess
+Expression = StringLiteral | IntegerLiteral | FloatLiteral | BooleanLiteral | ArrayLiteral | StructLiteral | Variable | Binary | Unary | Call | Index | Slice | Closure | FieldAccess

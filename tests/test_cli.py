@@ -19,7 +19,7 @@ def test_new_creates_project(tmp_path, capsys):
     assert main(["new", str(project)]) == 0
     assert "created:" in capsys.readouterr().out
     assert (project / "axiom.toml").exists()
-    assert (project / "src/main.ax").read_text(encoding="utf-8") == 'fn main() { print("Hello AXIOM") }\n'
+    assert (project / "src/main.ax").read_text(encoding="utf-8") == 'show("Hello AXIOM")\n'
 
 
 def test_test_command_runs_axiom_sources(tmp_path, capsys):
@@ -29,6 +29,28 @@ def test_test_command_runs_axiom_sources(tmp_path, capsys):
     source.write_text('fn main() { print("ok") }', encoding="utf-8")
     assert main(["test", str(tests_path)]) == 0
     assert "test ok: 1 source file(s)" in capsys.readouterr().out
+
+
+def test_test_command_runs_reproducibility_gate(tmp_path, capsys):
+    fixture = tmp_path / "tests" / "fixtures"
+    fixture.mkdir(parents=True)
+    source = fixture / "reproducibility.ax"
+    source.write_text('fn main() { print("stable") }', encoding="utf-8")
+    assert main(["test", "reproducible"]) == 0
+    output = capsys.readouterr().out
+    assert "[PASS] reproducible-build: identical artifacts" in output
+
+
+def test_test_command_exposes_independence_boundary(capsys):
+    assert main(["test", "independence"]) == 1
+    output = capsys.readouterr().out
+    assert "[FAIL] python-independence" in output
+    assert "[FAIL] rust-independence" in output
+
+
+def test_test_command_checks_bootstrap_presence(capsys):
+    assert main(["test", "bootstrap"]) == 0
+    assert "[PASS] bootstrap: AXIOM-written bootstrap stages are present" in capsys.readouterr().out
 
 
 def test_package_creates_archive(tmp_path, monkeypatch, capsys):
