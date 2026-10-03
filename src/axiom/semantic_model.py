@@ -84,6 +84,7 @@ class ResourceFlowFact:
     state: str
     consumers: tuple[str, ...] = ()
     aliases: tuple[str, ...] = ()
+    transferred_to: str | None = None
     released_by: str | None = None
 
 
@@ -187,6 +188,9 @@ def _analyze_resource_flow(program: Program, resources: list[ResourceFact]) -> t
         released_by = {}
         _walk_resource_block(function.body, function.name, roots, state, aliases, consumers, released_by, diagnostics)
         for name in sorted(consumers):
+            non_lifecycle = [item for item in consumers[name] if item not in {"release", "close", "free", "drop"}]
+            if len(set(non_lifecycle)) > 1 and state[name] == "ACTIVE":
+                state[name] = "SHARED"
             flow.append(ResourceFlowFact(
                 resource=name,
                 scope=function.name,
@@ -263,7 +267,10 @@ def _walk_resource_block(statements, scope, roots, state, aliases, consumers, re
 def _visit_function(function: Function, entities, relations, resources, effects, capabilities) -> None:
     scope = function.name
     for parameter in function.parameters:
-        entities.append(EntityFact(parameter.name, EntityKind.VALUE, parameter.type_name, scope))
+        kind = EntityKind.RESOURCE if _looks_like_resource(parameter.name, parameter.type_name) else EntityKind.VALUE
+        entities.append(EntityFact(parameter.name, kind, parameter.type_name, scope))
+        if kind is EntityKind.RESOURCE:
+            resources.append(ResourceFact(parameter.name, parameter.type_name, scope))
 
     for statement in function.body:
         _visit_statement(statement, scope, entities, relations, resources, effects, capabilities)

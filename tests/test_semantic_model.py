@@ -169,3 +169,25 @@ def test_resource_flow_branch_join_is_conservative():
 
     assert flow.state == "MAYBE_RELEASED"
     assert "resource 'buffer' is used after release in 'main'" in model.diagnostics
+
+
+def test_resource_flow_marks_multiple_consumers_as_shared():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "inspect(buffer: Buffer):\n"
+        "    show(buffer.value)\n"
+        "consume(buffer: Buffer):\n"
+        "    show(buffer.value)\n"
+        "inspect(buffer)\n"
+        "consume(buffer)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffer" and item.scope == "main")
+
+    assert flow.state == "SHARED"
+    assert flow.consumers == ("inspect", "consume")
