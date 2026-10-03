@@ -352,4 +352,7 @@ class Parser:
 
 
 def parse(source: str) -> Program:
+    from .new_parser import looks_like_new_syntax, parse_new
+    if looks_like_new_syntax(source):
+        return parse_new(source)
     return Parser(lex(source)).parse()
