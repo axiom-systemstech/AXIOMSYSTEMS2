@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from .ast import Program
+from .ast import Directive, Program
 
 class NewSyntaxError(ValueError):
     """Raised when canonical AXIOM syntax is invalid."""
@@ -201,6 +201,41 @@ def _canonical_to_legacy(source: str) -> str:
     return " ".join(output)
 
 
+def _extract_directives(normalized: list[tuple[int, str, int]]) -> tuple[list[tuple[int, str, int]], tuple[Directive, ...]]:
+    remaining: list[tuple[int, str, int]] = []
+    directives: list[Directive] = []
+    index = 0
+    names = ("needs", "can", "prefer", "restrict", "prove", "mode")
+    while index < len(normalized):
+        depth, text, number = normalized[index]
+        scalar = next((name for name in ("use", "provide") if text.startswith(name + " ")), None)
+        block = next((name for name in names if text == name + ":" or text.startswith(name + ": ")), None)
+        if depth == 0 and scalar:
+            directives.append(Directive(scalar, text[len(scalar):].strip()))
+            index += 1
+            continue
+        if depth == 0 and block:
+            name, _, inline = text.partition(":")
+            if inline.strip():
+                directives.append(Directive(name, inline.strip()))
+                index += 1
+                continue
+            end = index + 1
+            while end < len(normalized) and normalized[end][0] > depth:
+                child_depth, child_text, child_number = normalized[end]
+                if child_depth != depth + 1:
+                    raise NewSyntaxError(f"directive indentation must increase by one level at line {child_number}")
+                directives.append(Directive(name, child_text.strip()))
+                end += 1
+            if end == index + 1:
+                raise NewSyntaxError(f"directive '{name}' requires a value at line {number}")
+            index = end
+            continue
+        remaining.append((depth, text, number))
+        index += 1
+    return remaining, tuple(directives)
+
+
 def parse_new(source: str) -> Program:
     from .lexer import lex
     from .parser import Parser
@@ -212,6 +247,8 @@ def parse_new(source: str) -> Program:
             continue
         depth, text = _indent(line, number)
         normalized.append((depth, text, number))
+
+    normalized, directives = _extract_directives(normalized)
 
     definitions: list[str] = []
     main_lines: list[str] = []
@@ -242,7 +279,8 @@ def parse_new(source: str) -> Program:
         program.structs,
         program.module_name,
         program.imports,
-        canonical=True,
+        True,
+        directives,
     )
 
 

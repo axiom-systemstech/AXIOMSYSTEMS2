@@ -66,6 +66,15 @@ class ResourceFact:
     type_name: str | None
     created_in: str
     consumers: tuple[str, ...] = ()
+    released: bool = False
+
+
+@dataclass(frozen=True)
+class CapabilityFact:
+    name: str
+    source: str
+    scope: str
+    allowed: bool = True
 
 
 @dataclass(frozen=True)
@@ -75,6 +84,13 @@ class SemanticModel:
     resources: tuple[ResourceFact, ...] = ()
     effects: tuple[EffectFact, ...] = ()
     capabilities: tuple[str, ...] = ()
+    requirements: tuple[str, ...] = ()
+    allowed_capabilities: tuple[str, ...] = ()
+    preferences: tuple[str, ...] = ()
+    restrictions: tuple[str, ...] = ()
+    modes: tuple[str, ...] = ()
+    contracts: tuple[str, ...] = ()
+    capability_facts: tuple[CapabilityFact, ...] = ()
     diagnostics: tuple[str, ...] = ()
 
     def effects_for(self, scope: str) -> tuple[EffectFact, ...]:
@@ -109,12 +125,37 @@ def build_semantic_model(program: Program) -> SemanticModel:
     # Calls through user functions propagate their effects to callers.
     effects = _propagate_call_effects(program, effects)
 
+    explicit_needs = {item.value for item in program.directives if item.kind == "needs"}
+    allowed = {item.value for item in program.directives if item.kind == "can"}
+    preferences = tuple(item.value for item in program.directives if item.kind == "prefer")
+    restrictions = tuple(item.value for item in program.directives if item.kind == "restrict")
+    modes = tuple(item.value for item in program.directives if item.kind == "mode")
+    contracts = tuple(item.value for item in program.directives if item.kind == "prove")
+    requirements = explicit_needs | capabilities
+    capability_facts = [
+        CapabilityFact(name, "effect-inference", "program", not allowed or name in allowed)
+        for name in sorted(capabilities)
+    ]
+    diagnostics = tuple(
+        f"capability '{fact.name}' is not allowed by the program"
+        for fact in capability_facts
+        if not fact.allowed
+    )
+
     return SemanticModel(
         entities=tuple(entities),
         relations=tuple(relations),
         resources=tuple(resources),
         effects=tuple(sorted(effects, key=lambda item: (item.scope, item.name, item.source, item.transitive))),
         capabilities=tuple(sorted(capabilities)),
+        requirements=tuple(sorted(requirements)),
+        allowed_capabilities=tuple(sorted(allowed)),
+        preferences=preferences,
+        restrictions=restrictions,
+        modes=modes,
+        contracts=contracts,
+        capability_facts=tuple(capability_facts),
+        diagnostics=diagnostics,
     )
 
 
@@ -134,6 +175,7 @@ def _visit_statement(statement, scope, entities, relations, resources, effects, 
         relations.append(RelationFact(statement.name, Relation.PRODUCE, _expression_name(statement.value), scope))
         if kind is EntityKind.RESOURCE:
             resources.append(ResourceFact(statement.name, statement.type_name, scope))
+            relations.append(RelationFact(scope, Relation.CREATE, statement.name, scope))
         _visit_expression(statement.value, scope, relations, effects, capabilities)
     elif isinstance(statement, Assign):
         target = _expression_name(statement.target)

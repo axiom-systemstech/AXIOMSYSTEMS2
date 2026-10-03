@@ -48,3 +48,44 @@ def test_semantic_model_marks_resource_like_entities():
     model = analyze(program)
 
     assert any(entity.name == "buffer" and entity.kind is EntityKind.RESOURCE for entity in model.entities)
+
+
+def test_canonical_directives_become_semantic_constraints():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "needs:\n"
+        "    terminal.write\n"
+        "can:\n"
+        "    terminal.write\n"
+        "restrict:\n"
+        "    execution = sequential\n"
+        "prefer:\n"
+        "    placement = local\n"
+        "mode:\n"
+        "    real_time\n"
+        "prove:\n"
+        "    deterministic\n"
+        "show(\"hello\")\n"
+    )
+    model = analyze(program)
+
+    assert model.requirements == ("terminal.write",)
+    assert model.allowed_capabilities == ("terminal.write",)
+    assert model.restrictions == ("execution = sequential",)
+    assert model.preferences == ("placement = local",)
+    assert model.modes == ("real_time",)
+    assert model.contracts == ("deterministic",)
+    assert not model.diagnostics
+
+
+def test_capability_restriction_is_diagnostic():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "can:\n"
+        "    filesystem.read\n"
+        "show(\"hello\")\n"
+    )
+    model = analyze(program)
+    assert "capability 'terminal.write' is not allowed by the program" in model.diagnostics

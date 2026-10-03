@@ -43,6 +43,8 @@ The following are still design commitments or transition infrastructure rather t
 - complete Information Flow enforcement;
 - complete effects/capabilities system;
 - complete contracts and verification engine;
+
+Implemented slice: canonical `needs`, `can`, `prefer`, `restrict`, `prove`, and `mode` directives survive parsing into the AST and are exposed by the semantic model. Effect-derived capabilities become requirements, explicit `can` declarations constrain them, and unauthorized inferred capabilities produce diagnostics. Resource-like values also emit explicit creation relations. This is an implementation slice, not the final Resource Flow or verification engine.
 - compiler-directed execution planning;
 - final AXIOM IR;
 - final AXIOM ABI;

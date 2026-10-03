@@ -6,12 +6,19 @@ from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
+class Directive:
+    kind: str
+    value: str
+
+
+@dataclass(frozen=True)
 class Program:
     functions: list["Function"]
     structs: list["StructDefinition"] = field(default_factory=list)
     module_name: str | None = None
     imports: list[str] = field(default_factory=list)
     canonical: bool = False
+    directives: tuple[Directive, ...] = ()
 
 
 @dataclass(frozen=True)
