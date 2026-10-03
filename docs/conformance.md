@@ -82,26 +82,26 @@ Bootstrap is a transition mechanism, not the final language specification.
 A minimal canonical program is:
 
 ```axiom
-mostrar("Hello, AXIOM")
+show("Hello, AXIOM")
 ```
 
 A canonical entity definition is:
 
 ```axiom
-usuario:
-    nombre: texto
-    edad: entero
+user:
+    name: String
+    age: Int
 ```
 
 A canonical entity instance is:
 
 ```axiom
-alex: usuario
-    nombre = "Alex"
-    edad = 25
+alex: user
+    name = "Alex"
+    age = 25
 ```
 
-These examples become executable conformance fixtures as the AXIOM 0.1 frontend advances.
+These examples are executable conformance fixtures in tests/test_canonical.py.
 
 ## Historical compatibility tests
 

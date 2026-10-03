@@ -11,6 +11,7 @@ class Program:
     structs: list["StructDefinition"] = field(default_factory=list)
     module_name: str | None = None
     imports: list[str] = field(default_factory=list)
+    canonical: bool = False
 
 
 @dataclass(frozen=True)

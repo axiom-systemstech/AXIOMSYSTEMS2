@@ -29,12 +29,16 @@ The historical language/toolchain program has established:
 
 The repository also contains the consolidated AXIOM 0.1 semantic specification.
 
-## What is not complete
+## Current 0.1 implementation state
 
-The following are design commitments or transition infrastructure, not finished AXIOM 1.0 features:
+The canonical AXIOM 0.1 English frontend is now executable and covered by conformance tests. It supports the stable source kernel used by the repository: expressions, assignments, indentation blocks, decisions, repetition over collections, structures, typed entities, function definitions, calls, and final-expression functions.
 
-- canonical AXIOM 0.1 frontend;
+The historical brace-based parser remains available as transition infrastructure.
+
+The following are still design commitments or transition infrastructure rather than complete AXIOM 1.0 capabilities:
+
 - complete AXIOM 0.1 semantic compiler;
+
 - complete Resource Flow implementation;
 - complete Information Flow enforcement;
 - complete effects/capabilities system;

@@ -68,73 +68,67 @@ The compiler may use richer internal relations as implementation requires.
 
 ## 3. Canonical syntax
 
-The visible language kernel is intentionally small:
+AXIOM 0.1 has one canonical human-facing syntax: English. The semantic core is language-neutral so future language frontends can provide Spanish and other human languages without creating a second semantic language.
+
+The visible kernel is intentionally small:
 
 ```text
 name:
 name = expression
 name(...)
-decidir ...
-repetir ...
-cuando ...
-usar ...
-ofrecer ...
-necesita ...
-puede ...
-prefiere ...
-restringir ...
-demostrar ...
-modo ...
+if condition:
+while condition:
+repeat item in collection:
+when condition:
 ```
 
-Blocks use indentation. Braces are not normal block delimiters.
+Blocks use four-space indentation. Braces are not normal source delimiters.
 
 Canonical examples:
 
 ```axiom
-mostrar("Hello, AXIOM")
+show("Hello, AXIOM")
 
-nombre = "Alex"
-edad = 25
-activo = verdadero
+name = "Alex"
+age = 25
+active = true
 
-usuario:
-    nombre: texto
-    edad: entero
+user:
+    name: String
+    age: Int
 
-alex: usuario
-    nombre = "Alex"
-    edad = 25
+alex: user
+    name = "Alex"
+    age = 25
 
-sumar(a, b):
+sum(a, b):
     a + b
 ```
 
 Decision:
 
 ```axiom
-decidir edad >= 18:
-    verdadero:
-        mostrar("Adult")
-    falso:
-        mostrar("Minor")
+if age >= 18:
+    show("Adult")
+else:
+    show("Minor")
 ```
 
 Repetition:
 
 ```axiom
-repetir usuario en usuarios:
-    mostrar(usuario.nombre)
+repeat user in users:
+    show(user.name)
 ```
 
-Event:
+Conditional event form:
 
 ```axiom
-cuando temperatura > 90 °C:
-    detener(motor)
+when temperature > 90:
+    stop(motor)
 ```
 
-The exact grammar is frozen only through executable conformance tests. The canonical design takes precedence over accidental syntax inherited from the historical prototype.
+The canonical frontend is executable and covered by conformance tests. Historical syntax such as `fn`, `print`, and brace-delimited blocks remains accepted only as transition syntax; it is not the canonical AXIOM 0.1 surface. Future Spanish support belongs to a language frontend, not to the core grammar.
 
 ## 4. Blocks and values
 

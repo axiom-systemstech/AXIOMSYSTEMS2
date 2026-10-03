@@ -90,8 +90,11 @@ class Parser:
 
     def _parameter(self) -> Parameter:
         name = self._consume(TokenKind.IDENTIFIER, "expected parameter name").lexeme
-        self._consume(TokenKind.COLON, "expected ':'")
-        type_name = self._type_name()
+        if self._check(TokenKind.COLON):
+            self.position += 1
+            type_name = self._type_name()
+        else:
+            type_name = "Any"
         return Parameter(name, type_name)
 
     def _type_name(self) -> str:

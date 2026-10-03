@@ -19,7 +19,7 @@ def test_new_creates_project(tmp_path, capsys):
     assert main(["new", str(project)]) == 0
     assert "created:" in capsys.readouterr().out
     assert (project / "axiom.toml").exists()
-    assert (project / "src/main.ax").read_text(encoding="utf-8") == 'fn main() { print("Hello AXIOM") }\n'
+    assert (project / "src/main.ax").read_text(encoding="utf-8") == 'show("Hello AXIOM")\n'
 
 
 def test_test_command_runs_axiom_sources(tmp_path, capsys):

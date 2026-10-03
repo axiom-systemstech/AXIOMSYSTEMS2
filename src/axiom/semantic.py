@@ -19,7 +19,7 @@ def _is_known_type(type_name: str) -> bool:
 
 
 def _types_compatible(expected: str, actual: str) -> bool:
-    return actual == expected or (actual == "Array" and expected.endswith("[]"))
+    return expected == "Any" or actual == "Any" or actual == expected or (actual == "Array" and expected.endswith("[]"))
 
 
 def analyze(program: Program) -> None:
@@ -43,9 +43,9 @@ def analyze(program: Program) -> None:
             raise SemanticError(f"duplicate function '{function.name}'")
         function_names.add(function.name)
         parameter_types = [parameter.type_name for parameter in function.parameters]
-        if any(not _is_known_type(type_name) for type_name in parameter_types):
+        if any(not _is_known_type(type_name) and not (program.canonical and type_name == "Any") for type_name in parameter_types):
             raise SemanticError(f"function '{function.name}' uses an unknown parameter type")
-        if function.return_type is not None and not _is_known_type(function.return_type):
+        if function.return_type is not None and not _is_known_type(function.return_type) and not (program.canonical and function.return_type == "Any"):
             raise SemanticError(f"function '{function.name}' uses an unknown return type")
         if len({parameter.name for parameter in function.parameters}) != len(function.parameters):
             raise SemanticError(f"function '{function.name}' has duplicate parameters")
@@ -190,7 +190,7 @@ def _check_call(call: Call, variables: dict[str, str], signatures) -> str:
     if len(call.arguments) != len(parameter_types):
         raise SemanticError(f"function '{call.name}' expects {len(parameter_types)} arguments")
     argument_types = [_expression_type(argument, variables, signatures) for argument in call.arguments]
-    if argument_types != parameter_types:
+    if any(not _types_compatible(expected, actual) for expected, actual in zip(parameter_types, argument_types)):
         raise SemanticError(f"function '{call.name}' received {argument_types}, expected {parameter_types}")
     if return_type is None:
         raise SemanticError(f"function '{call.name}' has no return value")
@@ -263,6 +263,8 @@ def _expression_type(expression, variables: dict[str, str], signatures) -> str:
     if isinstance(expression, Binary):
         left_type = _expression_type(expression.left, variables, signatures)
         right_type = _expression_type(expression.right, variables, signatures)
+        if left_type == "Any" or right_type == "Any":
+            return "Any"
         if expression.operator in {"+", "-", "*", "/"} and left_type == right_type in {"Int", "Float"}:
             return left_type
         if expression.operator == "%" and left_type == right_type == "Int":

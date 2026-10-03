@@ -97,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
                 encoding="utf-8",
             )
             (project / "src" / "main.ax").write_text(
-                'fn main() { print("Hello AXIOM") }' + chr(10),
+                'show("Hello AXIOM")' + chr(10),
                 encoding="utf-8",
             )
         except OSError as error:
