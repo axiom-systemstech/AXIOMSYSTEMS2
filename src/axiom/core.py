@@ -9,6 +9,7 @@ from .ast import Program
 from .ir import IRProgram, lower
 from .parser import parse
 from .semantic import analyze
+from .semantic_model import SemanticModel
 
 class CompilerError(ValueError):
     """Raised for project/module graph errors."""
@@ -24,6 +25,7 @@ class SourceUnit:
 class Compilation:
     program: Program
     ir: IRProgram
+    semantic: SemanticModel
     units: tuple[SourceUnit, ...]
 
 class ModuleResolver:
@@ -90,11 +92,11 @@ class Compiler:
         for unit in units:
             functions.extend(unit.program.functions)
             structs.extend(unit.program.structs)
-        program = Program(functions, structs)
-        analyze(program)
-        return Compilation(program, lower(program), units)
+        program = Program(functions, structs, canonical=all(unit.program.canonical for unit in units))
+        semantic = analyze(program)
+        return Compilation(program, lower(program), semantic, units)
 
     def compile_source(self, source: str) -> Compilation:
         program = parse(source)
-        analyze(program)
-        return Compilation(program, lower(program), ())
+        semantic = analyze(program)
+        return Compilation(program, lower(program), semantic, ())
