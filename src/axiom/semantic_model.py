@@ -35,6 +35,7 @@ class Relation(str, Enum):
     CONTAIN = "CONTAIN"
     MEASURE = "MEASURE"
     SHARE = "SHARE"
+    VIEW = "VIEW"
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,7 @@ class ResourceFlowFact:
     state: str
     consumers: tuple[str, ...] = ()
     aliases: tuple[str, ...] = ()
+    views: tuple[str, ...] = ()
     released_by: str | None = None
 
 
@@ -142,6 +144,8 @@ def build_semantic_model(program: Program) -> SemanticModel:
             for consumer in item.consumers:
                 if consumer not in {"release", "close", "free", "drop"}:
                     relations.append(RelationFact(item.resource, Relation.SHARE, consumer, item.scope))
+        for view in item.views:
+            relations.append(RelationFact(item.resource, Relation.VIEW, view, item.scope))
 
     explicit_needs = {item.value for item in program.directives if item.kind == "needs"}
     allowed = {item.value for item in program.directives if item.kind == "can"}
@@ -189,9 +193,10 @@ def _analyze_resource_flow(program: Program, resources: list[ResourceFact]) -> t
         roots = {name: name for scope, name in known if scope == function.name}
         state = {name: "ACTIVE" for name in roots.values()}
         aliases = {name: set() for name in roots.values()}
+        views = {name: set() for name in roots.values()}
         consumers = {name: [] for name in roots.values()}
         released_by = {}
-        _walk_resource_block(function.body, function.name, roots, state, aliases, consumers, released_by, diagnostics)
+        _walk_resource_block(function.body, function.name, roots, state, aliases, views, consumers, released_by, diagnostics)
         for name in sorted(consumers):
             non_lifecycle = [item for item in consumers[name] if item not in {"release", "close", "free", "drop"}]
             if len(set(non_lifecycle)) > 1 and state[name] == "ACTIVE":
@@ -202,12 +207,13 @@ def _analyze_resource_flow(program: Program, resources: list[ResourceFact]) -> t
                 state=state[name],
                 consumers=tuple(consumers[name]),
                 aliases=tuple(sorted(aliases[name])),
+                views=tuple(sorted(views[name])),
                 released_by=released_by.get(name),
             ))
     return flow, tuple(diagnostics)
 
 
-def _walk_resource_block(statements, scope, roots, state, aliases, consumers, released_by, diagnostics):
+def _walk_resource_block(statements, scope, roots, state, aliases, views, consumers, released_by, diagnostics):
     release_calls = {"release", "close", "free", "drop"}
     for statement in statements:
         if isinstance(statement, Let) and isinstance(statement.value, (Variable, FieldAccess, Index)):
@@ -230,6 +236,8 @@ def _walk_resource_block(statements, scope, roots, state, aliases, consumers, re
                 if name not in roots:
                     continue
                 root = roots[name]
+                if isinstance(argument, Index):
+                    views[root].add(_expression_name(argument))
                 if state[root] in {"RELEASED", "MAYBE_RELEASED"}:
                     diagnostics.append(f"resource '{root}' is used after release in '{scope}'")
                     continue
@@ -242,8 +250,8 @@ def _walk_resource_block(statements, scope, roots, state, aliases, consumers, re
             before = dict(state)
             then_state = dict(state)
             else_state = dict(state)
-            _walk_resource_block(statement.then_body, scope, dict(roots), then_state, aliases, consumers, released_by, diagnostics)
-            _walk_resource_block(statement.else_body, scope, dict(roots), else_state, aliases, consumers, released_by, diagnostics)
+            _walk_resource_block(statement.then_body, scope, dict(roots), then_state, aliases, views, consumers, released_by, diagnostics)
+            _walk_resource_block(statement.else_body, scope, dict(roots), else_state, aliases, views, consumers, released_by, diagnostics)
             for root in state:
                 left, right = then_state[root], else_state[root]
                 state[root] = left if left == right else ("MAYBE_RELEASED" if "RELEASED" in {left, right} else before[root])
@@ -251,7 +259,7 @@ def _walk_resource_block(statements, scope, roots, state, aliases, consumers, re
         if isinstance(statement, While):
             before = dict(state)
             loop_state = dict(state)
-            _walk_resource_block(statement.body, scope, dict(roots), loop_state, aliases, consumers, released_by, diagnostics)
+            _walk_resource_block(statement.body, scope, dict(roots), loop_state, aliases, views, consumers, released_by, diagnostics)
             for root in state:
                 if loop_state[root] == "RELEASED" and before[root] == "ACTIVE":
                     state[root] = "MAYBE_RELEASED"
@@ -260,10 +268,10 @@ def _walk_resource_block(statements, scope, roots, state, aliases, consumers, re
             continue
         if isinstance(statement, For):
             if statement.initializer is not None:
-                _walk_resource_block([statement.initializer], scope, roots, state, aliases, consumers, released_by, diagnostics)
+                _walk_resource_block([statement.initializer], scope, roots, state, aliases, views, consumers, released_by, diagnostics)
             before = dict(state)
             loop_state = dict(state)
-            _walk_resource_block(statement.body, scope, dict(roots), loop_state, aliases, consumers, released_by, diagnostics)
+            _walk_resource_block(statement.body, scope, dict(roots), loop_state, aliases, views, consumers, released_by, diagnostics)
             for root in state:
                 if loop_state[root] != before[root]:
                     state[root] = "MAYBE_RELEASED"

@@ -215,3 +215,22 @@ def test_resource_flow_emits_share_relations_for_multiple_consumers():
         ("buffer", "inspect", "main"),
         ("buffer", "consume", "main"),
     }
+
+
+def test_resource_flow_tracks_index_as_view_of_resource():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "buffers = [1, 2]\n"
+        "show(buffers[0])\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffers")
+
+    assert flow.views == ("buffers[]",)
+    assert any(
+        relation.relation is Relation.VIEW
+        and relation.source == "buffers"
+        and relation.target == "buffers[]"
+        for relation in model.relations
+    )
