@@ -12,7 +12,7 @@ class SemanticError(ValueError):
 
 _BUILTIN_TYPES = {"Int", "Float", "Bool", "String"}
 _STRUCTS: dict[str, dict[str, str]] = {}
-_STANDARD_LIBRARY = {'len', 'abs', 'min', 'max'}
+_STANDARD_LIBRARY = {'len', 'abs', 'min', 'max', 'release', 'close', 'free', 'drop'}
 
 
 def _is_known_type(type_name: str) -> bool:
@@ -203,6 +203,10 @@ def _check_call(call: Call, variables: dict[str, str], signatures) -> str:
 
 def _check_builtin(call: Call, variables: dict[str, str], signatures) -> str:
     argument_types = [_expression_type(argument, variables, signatures) for argument in call.arguments]
+    if call.name in {"release", "close", "free", "drop"}:
+        if len(argument_types) != 1:
+            raise SemanticError(f"{call.name} expects exactly one resource")
+        return "Any"
     if call.name == "len":
         if len(argument_types) != 1 or (argument_types[0] != "String" and not argument_types[0].endswith("[]")):
             raise SemanticError("len expects a String or array")

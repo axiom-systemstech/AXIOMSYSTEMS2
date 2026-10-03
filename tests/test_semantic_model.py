@@ -89,3 +89,44 @@ def test_capability_restriction_is_diagnostic():
     )
     model = analyze(program)
     assert "capability 'terminal.write' is not allowed by the program" in model.diagnostics
+
+
+def test_resource_flow_tracks_release_and_consumers():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "show(buffer.value)\n"
+        "release(buffer)\n"
+    )
+    model = analyze(program)
+    flow = model.resource_flow[0]
+
+    assert flow.resource == "buffer"
+    assert flow.state == "RELEASED"
+    assert flow.consumers == ("print", "release")
+    assert flow.released_by == "release"
+    assert any(
+        relation.relation.value == "RELEASE"
+        and relation.source == "buffer"
+        for relation in model.relations
+    )
+
+
+def test_resource_flow_reports_use_after_release():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "release(buffer)\n"
+        "show(buffer.value)\n"
+    )
+    model = analyze(program)
+
+    assert "resource 'buffer' is used after release in 'main'" in model.diagnostics

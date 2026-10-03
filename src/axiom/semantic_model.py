@@ -78,10 +78,20 @@ class CapabilityFact:
 
 
 @dataclass(frozen=True)
+class ResourceFlowFact:
+    resource: str
+    scope: str
+    state: str
+    consumers: tuple[str, ...] = ()
+    released_by: str | None = None
+
+
+@dataclass(frozen=True)
 class SemanticModel:
     entities: tuple[EntityFact, ...] = ()
     relations: tuple[RelationFact, ...] = ()
     resources: tuple[ResourceFact, ...] = ()
+    resource_flow: tuple[ResourceFlowFact, ...] = ()
     effects: tuple[EffectFact, ...] = ()
     capabilities: tuple[str, ...] = ()
     requirements: tuple[str, ...] = ()
@@ -124,6 +134,7 @@ def build_semantic_model(program: Program) -> SemanticModel:
 
     # Calls through user functions propagate their effects to callers.
     effects = _propagate_call_effects(program, effects)
+    resource_flow, resource_diagnostics = _analyze_resource_flow(program, resources)
 
     explicit_needs = {item.value for item in program.directives if item.kind == "needs"}
     allowed = {item.value for item in program.directives if item.kind == "can"}
@@ -137,15 +148,19 @@ def build_semantic_model(program: Program) -> SemanticModel:
         for name in sorted(capabilities)
     ]
     diagnostics = tuple(
-        f"capability '{fact.name}' is not allowed by the program"
-        for fact in capability_facts
-        if not fact.allowed
+        [
+            f"capability '{fact.name}' is not allowed by the program"
+            for fact in capability_facts
+            if not fact.allowed
+        ]
+        + list(resource_diagnostics)
     )
 
     return SemanticModel(
         entities=tuple(entities),
         relations=tuple(relations),
         resources=tuple(resources),
+        resource_flow=tuple(resource_flow),
         effects=tuple(sorted(effects, key=lambda item: (item.scope, item.name, item.source, item.transitive))),
         capabilities=tuple(sorted(capabilities)),
         requirements=tuple(sorted(requirements)),
@@ -157,6 +172,54 @@ def build_semantic_model(program: Program) -> SemanticModel:
         capability_facts=tuple(capability_facts),
         diagnostics=diagnostics,
     )
+
+
+def _analyze_resource_flow(program: Program, resources: list[ResourceFact]) -> tuple[list[ResourceFlowFact], tuple[str, ...]]:
+    known = {(resource.created_in, resource.name) for resource in resources}
+    flow: list[ResourceFlowFact] = []
+    diagnostics: list[str] = []
+    release_calls = {"release", "close", "free", "drop"}
+
+    for function in program.functions:
+        active = {name for scope, name in known if scope == function.name}
+        consumers: dict[str, list[str]] = {name: [] for name in active}
+        released_by: dict[str, str] = {}
+
+        for statement in function.body:
+            if not isinstance(statement, Call):
+                continue
+            arguments = [_resource_argument_name(argument) for argument in statement.arguments]
+            for name in arguments:
+                if name not in consumers:
+                    continue
+                if name in released_by:
+                    diagnostics.append(
+                        f"resource '{name}' is used after release in '{function.name}'"
+                    )
+                    continue
+                consumers[name].append(statement.name)
+                if statement.name in release_calls:
+                    released_by[name] = statement.name
+                    active.remove(name)
+            if statement.name in release_calls:
+                for name in arguments:
+                    if (function.name, name) in known:
+                        # Release is explicit resource-flow semantics.
+                        pass
+
+        for name in sorted(consumers):
+            released = name in released_by
+            flow.append(
+                ResourceFlowFact(
+                    resource=name,
+                    scope=function.name,
+                    state="RELEASED" if released else "ACTIVE",
+                    consumers=tuple(consumers[name]),
+                    released_by=released_by.get(name),
+                )
+            )
+
+    return flow, tuple(diagnostics)
 
 
 def _visit_function(function: Function, entities, relations, resources, effects, capabilities) -> None:
@@ -230,6 +293,10 @@ def _visit_call(call: Call, scope, relations, effects, capabilities) -> None:
         relations.append(RelationFact(_expression_name(argument), Relation.CONSUME, call.name, scope))
         _visit_expression(argument, scope, relations, effects, capabilities)
 
+    if call.name in {"release", "close", "free", "drop"}:
+        for argument in call.arguments:
+            relations.append(RelationFact(_expression_name(argument), Relation.RELEASE, call.name, scope))
+
     effect_name, capability = _CALL_EFFECTS.get(call.name, (f"call.{call.name}", None))
     if effect_name:
         effects.append(EffectFact(effect_name, scope, call.name))
@@ -292,6 +359,16 @@ def _looks_like_resource(name: str, type_name: str | None) -> bool:
     haystack = f"{name} {type_name or ''}".lower()
     markers = ("resource", "file", "socket", "device", "buffer", "handle", "connection", "process", "thread", "gpu")
     return any(marker in haystack for marker in markers)
+
+
+def _resource_argument_name(expression) -> str:
+    if isinstance(expression, Variable):
+        return expression.name
+    if isinstance(expression, FieldAccess):
+        return _resource_argument_name(expression.target)
+    if isinstance(expression, Index):
+        return _resource_argument_name(expression.target)
+    return _expression_name(expression)
 
 
 def _expression_name(expression) -> str:
