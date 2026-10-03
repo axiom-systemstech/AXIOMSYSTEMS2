@@ -31,6 +31,28 @@ def test_test_command_runs_axiom_sources(tmp_path, capsys):
     assert "test ok: 1 source file(s)" in capsys.readouterr().out
 
 
+def test_test_command_runs_reproducibility_gate(tmp_path, capsys):
+    fixture = tmp_path / "tests" / "fixtures"
+    fixture.mkdir(parents=True)
+    source = fixture / "reproducibility.ax"
+    source.write_text('fn main() { print("stable") }', encoding="utf-8")
+    assert main(["test", "reproducible"]) == 0
+    output = capsys.readouterr().out
+    assert "[PASS] reproducible-build: identical artifacts" in output
+
+
+def test_test_command_exposes_independence_boundary(capsys):
+    assert main(["test", "independence"]) == 1
+    output = capsys.readouterr().out
+    assert "[FAIL] python-independence" in output
+    assert "[FAIL] rust-independence" in output
+
+
+def test_test_command_checks_bootstrap_presence(capsys):
+    assert main(["test", "bootstrap"]) == 0
+    assert "[PASS] bootstrap: AXIOM-written bootstrap stages are present" in capsys.readouterr().out
+
+
 def test_package_creates_archive(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "axiom.toml").write_text(

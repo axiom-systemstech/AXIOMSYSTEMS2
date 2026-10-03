@@ -16,6 +16,7 @@ from .parser import parse
 from .runtime import execute
 from .semantic import analyze
 from .studio import serve as serve_studio
+from .tester import format_results, run_test_mode
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,8 +33,8 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("source", type=Path)
     new_parser = subparsers.add_parser("new", help="create an AXIOM project")
     new_parser.add_argument("name", type=Path)
-    test_parser = subparsers.add_parser("test", help="run AXIOM source tests")
-    test_parser.add_argument("path", type=Path, nargs="?", default=Path("tests"))
+    test_parser = subparsers.add_parser("test", help="run AXIOM verification gates")
+    test_parser.add_argument("target", nargs="?", default="tests", help="test path or verification mode: language, conformance, bootstrap, independence, reproducible")
     package_parser = subparsers.add_parser("package", help="create a distributable AXIOM package")
     package_parser.add_argument("-o", "--output", type=Path)
     add_parser = subparsers.add_parser("add", help="add a package from the local AXIOM registry")
@@ -106,10 +107,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"created: {project}")
         return 0
     if args.command == "test":
-        if not args.path.exists():
-            print(f"error: test path does not exist: {args.path}", file=sys.stderr)
+        modes = {"language", "conformance", "bootstrap", "independence", "reproducible"}
+        if args.target in modes:
+            try:
+                results = run_test_mode(args.target, Path.cwd())
+            except (OSError, ValueError) as error:
+                print(f"error: {error}", file=sys.stderr)
+                return 1
+            print(format_results(results))
+            return 0 if all(result.passed for result in results) else 1
+
+        path = Path(args.target)
+        if not path.exists():
+            print(f"error: test path does not exist: {path}", file=sys.stderr)
             return 1
-        sources = sorted(args.path.rglob("*.ax")) if args.path.is_dir() else [args.path]
+        sources = sorted(path.rglob("*.ax")) if path.is_dir() else [path]
         try:
             for source in sources:
                 program = parse(source.read_text(encoding="utf-8"))
