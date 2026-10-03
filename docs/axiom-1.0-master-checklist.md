@@ -179,11 +179,11 @@ AXIOM 1.0 is complete only when the language has:
 - [x] G11. Represent proven resource sharing.
 - [x] G12. Track indexed resource views/subresources.
 - [x] G13. Emit VIEW relations for indexed subresources.
-- [ ] G14. Define the complete Resource Flow state lattice.
-- [ ] G15. Track resource flow through function parameters interprocedurally.
-- [ ] G16. Track resources returned from functions.
+- [x] G14. Define the complete Resource Flow state lattice.
+- [x] G15. Track resource flow through function parameters interprocedurally.
+- [x] G16. Track resources returned from functions.
 - [ ] G17. Track resources captured by closures.
-- [ ] G18. Track resources through nested/composed views.
+- [x] G18. Track resources through nested/composed views.
 - [ ] G19. Track slices/subranges/subresources completely.
 - [ ] G20. Distinguish aliasing, copying, moving, sharing, reuse, and views semantically.
 - [ ] G21. Define sound transfer/move semantics through explicit contracts.

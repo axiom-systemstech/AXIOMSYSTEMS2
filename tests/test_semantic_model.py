@@ -234,3 +234,87 @@ def test_resource_flow_tracks_index_as_view_of_resource():
         and relation.target == "buffers[]"
         for relation in model.relations
     )
+
+def test_resource_flow_transfers_parameter_identity_interprocedurally():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "inspect(buffer: Buffer):\n"
+        "    show(buffer.value)\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "inspect(buffer)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffer" and item.scope == "main")
+
+    assert flow.consumers == ("inspect",)
+    assert flow.state == "ACTIVE"
+
+
+def test_resource_flow_propagates_interprocedural_release():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "dispose(buffer: Buffer):\n"
+        "    release(buffer)\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "dispose(buffer)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffer" and item.scope == "main")
+
+    assert flow.state == "RELEASED"
+    assert flow.released_by == "release"
+
+
+def test_resource_flow_preserves_resource_identity_through_return():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "forward(buffer: Buffer):\n"
+        "    return buffer\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "alias = forward(buffer)\n"
+        "release(alias)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffer" and item.scope == "main")
+
+    assert flow.state == "RELEASED"
+    assert "alias" in flow.aliases
+
+
+def test_resource_flow_distinguishes_nested_views_from_aliases():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "buffers = [[1, 2], [3, 4]]\n"
+        "first = buffers[0]\n"
+        "nested = first[0]\n"
+        "show(nested)\n"
+    )
+    model = analyze(program)
+    flow = next(item for item in model.resource_flow if item.resource == "buffers")
+
+    assert "first" not in flow.aliases
+    assert "nested" not in flow.aliases
+    assert "first" in flow.views
+    assert "nested" in flow.views
+    assert "first" in flow.views
+
+
+def test_resource_flow_state_join_is_an_explicit_lattice():
+    from axiom.semantic_model import ResourceState, _join_resource_state
+
+    assert _join_resource_state(ResourceState.ACTIVE, ResourceState.RELEASED) is ResourceState.MAYBE_RELEASED
+    assert _join_resource_state(ResourceState.RELEASED, ResourceState.RELEASED) is ResourceState.RELEASED
+    assert _join_resource_state(ResourceState.SHARED, ResourceState.ACTIVE) is ResourceState.SHARED

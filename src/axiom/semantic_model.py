@@ -79,6 +79,13 @@ class CapabilityFact:
     allowed: bool = True
 
 
+class ResourceState(str, Enum):
+    ACTIVE = "ACTIVE"
+    RELEASED = "RELEASED"
+    MAYBE_RELEASED = "MAYBE_RELEASED"
+    SHARED = "SHARED"
+
+
 @dataclass(frozen=True)
 class ResourceFlowFact:
     resource: str
@@ -186,95 +193,209 @@ def build_semantic_model(program: Program) -> SemanticModel:
 
 
 def _analyze_resource_flow(program: Program, resources: list[ResourceFact]) -> tuple[list[ResourceFlowFact], tuple[str, ...]]:
-    known = {(resource.created_in, resource.name) for resource in resources}
+    functions = {function.name: function for function in program.functions}
     flow: list[ResourceFlowFact] = []
     diagnostics: list[str] = []
+
     for function in program.functions:
-        roots = {name: name for scope, name in known if scope == function.name}
-        state = {name: "ACTIVE" for name in roots.values()}
+        roots = {item.name: item.name for item in resources if item.created_in == function.name}
+        state = {name: ResourceState.ACTIVE for name in roots.values()}
         aliases = {name: set() for name in roots.values()}
         views = {name: set() for name in roots.values()}
         consumers = {name: [] for name in roots.values()}
         released_by = {}
-        _walk_resource_block(function.body, function.name, roots, state, aliases, views, consumers, released_by, diagnostics)
+        kinds = {name: "root" for name in roots}
+        _walk_resource_block(
+            function.body, function.name, functions, roots, state, aliases, views,
+            consumers, released_by, kinds, diagnostics, (function.name,),
+        )
         for name in sorted(consumers):
             non_lifecycle = [item for item in consumers[name] if item not in {"release", "close", "free", "drop"}]
-            if len(set(non_lifecycle)) > 1 and state[name] == "ACTIVE":
-                state[name] = "SHARED"
+            if len(set(non_lifecycle)) > 1 and state[name] == ResourceState.ACTIVE:
+                state[name] = ResourceState.SHARED
             flow.append(ResourceFlowFact(
-                resource=name,
-                scope=function.name,
-                state=state[name],
-                consumers=tuple(consumers[name]),
-                aliases=tuple(sorted(aliases[name])),
-                views=tuple(sorted(views[name])),
-                released_by=released_by.get(name),
+                name, function.name, state[name].value, tuple(consumers[name]),
+                tuple(sorted(aliases[name])), tuple(sorted(views[name])), released_by.get(name),
             ))
     return flow, tuple(diagnostics)
 
 
-def _walk_resource_block(statements, scope, roots, state, aliases, views, consumers, released_by, diagnostics):
+def _join_resource_state(left: ResourceState, right: ResourceState) -> ResourceState:
+    if left == right:
+        return left
+    if ResourceState.SHARED in {left, right}:
+        return ResourceState.SHARED
+    return ResourceState.MAYBE_RELEASED
+
+
+def _walk_resource_block(
+    statements, scope, functions, roots, state, aliases, views,
+    consumers, released_by, kinds, diagnostics, call_stack,
+):
     release_calls = {"release", "close", "free", "drop"}
     for statement in statements:
-        if isinstance(statement, Let) and isinstance(statement.value, (Variable, FieldAccess, Index)):
+        if isinstance(statement, Let):
+            if isinstance(statement.value, Call):
+                returned = _apply_resource_call(
+                    statement.value, scope, functions, roots, state, aliases, views,
+                    consumers, released_by, kinds, diagnostics, call_stack,
+                )
+                if returned is not None:
+                    root, kind = returned
+                    roots[statement.name] = root
+                    kinds[statement.name] = kind
+                    (views if kind == "view" else aliases)[root].add(statement.name)
+                continue
             source = _resource_argument_name(statement.value)
             if source in roots:
                 root = roots[source]
                 roots[statement.name] = root
-                aliases[root].add(statement.name)
+                if isinstance(statement.value, Index):
+                    kinds[statement.name] = "view"
+                    views[root].update({_resource_view_name(statement.value, roots), statement.name})
+                else:
+                    kinds[statement.name] = "alias"
+                    aliases[root].add(statement.name)
             continue
+
         if isinstance(statement, Assign) and isinstance(statement.target, Variable):
             source = _resource_argument_name(statement.value)
             if source in roots:
                 root = roots[source]
                 roots[statement.target.name] = root
-                aliases[root].add(statement.target.name)
+                if isinstance(statement.value, Index):
+                    kinds[statement.target.name] = "view"
+                    views[root].update({_expression_name(statement.value), statement.target.name})
+                else:
+                    kinds[statement.target.name] = "alias"
+                    aliases[root].add(statement.target.name)
             continue
+
+        if isinstance(statement, Return):
+            source = _resource_argument_name(statement.value)
+            if source in roots:
+                roots["__return__"] = roots[source]
+                kinds["__return__"] = kinds.get(source, "root")
+            continue
+
         if isinstance(statement, Call):
-            for argument in statement.arguments:
-                name = _resource_argument_name(argument)
-                if name not in roots:
-                    continue
-                root = roots[name]
-                if isinstance(argument, Index):
-                    views[root].add(_expression_name(argument))
-                if state[root] in {"RELEASED", "MAYBE_RELEASED"}:
-                    diagnostics.append(f"resource '{root}' is used after release in '{scope}'")
-                    continue
-                consumers[root].append(statement.name)
-                if statement.name in release_calls:
-                    state[root] = "RELEASED"
-                    released_by[root] = statement.name
+            _apply_resource_call(
+                statement, scope, functions, roots, state, aliases, views,
+                consumers, released_by, kinds, diagnostics, call_stack,
+            )
             continue
+
         if isinstance(statement, If):
-            before = dict(state)
-            then_state = dict(state)
-            else_state = dict(state)
-            _walk_resource_block(statement.then_body, scope, dict(roots), then_state, aliases, views, consumers, released_by, diagnostics)
-            _walk_resource_block(statement.else_body, scope, dict(roots), else_state, aliases, views, consumers, released_by, diagnostics)
+            then_state, else_state = dict(state), dict(state)
+            _walk_resource_block(
+                statement.then_body, scope, functions, dict(roots), then_state,
+                aliases, views, consumers, released_by, dict(kinds), diagnostics, call_stack,
+            )
+            _walk_resource_block(
+                statement.else_body, scope, functions, dict(roots), else_state,
+                aliases, views, consumers, released_by, dict(kinds), diagnostics, call_stack,
+            )
             for root in state:
-                left, right = then_state[root], else_state[root]
-                state[root] = left if left == right else ("MAYBE_RELEASED" if "RELEASED" in {left, right} else before[root])
+                state[root] = _join_resource_state(then_state[root], else_state[root])
             continue
+
         if isinstance(statement, While):
-            before = dict(state)
-            loop_state = dict(state)
-            _walk_resource_block(statement.body, scope, dict(roots), loop_state, aliases, views, consumers, released_by, diagnostics)
+            before, loop_state = dict(state), dict(state)
+            _walk_resource_block(
+                statement.body, scope, functions, dict(roots), loop_state,
+                aliases, views, consumers, released_by, dict(kinds), diagnostics, call_stack,
+            )
             for root in state:
-                if loop_state[root] == "RELEASED" and before[root] == "ACTIVE":
-                    state[root] = "MAYBE_RELEASED"
-                elif loop_state[root] != before[root]:
-                    state[root] = "MAYBE_RELEASED"
+                state[root] = _join_resource_state(before[root], loop_state[root])
             continue
+
         if isinstance(statement, For):
             if statement.initializer is not None:
-                _walk_resource_block([statement.initializer], scope, roots, state, aliases, views, consumers, released_by, diagnostics)
-            before = dict(state)
-            loop_state = dict(state)
-            _walk_resource_block(statement.body, scope, dict(roots), loop_state, aliases, views, consumers, released_by, diagnostics)
+                _walk_resource_block(
+                    [statement.initializer], scope, functions, roots, state,
+                    aliases, views, consumers, released_by, kinds, diagnostics, call_stack,
+                )
+            before, loop_state = dict(state), dict(state)
+            _walk_resource_block(
+                statement.body, scope, functions, dict(roots), loop_state,
+                aliases, views, consumers, released_by, dict(kinds), diagnostics, call_stack,
+            )
             for root in state:
-                if loop_state[root] != before[root]:
-                    state[root] = "MAYBE_RELEASED"
+                state[root] = _join_resource_state(before[root], loop_state[root])
+
+
+def _apply_resource_call(
+    call, scope, functions, roots, state, aliases, views,
+    consumers, released_by, kinds, diagnostics, call_stack,
+):
+    release_calls = {"release", "close", "free", "drop"}
+    argument_roots = []
+    for argument in call.arguments:
+        name = _resource_argument_name(argument)
+        if name not in roots:
+            continue
+        root = roots[name]
+        argument_roots.append((argument, root))
+        if isinstance(argument, Index):
+            views[root].add(_resource_view_name(argument, roots))
+        if state[root] in {ResourceState.RELEASED, ResourceState.MAYBE_RELEASED}:
+            diagnostics.append(f"resource '{root}' is used after release in '{scope}'")
+            continue
+        consumers[root].append(call.name)
+        if call.name in release_calls:
+            state[root] = ResourceState.RELEASED
+            released_by[root] = call.name
+
+    callee = functions.get(call.name)
+    if callee is None or call.name in call_stack:
+        if callee is not None and call.name in call_stack:
+            for _, root in argument_roots:
+                state[root] = _join_resource_state(state[root], ResourceState.MAYBE_RELEASED)
+        return None
+
+    resource_params = [p for p in callee.parameters if _looks_like_resource(p.name, p.type_name)]
+    if not resource_params:
+        return None
+
+    callee_roots = {p.name: p.name for p in resource_params}
+    callee_state = {p.name: ResourceState.ACTIVE for p in resource_params}
+    callee_aliases = {p.name: set() for p in resource_params}
+    callee_views = {p.name: set() for p in resource_params}
+    callee_consumers = {p.name: [] for p in resource_params}
+    callee_released = {}
+    callee_kinds = {p.name: "root" for p in resource_params}
+    callee_diagnostics = []
+    _walk_resource_block(
+        callee.body, callee.name, functions, callee_roots, callee_state,
+        callee_aliases, callee_views, callee_consumers, callee_released,
+        callee_kinds, callee_diagnostics, call_stack + (callee.name,),
+    )
+    diagnostics.extend(callee_diagnostics)
+
+    for index, parameter in enumerate(callee.parameters):
+        if parameter.name not in callee_roots or index >= len(call.arguments):
+            continue
+        source = _resource_argument_name(call.arguments[index])
+        if source not in roots:
+            continue
+        root = roots[source]
+        nested_state = callee_state[parameter.name]
+        if nested_state == ResourceState.RELEASED:
+            state[root] = ResourceState.RELEASED
+            released_by[root] = callee_released.get(parameter.name, call.name)
+        elif nested_state != ResourceState.ACTIVE:
+            state[root] = _join_resource_state(state[root], nested_state)
+        aliases[root].update(f"{call.name}.{item}" for item in callee_aliases[parameter.name])
+        views[root].update(f"{call.name}.{item}" for item in callee_views[parameter.name])
+
+    returned = callee_roots.get("__return__")
+    if returned is not None:
+        for index, parameter in enumerate(callee.parameters):
+            if parameter.name == returned and index < len(call.arguments):
+                source = _resource_argument_name(call.arguments[index])
+                if source in roots:
+                    return roots[source], "alias"
+    return None
 
 
 def _visit_function(function: Function, entities, relations, resources, effects, capabilities) -> None:
@@ -417,6 +538,18 @@ def _looks_like_resource(name: str, type_name: str | None) -> bool:
     haystack = f"{name} {type_name or ''}".lower()
     markers = ("resource", "file", "socket", "device", "buffer", "handle", "connection", "process", "thread", "gpu")
     return any(marker in haystack for marker in markers)
+
+
+def _resource_view_name(expression, roots) -> str:
+    if not isinstance(expression, Index):
+        return _expression_name(expression)
+    depth = 0
+    target = expression
+    while isinstance(target, Index):
+        depth += 1
+        target = target.target
+    root = roots.get(_resource_argument_name(target), _expression_name(target))
+    return root + "[]" * depth
 
 
 def _resource_argument_name(expression) -> str:

@@ -45,6 +45,7 @@ The following are still design commitments or transition infrastructure rather t
 - complete contracts and verification engine;
 
 Implemented slice: canonical `needs`, `can`, `prefer`, `restrict`, `prove`, and `mode` directives survive parsing into the AST and are exposed by the semantic model. Effect-derived capabilities become requirements, explicit `can` declarations constrain them, and unauthorized inferred capabilities produce diagnostics. Resource-like values emit explicit creation relations, lifecycle calls (`release`, `close`, `free`, `drop`) emit release relations, and the semantic model tracks resource state, consumers, release provenance, and use-after-release diagnostics. This is an implementation slice, not the final Resource Flow or verification engine.
+Implemented slice: Resource Flow now has an explicit four-state lattice (`ACTIVE`, `RELEASED`, `MAYBE_RELEASED`, `SHARED`) with conservative branch/loop joins. Resource identities transfer through resource parameters across function calls, release effects propagate back to callers, returned parameter resources preserve identity, and nested indexed views are distinguished from aliases. These behaviors are covered by semantic-model tests. Resource Flow remains incomplete for closures, slices/subranges, copy/move/reuse semantics, structured resource fields, containers, concurrency, distribution, devices, and complete normative verification.
 - compiler-directed execution planning;
 - final AXIOM IR;
 - final AXIOM ABI;
