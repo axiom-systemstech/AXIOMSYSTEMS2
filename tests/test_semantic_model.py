@@ -191,3 +191,27 @@ def test_resource_flow_marks_multiple_consumers_as_shared():
 
     assert flow.state == "SHARED"
     assert flow.consumers == ("inspect", "consume")
+
+
+def test_resource_flow_emits_share_relations_for_multiple_consumers():
+    from axiom.new_parser import parse_new
+
+    program = parse_new(
+        "Buffer:\n"
+        "    value: Int\n"
+        "inspect(buffer: Buffer):\n"
+        "    show(buffer.value)\n"
+        "consume(buffer: Buffer):\n"
+        "    show(buffer.value)\n"
+        "buffer: Buffer\n"
+        "    value = 1\n"
+        "inspect(buffer)\n"
+        "consume(buffer)\n"
+    )
+    model = analyze(program)
+
+    shares = [relation for relation in model.relations if relation.relation is Relation.SHARE]
+    assert {(item.source, item.target, item.scope) for item in shares} == {
+        ("buffer", "inspect", "main"),
+        ("buffer", "consume", "main"),
+    }

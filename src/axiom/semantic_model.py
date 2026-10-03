@@ -34,6 +34,7 @@ class Relation(str, Enum):
     RELEASE = "RELEASE"
     CONTAIN = "CONTAIN"
     MEASURE = "MEASURE"
+    SHARE = "SHARE"
 
 
 @dataclass(frozen=True)
@@ -84,7 +85,6 @@ class ResourceFlowFact:
     state: str
     consumers: tuple[str, ...] = ()
     aliases: tuple[str, ...] = ()
-    transferred_to: str | None = None
     released_by: str | None = None
 
 
@@ -137,6 +137,11 @@ def build_semantic_model(program: Program) -> SemanticModel:
     # Calls through user functions propagate their effects to callers.
     effects = _propagate_call_effects(program, effects)
     resource_flow, resource_diagnostics = _analyze_resource_flow(program, resources)
+    for item in resource_flow:
+        if item.state == "SHARED":
+            for consumer in item.consumers:
+                if consumer not in {"release", "close", "free", "drop"}:
+                    relations.append(RelationFact(item.resource, Relation.SHARE, consumer, item.scope))
 
     explicit_needs = {item.value for item in program.directives if item.kind == "needs"}
     allowed = {item.value for item in program.directives if item.kind == "can"}
