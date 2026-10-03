@@ -1,53 +1,72 @@
 # AXIOM Native Backend
 
-## Architecture
+## Current role
 
-The native backend sits after the existing native parser and semantic analysis:
+The native backend is transition infrastructure inherited from the historical AXIOM implementation.
+
+It currently lowers the existing native pipeline into a standalone executable by packaging an AXIOM artifact with the Rust runtime.
+
+## Historical architecture
 
 ```text
 AXIOM source
     ↓
-native lexer/parser
+Rust lexer/parser
     ↓
-native semantic analysis
+Rust semantic analysis
     ↓
-AXIOM native artifact
+AXIOM_ARTIFACT_V1
     ↓
-AOT launcher generation
+Rust AOT launcher
     ↓
-rustc + axiom_native runtime
+Rust runtime
     ↓
 standalone executable
 ```
 
-The generated executable embeds the serialized AXIOM artifact and links the native
-runtime as an `rlib`. The executable therefore does not require Python or the AXIOM
-CLI at runtime.
+This architecture is useful for bootstrap and testing, but it is not the final AXIOM 0.1 architecture.
 
-## CLI
+## Target architecture
 
-```bash
-cargo run --manifest-path native/Cargo.toml -- native-build examples/hello.ax
-cargo run --manifest-path native/Cargo.toml -- native-build examples/hello.ax out/hello
-cargo run --manifest-path native/Cargo.toml -- native-build examples/hello.ax out/hello --target aarch64-unknown-linux-gnu
+```text
+AXIOM source
+    ↓
+AXIOM compiler
+    ↓
+AXIOM IR
+    ↓
+native target backend
+    ↓
+AXIOM runtime / target machine
 ```
 
-`host` is the default target. A non-host target is passed directly to Cargo and
-rustc, so the corresponding Rust target and linker/toolchain must be installed.
+The target backend must be defined by AXIOM semantics rather than by Rust-specific implementation assumptions.
 
-## ABI boundary
+## Target model
 
-The current native boundary is deliberately process-oriented: an AXIOM executable
-has a native `main` entry point and communicates through the host process ABI and
-standard I/O. The runtime itself remains an internal Rust library until a stable
-AXIOM FFI ABI is defined in a later phase.
+Targets may include:
+
+- desktop/server CPUs;
+- SIMD;
+- GPU;
+- NPU;
+- embedded systems;
+- mobile;
+- web;
+- distributed systems;
+- specialized hardware;
+- future execution targets.
+
+The language remains one language. A target changes compilation strategy, available capabilities, and constraints.
+
+## ABI
+
+The current executable boundary is process-oriented and Rust-hosted.
+
+AXIOM 0.1 requires a language-owned ABI covering representation, layout, alignment, calls, structures, errors, resources, capabilities, and compatibility.
 
 ## Reproducibility
 
-Native generation avoids source timestamps and incremental build state. The generated
-launcher uses a fixed crate name, one codegen unit, fixed optimization settings,
-and path remapping. The serialized AXIOM artifact is deterministic; final executable
-byte identity also depends on the installed rustc and platform linker toolchain.
+Transition builds are deterministic at the serialized artifact level where declared inputs are identical. Final executable byte identity may still depend on the host Rust compiler and platform linker.
 
-Cross-compilation is target-driven rather than host-driven: the requested target
-triple determines the runtime library build and final executable target.
+This dependency is one of the boundaries targeted by the self-hosting program.

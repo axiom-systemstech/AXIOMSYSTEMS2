@@ -1,224 +1,724 @@
-# AXIOM 0.1 — Especificación conceptual consolidada
+# AXIOM 0.1 — Consolidated Semantic Specification
 
-Estado: diseño conceptual cerrado para iniciar implementación.
+**Status:** conceptual design closed; implementation is now underway.
 
-## 1. Identidad
+This document is the semantic reference for the definitive AXIOM 0.1 implementation. It describes the language that the repository is moving toward, not every behavior of the historical prototype.
 
-AXIOM es un lenguaje universal, general-purpose, compilable y orientado a expresar significado humano de forma natural y formal. La sintaxis visible es pequeña; el modelo semántico es profundo.
+## 1. Identity
 
-Principio: natural en la expresión, formal en el significado.
+AXIOM is a universal, general-purpose, compiled programming language designed to express human intent naturally while preserving precise formal meaning.
 
-AXIOM no depende de IA, red, servidor o servicio externo para compilar, verificar, optimizar o explicar un programa.
+> Natural in expression, formal in meaning.
 
-## 2. Modelo semántico
+AXIOM is one language across application, systems, embedded, scientific, robotics, industrial, distributed, hardware, and future operating-system domains.
 
-INTENCIÓN → ENTIDADES → RELACIONES → RECURSOS → CAPACIDADES → EFECTOS → RESTRICCIONES → CONTRATOS → PLAN → EJECUCIÓN.
+The compiler must not depend on an AI model, network connection, external server, account, or remote service to compile, verify, optimize, or explain a program.
 
-Entidades internas: VALUE, DATA, RESOURCE, CAPABILITY, KNOWLEDGE.
+## 2. Semantic pipeline
 
-Relaciones: produce, consume, transforma, lee, escribe, depende, llama, comunica, crea, libera, contiene y mide.
+The core semantic model is:
 
-## 3. Sintaxis canónica
+```text
+INTENTION
+    ↓
+ENTITIES
+    ↓
+RELATIONS
+    ↓
+RESOURCES
+    ↓
+CAPABILITIES
+    ↓
+EFFECTS
+    ↓
+RESTRICTIONS
+    ↓
+CONTRACTS
+    ↓
+PLAN
+    ↓
+EXECUTION
+```
 
-El núcleo visible queda reducido a: nombre:, nombre = expresión, nombre(...), decidir, repetir, cuando, usar, ofrecer, necesita, puede, prefiere, restringir, demostrar y modo.
+Internal entity categories include:
 
-Los bloques usan indentación. Las llaves no son delimitadores normales.
+- VALUE
+- DATA
+- RESOURCE
+- CAPABILITY
+- KNOWLEDGE
 
-Ejemplo:
+Core relations include:
 
-    usuario:
-        nombre: texto
-        edad: entero
+- PRODUCE
+- CONSUME
+- TRANSFORM
+- READ
+- WRITE
+- DEPEND
+- CALL
+- COMMUNICATE
+- CONTROL
+- CREATE
+- RELEASE
+- CONTAIN
+- MEASURE
 
-    alex: usuario
-        nombre = "Alex"
-        edad = 25
+The compiler may use richer internal relations as implementation requires.
 
-    mostrar(alex.nombre)
+## 3. Canonical syntax
 
-Las funciones no requieren fn/def/function:
+The visible language kernel is intentionally small:
 
-    sumar(a, b):
-        a + b
+```text
+name:
+name = expression
+name(...)
+decidir ...
+repetir ...
+cuando ...
+usar ...
+ofrecer ...
+necesita ...
+puede ...
+prefiere ...
+restringir ...
+demostrar ...
+modo ...
+```
 
-El resultado normal de un bloque es su última expresión. return deja de ser pieza fundamental.
+Blocks use indentation. Braces are not normal block delimiters.
 
-## 4. Tipos
+Canonical examples:
 
-Un tipo es conocimiento formal sobre una entidad: significado, estructura, identidad, capacidades, relaciones, estados, restricciones, contratos, representación y conocimiento verificable.
+```axiom
+mostrar("Hello, AXIOM")
 
-Tipos base: booleano, entero, real, decimal, texto, carácter, bytes, tiempo, duración y unidad.
+nombre = "Alex"
+edad = 25
+activo = verdadero
 
-Científicos: racional, complejo, vector, matriz, tensor, intervalo, probabilidad y números algebraicos.
+usuario:
+    nombre: texto
+    edad: entero
 
-Unidades y dimensionalidad son parte del sistema semántico.
+alex: usuario
+    nombre = "Alex"
+    edad = 25
 
-No existe null universal. Ausencia y fallo son posibilidades semánticas.
+sumar(a, b):
+    a + b
+```
 
-Generalización: relaciones + conformance + restricciones + inferencia. No se adopta <T>, traits o herencia como fundamento.
+Decision:
 
-## 5. Módulos y paquetes
+```axiom
+decidir edad >= 18:
+    verdadero:
+        mostrar("Adult")
+    falso:
+        mostrar("Minor")
+```
 
-usar modulo expresa dependencia semántica. ofrecer define la interfaz pública.
+Repetition:
 
-Un módulo describe entidades, relaciones, capacidades, efectos, contratos, fallos y plataformas.
+```axiom
+repetir usuario en usuarios:
+    mostrar(usuario.nombre)
+```
 
-Jerarquía: PROYECTO → PAQUETE → MÓDULO → ENTIDADES.
+Event:
 
-La identidad lógica no depende de la ubicación física de los archivos.
+```axiom
+cuando temperatura > 90 °C:
+    detener(motor)
+```
 
-## 6. Resource Flow
+The exact grammar is frozen only through executable conformance tests. The canonical design takes precedence over accidental syntax inherited from the historical prototype.
 
-AXIOM no obliga al programador a modelar ownership, borrowing o lifetimes.
+## 4. Blocks and values
 
-Pregunta: qué necesita existir, quién lo usa, qué operaciones se hacen, qué dependencias existen, cuándo termina el último uso y qué representación minimiza el coste.
+Blocks are semantic values.
 
-CREACIÓN → USOS → DEPENDENCIAS → ÚLTIMO CONSUMIDOR → LIBERACIÓN/REUTILIZACIÓN.
+A block normally produces the value of its final expression. Explicit return syntax is not a foundational language construct.
 
-Se aplica a memoria, archivos, sockets, GPU, NPU, QPU, dispositivos, procesos, threads, handles, conexiones, energía, tiempo e información.
+This allows the same block model to describe definitions, decisions, event responses, computations, resource plans, and other semantic constructs.
 
-El compilador puede elegir copia, alias, view, movimiento interno, almacenamiento local, compartido, GPU, etc. Las restricciones explícitas tienen prioridad.
+## 5. Types and forms
 
-## 7. Concurrencia
+A type is formal knowledge about an entity.
 
-La concurrencia es una propiedad del plan, no una colección de async/await/thread como sintaxis fundamental.
+Conceptually:
 
-AXIOM descubre independencia, paraleliza cuando es beneficioso, sincroniza cuando es necesario, detecta conflictos y carreras, y mantiene secuencialidad cuando la semántica lo exige.
+```text
+TYPE =
+    meaning
+  + structure
+  + identity
+  + capabilities
+  + relations
+  + valid states
+  + restrictions
+  + contracts
+  + representation
+  + verifiable knowledge
+```
 
-Targets: CPU, SIMD, GPU, NPU, QPU, procesos, máquinas y clusters.
+The language distinguishes:
 
-Eventos: cuando condición: acción. Periodicidad: cada 10 ms: medir(sensor).
+```text
+TYPE
+  ↓
+FORM
+  ↓
+VALUE
+  ↓
+ENTITY
+```
 
-El tiempo real añade deadlines, periodos, jitter, prioridad, bloqueo y determinismo.
+Core types include:
 
-## 8. Efectos y capacidades
+- boolean;
+- integer;
+- real;
+- decimal;
+- text;
+- character;
+- bytes;
+- unit;
+- time;
+- duration.
 
-Efecto = qué hace una operación. Capacidad = qué está autorizado a hacer. Recurso = sobre qué entidad opera.
+Scientific types include:
 
-Los efectos se infieren y propagan transitivamente.
+- rational;
+- complex;
+- vector;
+- matrix;
+- tensor;
+- interval;
+- probability;
+- algebraic numbers.
 
-Ejemplos: filesystem.read, filesystem.write, network.read, network.write, camera.read, gpu, clock.read, secure_randomness, hardware.raw_memory.
+Units and dimensionality are first-class.
 
-necesita expresa requisito. puede expresa permiso/posibilidad. prefiere expresa preferencia. restringir expresa obligación.
+```axiom
+mass = 5 kg
+speed = 9.81 m/s²
+temperature = 25 °C
+period = 10 ms
+```
 
-Una dependencia no obtiene automáticamente todos los privilegios que conoce. Principio de mínimo privilegio.
+Exact and approximate mathematics must remain distinguishable.
+
+There is no universal null model. Absence and failure are semantic possibilities represented by the relevant type or contract.
+
+## 6. Generalization
+
+AXIOM does not make angle-bracket generics, inheritance, traits, or interface hierarchies the foundation of generalization.
+
+Generalization is expressed through:
+
+- semantic relations;
+- conformance;
+- required operations;
+- restrictions;
+- contracts;
+- inference;
+- specialization.
+
+An abstraction should express the conditions it needs rather than enumerate every type it knows.
+
+## 7. Modules and packages
+
+The project hierarchy is:
+
+```text
+PROJECT → PACKAGE → MODULE → SEMANTIC SPACE → ENTITY
+```
+
+`usar` expresses semantic dependency.
+
+`ofrecer` defines a public semantic interface.
+
+Name resolution is deterministic. Resolution must not search arbitrary project state merely to guess programmer intent.
+
+Resolution should consider, where relevant:
+
+1. local definitions;
+2. parameters and local entities;
+3. current semantic space;
+4. explicitly used modules;
+5. official library entities;
+6. declared package dependencies.
+
+Ambiguity is an error, not an invitation to guess.
+
+## 8. Resource Flow
+
+Resource Flow replaces ownership/borrowing/lifetime syntax as the primary language model for resource management.
+
+The compiler asks:
+
+- what must exist;
+- who needs it;
+- for how long;
+- what operations are allowed;
+- what dependencies exist;
+- when the last consumer finishes;
+- what representation satisfies the constraints.
+
+Conceptually:
+
+```text
+RESOURCE
+   ↓
+CREATION
+   ↓
+USES
+   ↓
+DEPENDENCIES
+   ↓
+LAST CONSUMER
+   ↓
+RELEASE / REUSE
+```
+
+The model applies to:
+
+- memory;
+- files;
+- sockets;
+- GPU/NPU/QPU buffers;
+- devices;
+- processes;
+- threads;
+- handles;
+- connections;
+- information;
+- energy;
+- time.
+
+The compiler may choose copying, aliasing, views, moves, sharing, local storage, device storage, reuse, or other representations when semantics permit it.
+
+Explicit restrictions have priority.
 
 ## 9. Information Flow
 
-El flujo de información se analiza aparte del flujo de recursos.
+Resource Flow and Information Flow are separate analyses.
 
-Los datos pueden tener clasificación y política. Una capacidad para escribir red no implica permiso para enviar cualquier dato.
+Information may carry classifications or policies.
 
-El compilador debe detectar flujos prohibidos y explicar su procedencia.
+A capability to write to a network does not automatically authorize sending every category of information through that network.
 
-Toda capacidad relevante debe tener procedencia explicable: quién la necesita, por qué, qué operación la usa, qué módulo la introduce y qué efecto produce.
+The compiler must be able to identify prohibited flows and explain their provenance.
 
-## 10. Contratos y verificación
+## 10. Effects, capabilities, and resources
 
-demostrar introduce una propiedad que AXIOM debe analizar.
+These are distinct:
 
-Estados de conocimiento: DEMOSTRADO, COMPROBADO, MEDIDO, SIMULADO, OBSERVADO, SUPUESTO, DESCONOCIDO, REFUTADO y NO ANALIZADO.
+```text
+RESOURCE   = what an operation acts on
+CAPABILITY = what it is authorized to do
+EFFECT     = what it actually does
+```
 
-AXIOM nunca presenta una observación o test como demostración matemática.
+Effects are inferred and propagated transitively.
 
-Los contratos pueden cubrir entradas, salidas, invariantes, estados, recursos, capacidades, efectos, memoria, tiempo, energía, distribución, determinismo y seguridad.
+Examples:
 
-Los contraejemplos deben mostrarse cuando sea posible.
+```text
+filesystem.read
+filesystem.write
+network.read
+network.write
+camera.read
+gpu
+clock.read
+secure_randomness
+hardware.raw_memory
+```
 
-## 11. Tolerancia a fallos
+`necesita` declares requirements.
 
-Los fallos son posibilidades normales del modelo, no una arquitectura excepcional.
+`puede` declares allowed capabilities.
 
-Conceptos: retry, timeout, fallback, restart, isolate, degrade, replace, propagate, recover y cancel.
+`prefiere` declares a soft preference.
 
-El compilador conoce si repetir una operación es seguro mediante contratos de idempotencia. Nunca se reintenta ciegamente una operación con efectos potencialmente no repetibles.
+`restringir` declares a hard constraint.
 
-## 12. Tiempo y determinismo
+Capability provenance must be explainable: who introduced it, why it is required, where it is used, and which effects result.
 
-El tiempo es un recurso/efecto observable. Se distinguen duración, instante, reloj, periodo, deadline, latencia, jitter y prioridad.
+## 11. Concurrency and execution planning
 
-restringir expresa garantías duras. prefiere expresa objetivos blandos.
+Concurrency is a property of the execution plan, not a separate asynchronous language.
 
-Ejemplo:
+The compiler may:
 
-    restringir:
-        deadline = 1 ms
-        determinismo = obligatorio
+- discover independent operations;
+- parallelize them;
+- choose CPU/SIMD/GPU/NPU/QPU execution;
+- distribute work across processes or machines;
+- insert required synchronization;
+- detect conflicts and races;
+- preserve sequential execution when semantics require it.
 
-## 13. Distribución
+Foundational syntax does not require `async`, `await`, `thread`, `mutex`, `lock`, or `spawn`.
 
-La distribución utiliza el mismo modelo de entidades, recursos, efectos y restricciones.
+A hard sequential constraint can be expressed semantically:
 
-Recursos adicionales: nodos, red, latencia, serialización, consistencia y particiones.
+```axiom
+restringir:
+    ejecución = secuencial
+```
 
-Contratos: atomicidad, idempotencia, consistencia, recuperación y timeout.
+## 12. Time and determinism
 
-RPC, colas, sockets y shared memory son implementaciones, no modelos lingüísticos independientes.
+Time is an observable resource/effect.
 
-## 14. Metaprogramación y reflexión
+The model distinguishes:
 
-El lenguaje tratará código, tipos y esquemas como entidades inspeccionables.
+- instant;
+- duration;
+- clock;
+- period;
+- deadline;
+- latency;
+- jitter;
+- priority.
 
-Capacidades: inspección de tipos y módulos, inspección de contratos, generación de código, transformación de AST, generación desde schemas, bindings y documentación.
+Hard guarantees use restrictions. Soft objectives use preferences.
 
-La metaprogramación conserva el mismo modelo semántico y respeta capacidades, efectos y restricciones.
+```axiom
+modo:
+    tiempo_real
 
-## 15. Interoperabilidad y ABI
+restringir:
+    periodo = 10 ms
+    deadline = 5 ms
+    determinismo = obligatorio
+```
 
-AXIOM tendrá un ABI propio y estable. El ABI describe representación, layout, alineación, llamadas, estructuras, errores, recursos, capacidades y versiones.
+The compiler must distinguish:
 
-FFI con C, C++, Rust, Python, .NET, WASM, APIs nativas y hardware.
+- guaranteed/proven;
+- feasible;
+- not demonstrable;
+- impossible under known constraints.
 
-WebAssembly/Component Model será un target de interoperabilidad, no el fundamento de AXIOM.
+It must never claim a guarantee that it cannot establish.
 
-## 16. Evolución
+## 13. Fault tolerance and recovery
 
-El lenguaje tendrá versiones, compatibilidad de fuente, compatibilidad semántica, compatibilidad de paquetes, compatibilidad ABI, deprecaciones y migraciones verificables.
+Failure is a normal semantic possibility.
 
-Herramienta conceptual: axiom migrar.
+The model includes:
 
-Una migración produce diff, explica cambios y recompila antes de aceptarse.
+- retry;
+- timeout;
+- fallback;
+- restart;
+- isolate;
+- degrade;
+- replace;
+- propagate;
+- recover;
+- cancel.
 
-## 17. Ecosistema
+Retries require appropriate idempotency knowledge. The compiler must not blindly repeat operations with non-repeatable effects.
 
-Standard Library oficial y amplia: texto, colecciones, sistema, archivos, red, seguridad, bases de datos, formatos, UI, gráficos, audio/video, GPU, IA, matemática, ciencia, simulación, hardware, embedded, testing, observabilidad y tooling.
+Resource cleanup and recovery are part of Resource Flow.
 
-Toolchain: new, check, build, run, test, package, add, install, native-build, explain, format, lint y migrate.
+Distributed and hardware failure domains must be expressible.
 
-Build identity: proyecto + dependencias + compilador + configuración + target = identidad de build.
+## 14. Distribution
 
-Supply chain: origen, identidad, versión, hash, firma, dependencias, capacidades y reproducibilidad.
+Distribution uses the same semantic model as local execution.
 
-## 18. Modos
+Additional semantic resources include:
 
-Los modos son opcionales, combinables y extensibles.
+- nodes;
+- network links;
+- serialization;
+- latency;
+- partitions;
+- consistency;
+- atomicity;
+- recovery.
 
-Ejemplos: sistemas, embebido, tiempo_real, científico, alto_rendimiento, seguro, crítico, distribuido, hardware, GPU, web, móvil y cuántico.
+Contracts can describe:
 
-Un modo modifica prioridades, restricciones, garantías y estrategias de compilación. Nunca crea un lenguaje distinto.
+- consistency;
+- idempotency;
+- atomicity;
+- timeouts;
+- retry safety;
+- recovery behavior.
 
-## 19. Explicabilidad
+RPC, queues, sockets, and shared memory are implementation mechanisms, not separate language models.
 
-axiom explicar debe poder responder qué hace el programa, qué recursos utiliza, qué capacidades necesita, qué efectos produce, qué paralelismo encontró, dónde coloca los datos, qué optimizaciones aplicó, qué propiedades demostró, qué no puede demostrar y por qué eligió CPU/GPU/NPU/QPU.
+## 15. Contracts and verification
 
-Nunca depende de un servicio de IA.
+`demostrar` introduces a property that the compiler should analyze.
 
-## 20. UI, ciencia, hardware y futuro
+Evidence states include:
 
-El mismo lenguaje debe poder describir aplicaciones, servidores, sistemas, robots, drones, aeronaves, máquinas industriales, dispositivos, simulaciones, GPU/NPU/QPU y sistemas distribuidos, además de servir como base futura para AXIOM OS.
+- DEMONSTRATED;
+- CHECKED;
+- MEASURED;
+- SIMULATED;
+- OBSERVED;
+- ASSUMED;
+- UNKNOWN;
+- REFUTED;
+- NOT ANALYZED.
 
-La abstracción ayuda pero nunca bloquea el acceso de bajo nivel.
+Tests are execution evidence. They are not silently promoted to mathematical proof.
 
-## 21. Auditoría final de identidad
+Contracts may cover:
 
-AXIOM no será una variación superficial de Python, Rust, C++, Go o Haskell.
+- inputs;
+- outputs;
+- invariants;
+- resource states;
+- capabilities;
+- effects;
+- memory;
+- timing;
+- energy;
+- distribution;
+- determinism;
+- security.
 
-No serán pilares: fn/def/function; class/struct como sistemas separados; ownership/borrow/lifetime; async/await; try/catch como arquitectura de fallos; import/include como copia textual; if/for/match como taxonomía fundamental; unsafe como mundo separado.
+Counterexamples should be reported whenever possible.
 
-La identidad nace de: ENTIDAD + RELACIÓN + INTENCIÓN + RECURSO + CAPACIDAD + EFECTO + RESTRICCIÓN + CONOCIMIENTO + PLAN.
+Verification evidence should retain relevant hypotheses, compiler version, dependencies, target architecture, and verification method.
 
-## 22. Especificación de referencia
+## 16. Metaprogramming and reflection
 
-La implementación debe tratar este documento como arquitectura conceptual. Si una implementación actual contradice esta especificación, se migra progresivamente; no se modifica la arquitectura para preservar accidentalmente el prototipo histórico.
+Code, types, schemas, contracts, and modules are inspectable entities.
 
-La sintaxis concreta se estabilizará mediante pruebas ejecutables y una gramática formal antes de declarar AXIOM 0.1 estable.
+Capabilities include:
+
+- type inspection;
+- module inspection;
+- contract inspection;
+- AST transformation;
+- code generation;
+- schema-to-code generation;
+- binding generation;
+- documentation generation.
+
+Metaprogramming uses the same effect, capability, resource, and restriction model as ordinary code.
+
+## 17. Interoperability and ABI
+
+AXIOM will define a language-owned ABI.
+
+The ABI covers:
+
+- value representation;
+- layout;
+- alignment;
+- calling conventions;
+- structures;
+- errors;
+- resources;
+- capabilities;
+- versions;
+- binary compatibility.
+
+Interop targets include C, C++, Rust, Python, .NET, WebAssembly, native platform APIs, and hardware interfaces.
+
+WebAssembly is a target and interoperability boundary, not the foundation of AXIOM.
+
+## 18. Language evolution
+
+AXIOM will define:
+
+- language versions;
+- source compatibility;
+- semantic compatibility;
+- package compatibility;
+- ABI compatibility;
+- deprecations;
+- migration rules.
+
+The intended migration tool is `axiom migrate`.
+
+A migration should:
+
+1. analyze the project;
+2. explain the change;
+3. prepare a diff;
+4. recompile;
+5. verify affected behavior;
+6. require explicit acceptance before changing source.
+
+## 19. Ecosystem
+
+The official standard library is intended to cover:
+
+- text;
+- collections;
+- files;
+- processes;
+- system interfaces;
+- networking;
+- HTTP/WebSocket/TCP/UDP/DNS/TLS;
+- serialization;
+- JSON/XML/YAML/CSV/binary formats;
+- time;
+- mathematics;
+- statistics;
+- linear algebra;
+- simulation;
+- cryptography;
+- authentication and certificates;
+- databases and SQL;
+- compression;
+- image/audio/video codecs;
+- UI;
+- 2D/3D graphics;
+- GPU and shaders;
+- AI/ML and inference;
+- testing;
+- benchmarking;
+- fuzzing;
+- observability;
+- FFI;
+- devices;
+- hardware;
+- SIMD;
+- embedded systems.
+
+The intended toolchain includes:
+
+```text
+new
+check
+build
+run
+test
+package
+add
+install
+native-build
+explain
+format
+lint
+migrate
+```
+
+Build identity is:
+
+```text
+project + dependencies + compiler + configuration + target
+```
+
+Supply-chain metadata should include origin, identity, version, integrity, signature, dependencies, capabilities, effects, supported platforms, ABI information, and reproducibility data.
+
+## 20. Modes
+
+Modes are optional, combinable, and extensible.
+
+Examples:
+
+- systems;
+- embedded;
+- real_time;
+- scientific;
+- high_performance;
+- secure;
+- critical;
+- distributed;
+- hardware;
+- GPU;
+- web;
+- mobile;
+- quantum.
+
+A mode changes priorities, constraints, guarantees, and compilation strategies. It does not create a different language.
+
+## 21. Explainability
+
+The compiler should explain:
+
+- what a program does;
+- which resources it uses;
+- which capabilities it requires;
+- which effects it produces;
+- what parallelism was discovered;
+- where data is placed;
+- which optimizations were applied;
+- which properties were demonstrated;
+- what could not be demonstrated;
+- why a CPU/GPU/NPU/QPU target was selected;
+- which restrictions prevented alternatives.
+
+Explainability is a compiler feature. It does not require an external AI service.
+
+## 22. Hardware and low-level access
+
+AXIOM must support the complete range from high-level applications to direct systems and hardware programming.
+
+Conceptually:
+
+```text
+application
+    ↓
+system
+    ↓
+hardware
+    ↓
+memory / CPU / GPU / registers / instructions / interrupts
+```
+
+High-level abstractions are allowed and encouraged, but they must not create an artificial ceiling that prevents legitimate low-level programming.
+
+## 23. Identity audit
+
+AXIOM must not become a superficial variation of another language.
+
+The following are not foundational pillars:
+
+- `fn`/`def`/`function`;
+- separate class/struct language systems;
+- ownership/borrow/lifetime syntax;
+- async/await as the concurrency model;
+- try/catch as the failure architecture;
+- import/include as textual inclusion;
+- a fixed if/for/match taxonomy as the semantic foundation;
+- an `unsafe` world separate from the rest of the language.
+
+AXIOM's identity is:
+
+```text
+ENTITY
++
+RELATION
++
+INTENTION
++
+RESOURCE
++
+CAPABILITY
++
+EFFECT
++
+RESTRICTION
++
+KNOWLEDGE
++
+PLAN
+```
+
+## 24. Implementation authority
+
+This specification is the architectural reference for AXIOM 0.1.
+
+When the historical prototype conflicts with this specification, implementation is migrated toward the specification.
+
+The specification itself should only change when the language design intentionally evolves and the change is recorded through the versioning process.
+
+The current canonical syntax becomes stable through executable conformance tests, not by preserving accidental behavior of the prototype.

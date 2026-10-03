@@ -1,73 +1,53 @@
-# AXIOM Bootstrap Seed
+# AXIOM Bootstrap
 
-The bootstrap seed is the first compiler component implemented in AXIOM itself.
-It deliberately starts from a small, deterministic subset instead of duplicating
-the Rust frontend all at once.
+The `bootstrap/` directory contains the first AXIOM-written compiler experiments.
 
-## Pipeline
+## Historical pipeline
+
+The bootstrap sequence established:
 
 ```text
-Token[]
+source
   ↓
-parse_print()
+AXIOM-written lexer
   ↓
-Program
+AXIOM-written parser
   ↓
-emit_program()
+AXIOM-written AST normalization
   ↓
-AXIOM_ARTIFACT_V1
+AXIOM-written semantic bootstrap
+  ↓
+AXIOM-written compiler driver
+  ↓
+AXIOM_IR_V1 / AXIOM_ARTIFACT_V1
 ```
 
-The seed models tokens and an AST-level program using AXIOM structs, performs a
-real lowering step for a `print` program, and emits the native artifact format.
-The emitted artifact can be consumed by the existing native VM.
+This proved that AXIOM can participate in its own bootstrap.
 
-## Self-hosting milestone
+## What this does prove
 
-`lexer.ax` and `parser.ax` are now compiler frontend subsystems executed from
-AXIOM itself. The lexer reads `lexer_fixture.ax` and emits a deterministic token
-stream; the parser consumes that stream and walks a broad AST subset covering
-structs, typed parameters and returns, arrays, literals, calls, field/index
-access, binary/unary expressions, assignments, conditionals, loops and control
-flow.
+- AXIOM can express compiler-oriented data structures.
+- AXIOM can process source text.
+- AXIOM can build structured representations.
+- AXIOM can perform deterministic semantic checks.
+- AXIOM can generate deterministic intermediate output.
 
-The native VM exposes only the host boundaries required by this stage:
-`read_file`, `write_file`, `split`, `split_lines`, `char_at`, `char_code`, and
-`int_to_string`.
+## What this does not prove
 
-`ast.ax` is the structured-AST normalization layer. It consumes the parser's
-deterministic output and emits `AXIOM_AST_V1` records in the form
-`NODE|depth|kind|value`. Scope depth is derived from explicit `ScopeEnter` and
-`ScopeExit` nodes rather than from formatting whitespace.
+It does not yet prove definitive AXIOM 0.1 self-hosting.
 
-`semantic.ax` is the self-hosted semantic bootstrap layer. It consumes
-`AXIOM_AST_V1`, tracks function scopes, parameters and local declarations,
-resolves variables across nested scopes, checks function and struct references,
-requires `main`, and performs deterministic literal expression type checks.
+The bootstrap programs target the historical transition syntax and artifact/runtime boundary. The new AXIOM 0.1 compiler must be rebuilt around the canonical semantic model described in `docs/axiom-spec-0.1.md`.
 
-`compiler.ax` is the self-hosted compiler driver. It consumes the normalized AST
-and emits `AXIOM_IR_V1` records from AXIOM itself. The native host is deliberately
-kept below this boundary: it executes AXIOM bytecode and owns the final
-`AXIOM_ARTIFACT_V1` serialization/runtime ABI. A native integration test builds
-the AST of `compiler.ax`, runs `compiler.ax` twice, and requires identical IR.
-
-## Verify
+## Verification
 
 ```bash
-cargo run --manifest-path native/Cargo.toml -- check bootstrap/seed.ax
-cargo run --manifest-path native/Cargo.toml -- run bootstrap/seed.ax
-cargo run --manifest-path native/Cargo.toml -- run bootstrap/lexer.ax
-cargo run --manifest-path native/Cargo.toml -- check bootstrap/parser.ax
 cargo test --manifest-path native/Cargo.toml
 ```
 
-The self-hosted lexer is covered by a native integration test and produces the same
-stream on every run for the fixture source. The self-hosted compiler test additionally
-requires deterministic `AXIOM_IR_V1` output when compiling `bootstrap/compiler.ax`.
+The historical integration tests verify deterministic bootstrap behavior.
 
-## Scope
+## Next role
 
-Phase 17 is complete under the bootstrap contract: AXIOM owns the frontend stages,
-bootstrap semantic analysis, compiler driver, and AST→`AXIOM_IR_V1` lowering. Rust
-remains only as the execution host for AXIOM bytecode and the final artifact/runtime
-ABI. Removing that remaining host boundary is explicitly deferred to Phase 18.
+The bootstrap directory will become the bridge from the historical compiler to the canonical AXIOM compiler.
+
+As AXIOM 0.1 implementation advances, components should move from bootstrap experiments into the canonical compiler architecture. Once a component is replaced and verified, the historical version can be retired.

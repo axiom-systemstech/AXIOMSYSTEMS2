@@ -1,40 +1,56 @@
 # AXIOM Package Manager
 
-The package manager has a native workflow as well as the historical Python implementation. The native workflow uses a local registry first, keeps dependency selection deterministic, vendors packages, and writes a minimal native lockfile.
+The package manager is being migrated from the historical local implementation toward the definitive AXIOM package model.
 
-## Project manifest
+## Current project manifest
 
-An AXIOM project uses axiom.toml:
+```toml
+[package]
+name = "example"
+version = "0.1.0"
 
-    [package]
-    name = "example"
-    version = "0.1.0"
+[dependencies]
+networking = "0.1.0"
+```
 
-    [dependencies]
-    networking = "0.1.0"
+The current native transition implementation supports local registry packages, vendoring, and a deterministic lockfile.
 
-The dependency table records the exact version selected for the project.
+## Package identity
 
-## Adding a package
+The definitive model must include:
 
-The CLI command is:
+- package identity;
+- version;
+- origin;
+- dependencies;
+- integrity;
+- signature;
+- capabilities requested;
+- effects;
+- supported platforms;
+- ABI information;
+- reproducibility metadata.
 
-    axiom add networking
+## Security model
 
-The default registry is the registry/ directory in the current working directory. A registry can be selected explicitly:
+Installation should conceptually perform:
 
-    axiom add networking --registry /path/to/registry
+```text
+resolve
+  ↓
+verify identity/integrity
+  ↓
+analyze capabilities/effects
+  ↓
+validate compatibility
+  ↓
+install
+```
 
-A registry package is a directory containing its own axiom.toml. The package is copied into vendor/<name>, the project manifest is updated, and axiom.lock records the resolved package version and source.
+A dependency must not silently gain privileges merely because those privileges exist elsewhere in the package graph.
 
-## Lock file
+## Current limitation
 
-axiom.lock is JSON for the bootstrap implementation. It contains a format version and one entry per resolved dependency.
+Remote registries, cryptographic package verification, signatures, publishing, and full supply-chain policy are not yet the definitive AXIOM implementation.
 
-The lock file is generated from the resolved manifest and local registry metadata. It is intended to become the compatibility boundary for future remote registry resolution.
-
-## Registry direction
-
-The local registry is deliberately a narrow first implementation. Future work can replace the source resolver without changing the project dependency model.
-
-Remote publishing, authentication, package archives, integrity hashes and registry discovery belong to later iterations of AXIOM PKG.
+The existing local registry workflow is transition infrastructure.

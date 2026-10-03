@@ -1,114 +1,134 @@
 # AXIOM SYSTEMS
 
-AXIOM SYSTEMS es un lenguaje y ecosistema tecnológico construido por fases.
-El repositorio contiene dos implementaciones coordinadas:
+AXIOM is a universal, general-purpose programming language and technology ecosystem designed around a small visible syntax and a deep semantic model.
 
-- Un **bootstrap en Python**, usado como referencia rápida de comportamiento.
-- Un **backend nativo en Rust**, usado para el compilador, la VM y los artefactos ejecutables.
+> Natural in expression, formal in meaning.
 
-La estrategia actual es pequeña y deliberada: cada capacidad debe quedar
-probada en el bootstrap, portada a Rust y comprobada también desde el CLI antes
-de abrir la siguiente capa del lenguaje.
+This repository is the implementation workspace for AXIOM. The repository is currently in the transition from a historical prototype to the implementation of the definitive AXIOM language defined by the AXIOM 0.1 specification.
 
-## Estado actual
+## Current status
 
-El núcleo del lenguaje ya tiene un pipeline funcional de extremo a extremo:
+The conceptual architecture of AXIOM 0.1 is closed. The next work is implementation: progressively replacing the historical Python and Rust language implementations with AXIOM-owned compiler, runtime, tooling, and eventually operating-system foundations.
+
+The repository therefore contains two layers:
+
+1. **Transition infrastructure** — the existing Python and Rust implementations, native artifact format, runtime, package workflow, and bootstrap experiments.
+2. **AXIOM 0.1 implementation program** — the new canonical language frontend, semantic model, compiler architecture, self-hosting path, ABI, runtime, and toolchain described in the current specification.
+
+The transition is intentional. Historical code is not the definition of the language; the specification is.
+
+## Target architecture
+
+The long-term compiler path is:
 
 ```text
-AXIOM (.ax)
-  -> lexer
-  -> parser
-  -> análisis semántico
-  -> IR
-  -> runtime / VM
-  -> salida o artefacto .axm
+AXIOM source
+    ↓
+AXIOM compiler
+    ↓
+semantic model / plan
+    ↓
+AXIOM IR
+    ↓
+native backend / runtime
+    ↓
+target machine
 ```
 
-El bootstrap Python genera IR portable `.air`. El backend Rust genera artefactos
-`.axm`, los serializa, los deserializa y los ejecuta posteriormente.
+The self-hosting end state is:
 
-## Capacidades implementadas
+```text
+AXIOM source
+    ↓
+AXIOM compiler written in AXIOM
+    ↓
+AXIOM compiler
+    ↓
+AXIOM compiles AXIOM
+```
 
-### Sintaxis y tipos
+Python and Rust are temporary implementation and bootstrap technologies. They may remain during migration, but neither is part of the language definition or the intended final compiler foundation.
 
-- Funciones, parámetros, retornos y llamadas.
-- Tipos `Int`, `Float`, `Bool` y `String`.
-- Arrays y arrays anidados: `Int[]`, `Float[][]`, etc.
-- Structs con campos de tipos base, literales y acceso de lectura mediante punto.
-- Comentarios de línea con `//`.
-- Literales agrupados con paréntesis.
+## AXIOM 0.1 language direction
 
-Ejemplo de structs:
+AXIOM 0.1 is built around:
+
+- entities, relations, resources, capabilities, effects, restrictions, contracts, knowledge, and execution plans;
+- indentation-based blocks;
+- a deliberately small visible syntax;
+- semantic dependency declarations rather than textual inclusion as the core module model;
+- automatic resource-flow analysis;
+- information-flow analysis;
+- inferred effects and capability provenance;
+- compiler-directed concurrency;
+- explicit hard constraints and soft preferences;
+- first-class units, time, determinism, verification, and failure semantics;
+- native access from application level to systems and hardware programming;
+- a stable AXIOM ABI and FFI model;
+- deterministic builds and supply-chain metadata;
+- progressive self-hosting and toolchain independence.
+
+Canonical examples:
 
 ```axiom
-struct Point {
-    x: Int
-    y: Int
-}
+mostrar("Hello, AXIOM")
 
-fn main() {
-    let point: Point = Point { x: 10, y: 20 }
-    print(point.x)
-}
+usuario:
+    nombre: texto
+    edad: entero
+
+alex: usuario
+    nombre = "Alex"
+    edad = 25
+
+sumar(a, b):
+    a + b
+
+decidir edad >= 18:
+    verdadero:
+        mostrar("Adult")
+    falso:
+        mostrar("Minor")
 ```
 
-### Expresiones
+The canonical syntax is being implemented incrementally. It must not be confused with the historical prototype syntax still present in compatibility tests and bootstrap code.
 
-- Aritmética: `+`, `-`, `*`, `/` y `%`.
-- Operaciones homogéneas para `Int` y `Float`.
-- Concatenación de `String` con `+`.
-- Comparaciones: `>`, `>=`, `<`, `<=`, `==` y `!=`.
-- Lógica booleana: `!`, `&&` y `||`.
-- Cortocircuito lógico: el operando derecho solo se evalúa cuando es necesario.
-- Negación unaria de enteros y flotantes.
-- Indexación y asignación de arrays, incluida la indexación encadenada.
+## Repository structure
 
-### Control de flujo
+- `docs/axiom-spec-0.1.md` — definitive conceptual specification for AXIOM 0.1.
+- `docs/axiom-language.md` — canonical syntax and executable-language design status.
+- `docs/architecture.md` — compiler, semantic, IR, runtime, and toolchain architecture.
+- `docs/self-hosting.md` — migration from bootstrap infrastructure to AXIOM self-hosting.
+- `docs/implementation-status.md` — factual implementation status and remaining boundaries.
+- `docs/version-roadmap.md` — AXIOM 0.1 → 1.0 implementation sequence.
+- `ROADMAP.md` — language/toolchain milestone history and current implementation roadmap.
+- `bootstrap/` — historical and transitional self-hosting experiments.
+- `src/axiom/` — historical Python implementation and transition frontend.
+- `native/` — historical/current Rust-native transition implementation.
+- `tests/` — Python compatibility and subsystem tests.
+- `native/tests/` — native and end-to-end transition tests.
+- `examples/` — examples retained for the currently implemented transition syntax.
 
-- `if`, `else if` y `else`.
-- `while`.
-- `for` con inicializador, condición y actualización.
-- `break` y `continue` con validación semántica de contexto.
-- Actualización correcta del `for` después de `continue`.
+The master roadmap remains in `Documento sin título.txt`. It is intentionally not edited by implementation work in this repository.
 
-### Herramientas
+## Historical milestones
 
-- CLI Python: `check`, `build`, `run` y `doctor`.
-- CLI Rust: `check`, `build` y `run`.
-- Build y ejecución de artefactos `.axm`.
-- Errores léxicos y sintácticos con línea y columna en el backend nativo.
-- Errores semánticos para tipos incompatibles, retornos inválidos y control de flujo fuera de bucles.
+The original language/toolchain roadmap phases 1–18 have been completed as documented historical milestones. They established:
 
-## Arquitectura del repositorio
+- a working prototype compiler pipeline;
+- AXIOM IR and executable artifacts;
+- a native Rust toolchain;
+- a bootstrap seed written in AXIOM;
+- a self-hosted bootstrap frontend and compiler driver;
+- a native project/package workflow.
 
-### Bootstrap Python
+These milestones are foundations for the next stage, not proof that the definitive AXIOM 0.1 language is already self-hosted.
 
-La implementación de referencia está en [src/axiom](src/axiom):
+## Development
 
-- [lexer.py](src/axiom/lexer.py): tokens, palabras reservadas y posiciones.
-- [parser.py](src/axiom/parser.py): parser recursivo descendente.
-- [ast.py](src/axiom/ast.py): nodos del lenguaje.
-- [semantic.py](src/axiom/semantic.py): tipos y reglas semánticas.
-- [ir.py](src/axiom/ir.py): lowering al IR `.air`.
-- [runtime.py](src/axiom/runtime.py): ejecución del IR.
-- [cli.py](src/axiom/cli.py): herramienta Python.
+Until the AXIOM compiler can build itself, the transition toolchain is used to validate the new implementation.
 
-### Backend Rust
-
-La implementación nativa está en [native](native):
-
-- [native/src/lib.rs](native/src/lib.rs): lexer y tokens.
-- [native/src/parser.rs](native/src/parser.rs): AST y parser nativo.
-- [native/src/semantic.rs](native/src/semantic.rs): análisis semántico.
-- [native/src/ir.rs](native/src/ir.rs): instrucciones de VM y lowering.
-- [native/src/runtime.rs](native/src/runtime.rs): runtime interpretado de referencia para pruebas.
-- [native/src/vm.rs](native/src/vm.rs): VM, artefactos `.axm`, serialización y ejecución.
-- [native/src/main.rs](native/src/main.rs): CLI nativo.
-- [native/tests/cli_errors.rs](native/tests/cli_errors.rs): pruebas CLI end-to-end.
-
-## Comandos de desarrollo
-
-### Python
+Python:
 
 ```bash
 python3 -m venv .venv
@@ -117,61 +137,44 @@ python -m pip install -e '.[dev]'
 python -m pytest
 ```
 
-Uso rápido:
-
-```bash
-axiom doctor
-axiom check examples/hello.ax
-axiom build examples/hello.ax
-axiom run examples/hello.ax
-```
-
-### Rust
+Rust transition toolchain:
 
 ```bash
 cargo fmt --manifest-path native/Cargo.toml -- --check
 cargo clippy --manifest-path native/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path native/Cargo.toml
-cargo build --manifest-path native/Cargo.toml
 ```
 
-Uso del CLI nativo:
+Do not treat these commands as the final AXIOM developer workflow. They are temporary transition infrastructure.
 
-```bash
-native/target/debug/axiom check examples/hello.ax
-native/target/debug/axiom build examples/hello.ax
-native/target/debug/axiom run examples/hello.ax
+## Independence policy
+
+The project is moving through explicit implementation boundaries:
+
+```text
+Historical Python/Rust implementation
+        ↓
+AXIOM 0.1 frontend in AXIOM
+        ↓
+AXIOM 0.1 semantic compiler in AXIOM
+        ↓
+AXIOM compiler compiles itself
+        ↓
+AXIOM-owned runtime and native backend
+        ↓
+AXIOM-owned toolchain
+        ↓
+AXIOM 1.0
 ```
 
-## Validación actual
+A dependency is removed only after the replacement is implemented, tested, reproducible, and able to rebuild the required component.
 
-Estado comprobado en el último ciclo de desarrollo:
+## Branch policy
 
-- Rust: suite nativa completa pasando.
-- Rust CLI: 15 pruebas end-to-end pasando.
-- Workflow nativo de Fase 18: new/check/run/build/test/package/install validado.
-- Clippy con `-D warnings`: limpio.
-- Formato Rust y `git diff --check`: limpios.
+Active implementation work is performed on the dedicated branch `local/continue-project`. The `main` branch is not modified by this development workflow.
 
-## Estado actual
+No remote push is performed unless explicitly requested.
 
-Las fases 1–18 del sub-roadmap del lenguaje están completadas. El binario nativo
-es la referencia del toolchain: puede crear, comprobar, compilar, ejecutar,
-probar, empaquetar, instalar y producir ejecutables standalone sin Python.
+## License
 
-La documentación del workflow nativo está en docs/native-toolchain.md.
-La superficie de comandos está en docs/cli.md.
-
-El roadmap de visión completa está en [Documento sin título.txt](Documento%20sin%20t%C3%ADtulo.txt). La documentación específica de sintaxis está en [docs/axiom-language.md](docs/axiom-language.md). La especificación de los formatos intermedios está en [docs/ir-formats.md](docs/ir-formats.md). La primera capa de la librería estándar está en [docs/standard-library.md](docs/standard-library.md). El modelo inicial de paquetes está en [docs/package-manager.md](docs/package-manager.md). La superficie de comandos está en [docs/cli.md](docs/cli.md).
-
-## Principios del proyecto
-
-- Construir la mínima pieza que habilite la siguiente.
-- Mantener el binario nativo como referencia del toolchain; Python queda como compatibilidad histórica.
-- No aceptar una feature sin pruebas de parser, semántica y ejecución cuando aplique.
-- Mantener interfaces pequeñas, artefactos reproducibles y errores comprensibles.
-- Portar capacidades por paridad, no por acumulación de implementaciones divergentes.
-
-## Licencia
-
-AXIOM SYSTEMS se distribuye bajo la licencia [MIT](LICENSE).
+AXIOM SYSTEMS is distributed under the [MIT License](LICENSE).

@@ -1,38 +1,45 @@
 # AXIOM Standard Library
 
-The standard library is introduced in layers. The first layer is axiom.std, implemented as compiler-known built-ins so the language can provide useful core operations before the module and package systems are introduced.
+The standard library will be an official semantic foundation of AXIOM rather than an unrelated collection of host-language helpers.
 
-## Core functions
+## Core direction
 
-| Function | Signature | Description |
-| --- | --- | --- |
-| len | len(String) -> Int | Returns the number of Unicode scalar values in a string. |
-| len | len(T[]) -> Int | Returns the number of elements in an array. |
-| abs | abs(Int) -> Int | Returns the absolute value of an integer. |
-| abs | abs(Float) -> Float | Returns the absolute value of a floating-point value. |
-| min | min(Int, Int) -> Int | Returns the smaller integer. |
-| min | min(Float, Float) -> Float | Returns the smaller floating-point value. |
-| max | max(Int, Int) -> Int | Returns the larger integer. |
-| max | max(Float, Float) -> Float | Returns the larger floating-point value. |
+The library is expected to cover:
 
-These functions are part of the language's standard environment and do not require a user-defined function declaration.
+- text and Unicode;
+- collections;
+- files and storage;
+- processes and system interfaces;
+- networking;
+- HTTP and WebSocket;
+- serialization and data formats;
+- time and clocks;
+- mathematics and statistics;
+- linear algebra and tensors;
+- cryptography;
+- databases and SQL;
+- compression;
+- images, audio, video, and codecs;
+- UI;
+- graphics and GPU;
+- AI/ML and inference;
+- testing, benchmarking, and fuzzing;
+- observability;
+- FFI and ABI;
+- devices and hardware;
+- embedded systems;
+- simulation.
 
-## Implementation boundary
+## Current transition layer
 
-The Python frontend/runtime and native Rust compiler/VM expose the same signatures and runtime behavior.
+The historical implementation exposes a small set of compiler-known operations such as `len`, `abs`, `min`, and `max`.
 
-The remaining standard-library families are introduced after the core layer:
+These signatures are useful compatibility infrastructure, but they do not define the final standard library architecture.
 
-- axiom.io
-- axiom.fs
-- axiom.net
-- axiom.http
-- axiom.crypto
-- axiom.math
-- axiom.time
-- axiom.collections
-- axiom.concurrent
-- axiom.process
-- axiom.system
+## Design rule
 
-Module namespaces and imports are intentionally deferred until the language grammar and package model are ready to support them cleanly.
+Standard-library APIs should express semantic requirements and effects clearly.
+
+A filesystem API should expose filesystem effects. A network API should expose network effects. A GPU API should expose device capabilities and resource requirements.
+
+The compiler must be able to reason about these operations rather than treating the standard library as opaque host-language code.

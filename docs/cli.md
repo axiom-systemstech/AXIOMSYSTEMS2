@@ -1,40 +1,43 @@
 # AXIOM CLI
 
-The native axiom binary is the reference entry point for the independent
-toolchain. The historical Python CLI remains available for compatibility and
-development tooling.
+The CLI documented here describes the transition toolchain and the intended future command surface.
 
-## Commands
+## Current transition commands
 
-    axiom doctor
-    axiom new <project>
-    axiom check <source.ax|project>
-    axiom build <source.ax|project> [-o <output>]
-    axiom run <source.ax|project|artifact.axm>
-    axiom test <project>
-    axiom package <project> [-o <output>]
-    axiom add <project> <package> [registry]
-    axiom native-build <source.ax|project> [-o <output>]
-    axiom install <prefix>
+```text
+axiom doctor
+axiom new <project>
+axiom check <source.ax|project>
+axiom build <source.ax|project> [-o <output>]
+axiom run <source.ax|project|artifact.axm>
+axiom test <project>
+axiom package <project> [-o <output>]
+axiom add <project> <package> [registry]
+axiom native-build <source.ax|project> [-o <output>]
+axiom install <prefix>
+```
 
-doctor reports the native toolchain environment.
+These commands are currently implemented primarily by the native Rust transition toolchain.
 
-new creates a project with a manifest, source and test.
+## Intended canonical surface
 
-check validates an AXIOM source file or project entry point.
+The final AXIOM toolchain will additionally provide:
 
-build produces AXIOM_ARTIFACT_V1.
+```text
+axiom explain
+axiom format
+axiom lint
+axiom migrate
+```
 
-run executes source, project or AXIOM artifact.
+Their semantics are defined by the AXIOM 0.1 architecture and will be implemented progressively.
 
-test executes every .ax test below the project's tests directory.
+## Transition boundary
 
-package creates deterministic AXIOM_PACKAGE_V1 output.
+The native CLI can currently operate without the historical Python CLI for its supported workflow.
 
-add vendors a package from a local registry and writes axiom.lock.
+This is a significant milestone, but it does not make the whole AXIOM implementation independent of Rust. The Rust binary is still the current implementation host.
 
-native-build creates a standalone executable using the selected native target.
+## Principle
 
-install copies the running native axiom binary into a prefix/bin directory.
-
-The native workflow does not require Python.
+CLI commands are interfaces to semantic compiler operations. They should not become separate implementations of language behavior.

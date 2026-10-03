@@ -1,88 +1,51 @@
-# AXIOM Intermediate Formats
+# AXIOM Intermediate Representations
 
-AXIOM uses two serialized intermediate representations during the current bootstrap and native pipeline:
+## Current transition formats
 
-- .air is the textual bootstrap IR.
-- .axm is the textual native VM artifact.
+The repository currently contains two historical serialized formats:
 
-Both formats carry an explicit format version. A producer must emit the version it implements, and a consumer must reject unsupported versions rather than silently interpreting them as a compatible format.
+- `.air` — textual bootstrap IR;
+- `.axm` — textual native VM artifact.
 
-## .air
+Both are versioned and validated by their current consumers.
 
-The current header is:
+## AXIOM_ARTIFACT_V1
 
-    AXIOM-IR 0.1
+The current native artifact is headed by:
 
-The remainder is a line-oriented representation of the lowered program.
+```text
+AXIOM_ARTIFACT_V1
+```
 
-A program with a main function starts with:
+It stores compiled functions and encoded VM instructions for the transition runtime.
 
-    FUNCTION main()
+It is deterministic for identical compiler inputs under the current implementation.
 
-and ends with:
+## AXIOM 0.1 IR direction
 
-    END FUNCTION
+The definitive AXIOM IR must represent semantic execution plans rather than merely mirror the historical VM instruction set.
 
-Additional functions are emitted as separate FUNCTION blocks. Indentation represents nested control-flow blocks.
+It must be capable of carrying information relevant to:
 
-The current textual instructions include:
+- values and entities;
+- resource flow;
+- effects;
+- capabilities;
+- restrictions;
+- contracts;
+- execution dependencies;
+- parallelism;
+- target selection;
+- memory placement;
+- verification evidence;
+- distributed execution where required.
 
-- LET
-- SET
-- PRINT
-- CALL
-- RETURN
-- IF / ELSE / END
-- WHILE / END
-- FOR / UPDATE / END FOR
-- BREAK
-- CONTINUE
-
-Expressions are rendered in AXIOM source notation.
-
-The .air format is currently intended as a human-readable bootstrap representation. Its version must change when its grammar or instruction representation becomes incompatible with existing consumers.
-
-## .axm
-
-The current artifact header is:
-
-    AXIOM_ARTIFACT_V1
-
-Each compiled function is represented by:
-
-    FUNCTION:<escaped-name>
-    PARAMS:<count>
-    PARAM:<escaped-name>
-    INSTR:<encoded-instructions>
-
-PARAM: occurs exactly count times.
-
-Instructions are separated by semicolons. Nested control-flow instruction bodies are enclosed in brackets. String values and identifiers use the artifact escape rules implemented by the native VM serializer.
-
-The native instruction set currently includes:
-
-- scalar pushes
-- variable loads and stores
-- array construction and indexing
-- indexed assignment
-- struct construction
-- struct field reads and writes
-- arithmetic, comparison, logical and unary operations
-- function calls
-- output
-- returns
-- conditional and loop control flow
-- break
-- continue
-
-Unknown headers, malformed instruction encodings and invalid counts are rejected during deserialization.
+The exact stable representation will be frozen only after executable AXIOM 0.1 semantics are implemented.
 
 ## Compatibility
 
-Format versions are independent from the AXIOM language version.
+Language versions and IR format versions are separate.
 
-A language change does not require a format version change when the serialized representation remains compatible. A format version must change when an existing consumer can no longer decode or correctly interpret the representation.
+A language change requires an IR version change only when existing consumers cannot correctly interpret the resulting representation.
 
-The native artifact currently has no backward-compatibility promise across major artifact versions. The versioned header exists so incompatible formats can be rejected explicitly.
-
-The bootstrap .air representation is not a native executable format and is not consumed by the Rust VM.
+The historical `.air` and `.axm` formats must not constrain the final AXIOM IR architecture.

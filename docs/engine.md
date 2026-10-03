@@ -1,48 +1,32 @@
 # AXIOM Engine
 
-AXIOM Engine es el núcleo de ejecución generalista de la Fase 14. Coordina aplicaciones y subsistemas sin acoplar AXIOM a una GPU, backend de audio, implementación física o transporte de red concreto.
+AXIOM Engine is the general-purpose execution foundation established during the historical language roadmap.
 
-## Arquitectura
+## Current role
 
-```text
-Application
-    │
-    ▼
-  Engine ──────────────── EventBus
-    │                     SceneManager
-    │                     ResourceStore
-    │                     NetworkBus
-    │                     SimulationClock
-    │
-    ├── RenderQueue
-    ├── UIQueue
-    └── AudioQueue
-```
+The current Engine model provides backend-neutral concepts for:
 
-El núcleo proporciona fronteras de servicio. Las implementaciones concretas se incorporarán en las fases especializadas de Graphics, Physics, Audio y UI.
+- applications;
+- entities and components;
+- resources;
+- events;
+- scenes;
+- simulation clocks;
+- networking;
+- rendering queues;
+- UI queues;
+- audio queues.
 
-## Escenas, entidades y simulación
+Its purpose is to avoid binding the language to a single graphics, physics, audio, UI, or networking implementation.
 
-`Scene` contiene entidades, stores de componentes y recursos locales. `SceneManager` controla la escena activa. Los componentes son datos; el comportamiento se ejecuta mediante sistemas registrados en `Engine`.
+## Relation to AXIOM 0.1
 
-`SimulationClock` separa el delta de frame del paso fijo de simulación, permitiendo ejecutar sistemas a una frecuencia estable aunque la presentación tenga frames de distinta duración.
+The definitive AXIOM semantic model goes deeper than an application engine.
 
-## Eventos y recursos
+Engine concepts must eventually map to the same language-wide entities, resources, capabilities, effects, restrictions, contracts, and execution plans used by systems programming, embedded work, scientific computing, robotics, distributed systems, and hardware control.
 
-`EventBus` proporciona publicación y suscripción síncrona con orden determinista. `ResourceStore` gestiona recursos vivos y `AssetCatalog` mantiene el registro declarativo de assets sin imponer cómo se decodifican.
+Engine is therefore a subsystem, not the definition of the language.
 
-## Networking
+## Future direction
 
-`NetworkBus` define una frontera de mensajes con inbox/outbox. No prescribe sockets ni protocolo: esos detalles pertenecen al transporte concreto.
-
-## Presentación
-
-`RenderQueue`, `UIQueue` y `AudioQueue` convierten operaciones de alto nivel en comandos backend-neutral. Graphics, UI y Audio pueden consumir esas colas sin que Engine conozca APIs específicas de plataforma.
-
-## Aplicaciones
-
-`Application` encapsula el lifecycle del Engine y proporciona un punto de entrada estable para futuras aplicaciones, servidores, herramientas, juegos y simulaciones.
-
-## Alcance
-
-Esta fase establece el motor general-purpose. GPU, física, audio y UI concretos permanecen desacoplados y se implementarán en sus fases especializadas del roadmap maestro.
+Concrete graphics, physics, audio, UI, robotics, simulation, and hardware systems can consume AXIOM execution plans without creating separate programming languages.

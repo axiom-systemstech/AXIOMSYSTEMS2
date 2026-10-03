@@ -1,77 +1,67 @@
 # AXIOM Native Toolchain
 
-Phase 18 makes the native axiom binary the reference developer workflow.
+The native toolchain is the current transition implementation of the AXIOM project workflow.
 
-The binary is self-contained at runtime: it parses AXIOM, performs semantic
-validation, builds AXIOM_ARTIFACT_V1, executes programs, runs project tests,
-creates packages and installs itself. Python is not required by these commands.
+## Current workflow
 
-## Project workflow
+```text
+axiom new
+axiom check
+axiom build
+axiom run
+axiom test
+axiom package
+axiom add
+axiom native-build
+axiom install
+```
 
-    axiom new hello
-    axiom check hello
-    axiom build hello
-    axiom run hello
-    axiom test hello
-    axiom package hello -o hello.axpkg
+The current native binary can execute this workflow without the Python CLI.
 
-A generated project contains axiom.toml, src/main.ax, and tests/main.ax.
+## Project artifacts
 
-## Native artifact
+A project contains an `axiom.toml` manifest, source files, and tests.
 
-axiom build writes build/main.axm. The artifact is versioned as
-AXIOM_ARTIFACT_V1 and can be executed directly:
+The current implementation produces:
 
-    axiom run hello/build/main.axm
+- `AXIOM_ARTIFACT_V1` executable artifacts;
+- `AXIOM_PACKAGE_V1` package archives;
+- standalone native executables.
 
-axiom native-build creates a standalone executable. The executable contains the
-AXIOM artifact and the native runtime and does not require the AXIOM CLI or
-Python after creation.
+These formats are transition formats.
 
-## Installation
+## Independence boundary
 
-The compiled CLI can install itself into a prefix:
+The current boundary is:
 
-    axiom install /opt/axiom
+```text
+AXIOM source
+    ↓
+Rust-native transition toolchain
+    ↓
+AXIOM artifact
+    ↓
+Rust runtime / executable
+```
 
-This creates bin/axiom. Distribution packages can therefore ship the native
-binary and runtime without the historical Python frontend.
-## Package manager
+Python is not required for the supported native workflow.
 
-The native package workflow uses a deterministic AXIOM_PACKAGE_V1 container.
-Files are sorted by relative path and encoded as hexadecimal records, so the
-same project content produces the same package bytes.
+Rust remains the implementation host.
 
-    axiom package hello -o hello.axpkg
+The next architectural boundary is:
 
-Local registry packages can be vendored without Python:
-
-    axiom add my-project networking registry
-
-The native bootstrap records the selected version in axiom.lock. Remote
-registries, signatures and cryptographic package verification remain separate
-distribution concerns.
+```text
+AXIOM source
+    ↓
+AXIOM compiler
+    ↓
+AXIOM IR
+    ↓
+AXIOM-owned runtime/backend
+```
 
 ## Targets
 
-The native backend accepts explicit Rust target triples:
+The transition backend accepts explicit native target triples.
 
-    axiom native-build examples/hello.ax -o out/hello --target aarch64-unknown-linux-gnu
-
-The requested target must be installed in the native build environment.
-## Independence boundary
-
-The Phase 18 boundary is:
-
-    AXIOM source
-        ↓
-    native axiom toolchain
-        ↓
-    AXIOM_ARTIFACT_V1
-        ↓
-    native runtime / standalone executable
-
-Python is no longer a runtime or command-line prerequisite. Rust remains the
-implementation language of the current bootstrap host and native runtime; the
-next architectural step would be replacing that host boundary with AXIOM-owned
-native code rather than treating Rust as the language foundation.
+This is useful infrastructure, but target selection must eventually become part of the AXIOM semantic target model rather than a Rust-specific command-line detail.

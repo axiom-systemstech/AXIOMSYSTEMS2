@@ -1,152 +1,342 @@
 # AXIOM Language
 
-## Primer corte de sintaxis
+This document describes the canonical AXIOM 0.1 language direction. It replaces the historical prototype syntax as the design reference.
 
-La primera versión del lenguaje mantiene una sintaxis pequeña y legible:
+## Design principle
 
-```axiom
-fn main() {
-    print("Hello AXIOM")
-}
+> Natural in expression, formal in meaning.
+
+AXIOM keeps the visible syntax small while making the compiler semantically powerful. The language should be approachable on the first day without creating a separate "simple" and "advanced" language.
+
+## Canonical syntax
+
+The visible kernel is intentionally small:
+
+```text
+name:
+name = expression
+name(...)
+decidir ...
+repetir ...
+cuando ...
+usar ...
+ofrecer ...
+necesita ...
+puede ...
+prefiere ...
+restringir ...
+demostrar ...
+modo ...
 ```
 
-Los bucles `for` aceptan inicializador, condición y actualización. `continue`
-ejecuta la actualización antes de la siguiente iteración y `break` termina el
-bucle actual:
+Blocks use indentation. Braces are not normal block delimiters.
+
+### Values and calls
 
 ```axiom
-fn main() {
-    for (let i: Int = 0; i < 5; i = i + 1) {
-        if i == 2 {
-            continue
-        }
-        if i == 4 {
-            break
-        }
-        print(i)
-    }
-}
+mostrar("Hello, AXIOM")
+
+nombre = "Alex"
+edad = 25
+activo = verdadero
 ```
 
-Este corte reconoce funciones, identificadores, cadenas, paréntesis, llaves y
-el punto y coma opcional. La gramática crecerá junto con el parser y cada
-decisión estable se documentará aquí.
-
-El bootstrap en Python es temporal: sirve para validar rápidamente el diseño.
-El lenguaje AXIOM no queda ligado a Python y su compilador podrá tener un
-backend nativo cuando las mediciones y la estabilidad del lenguaje lo
-justifiquen.
-
-## Decisiones iniciales
-
-- Los archivos fuente usan la extensión `.ax`.
-- Las posiciones de los tokens son base 1 para línea y columna.
-- Los errores léxicos incluyen el carácter y su posición.
-- Las palabras reservadas se distinguen de los identificadores durante el
-  lexing.
-- Los literales `Float` usan punto decimal, por ejemplo `1.5`.
-- La sintaxis prioriza una curva de aprendizaje corta sin renunciar a
-  compilación nativa y ejecución rápida.
-
-## Estructuras
-
-La sintaxis propuesta para estructuras mantiene los campos explícitos y el
-acceso directo mediante punto:
+### Entities and forms
 
 ```axiom
-struct Point {
-    x: Int
-    y: Int
-}
+usuario:
+    nombre: texto
+    edad: entero
 
-fn main() {
-    let point: Point = Point { x: 10, y: 20 }
-    print(point.x)
-}
+alex: usuario
+    nombre = "Alex"
+    edad = 25
+
+mostrar(alex.nombre)
 ```
 
-Los nombres de campo deben ser únicos dentro de la estructura. La primera
-implementación soportará campos con tipos base y acceso de lectura; la
-reasignación de campos y los tipos compuestos se añadirán después.
+A definition describes a form/type. An entity declaration instantiates or specializes that form.
 
-## Estructuras de control
+### Functions
 
-La rama condicional ya admite encadenamientos de `else if`:
+Functions do not require `fn`, `def`, or `function`.
 
 ```axiom
-fn main() {
-    let value: Int = 2
-    if value == 1 {
-        print("one")
-    } else if value == 2 {
-        print("two")
-    } else {
-        print("other")
-    }
-}
+sumar(a, b):
+    a + b
 ```
 
-Los tipos `Int` y `Float` admiten operaciones aritméticas y comparaciones entre
-operandos del mismo tipo:
+A block normally produces the value of its final expression. Explicit return syntax is not the foundation of the language.
+
+### Decisions
 
 ```axiom
-fn main() {
-    let total: Float = 1.5 + 2.5
-    print(total / 2.0)
-}
+decidir edad >= 18:
+    verdadero:
+        mostrar("Adult")
+    falso:
+        mostrar("Minor")
 ```
 
-El operador `%` calcula el resto de una división entre enteros:
+### Repetition
 
 ```axiom
-fn main() {
-    print(17 % 5)
-}
+repetir usuario en usuarios:
+    mostrar(usuario.nombre)
 ```
 
-Los operadores `&&` y `||` usan cortocircuito: el operando derecho solo se
-evalúa cuando el izquierdo no determina el resultado.
+The exact repetition grammar is being stabilized by executable conformance tests.
 
-## Módulos
+### Events
 
-Los proyectos pueden dividirse en módulos `.ax` bajo `src/`. El nombre del módulo corresponde a su ruta relativa, usando puntos como separadores.
+```axiom
+cuando temperatura > 90 °C:
+    detener(motor)
+```
 
-Ejemplo de módulo:
+Time and periodic execution are semantic properties rather than a second asynchronous language.
 
-    module math
-    fn double(value: Int) -> Int {
-        return value + value
-    }
+### Dependencies and capabilities
 
-Un archivo puede importar otros módulos con una ruta cualificada:
+```axiom
+usar matematicas
 
-    module main
-    import math
+necesita:
+    filesystem.read
+    network
 
-    fn main() {
-        print(double(21))
-    }
+puede:
+    camera.read
+```
 
-El compilador resuelve el grafo de módulos desde el archivo de entrada, rechaza módulos inexistentes y detecta ciclos de importación. Las unidades resueltas se analizan semánticamente como un único programa antes de generar AXIOM IR.
+`usar` declares semantic dependency. `necesita` declares a requirement. `puede` describes an allowed capability boundary.
 
-## Compiler Core
+### Preferences and restrictions
 
-`axiom.core.Compiler` es la interfaz estable entre el workflow de proyecto y las capas internas del compilador:
+```axiom
+prefiere:
+    GPU
+    energía = baja
 
-    sources
-      ↓
-    ModuleResolver
-      ↓
-    AST
-      ↓
-    Semantic Analysis
-      ↓
-    AXIOM IR
+restringir:
+    dispositivo = GPU
+    precisión = fp32
+    ejecución = secuencial
+```
 
-El CLI usa esta misma interfaz cuando `axiom build` o `axiom run` reciben un directorio de proyecto. Studio puede consumir las mismas capas sin duplicar la lógica del compilador.
+Preferences guide planning. Restrictions are mandatory constraints.
 
-El modelo estructural de tipos está definido en `axiom.types`, con tipos primitivos, tipos nominales y arrays. El modelo se mantiene independiente de la representación concreta del backend para facilitar futuros backends nativos y el bootstrap.
+### Contracts
 
-## Contrato de compatibilidad
+```axiom
+demostrar:
+    temperatura < 100 °C
+```
 
-Las implementaciones Python y Rust mantienen sus propios frontends/runtime durante esta etapa. Las nuevas decisiones de sintaxis y tipos deben quedar cubiertas por pruebas de compatibilidad antes de retirar cualquiera de las implementaciones. La independencia completa se reserva para las fases de bootstrap y self-hosting del roadmap.
+Verification results are classified by evidence strength. Tests are not silently promoted to mathematical proof.
+
+## Types
+
+AXIOM treats a type as semantic knowledge about an entity, including:
+
+- meaning;
+- structure;
+- identity;
+- capabilities;
+- relations;
+- valid states;
+- restrictions;
+- contracts;
+- representation;
+- verifiable knowledge.
+
+Core types include:
+
+```text
+booleano
+entero
+real
+decimal
+texto
+carácter
+bytes
+tiempo
+duración
+unidad
+```
+
+Scientific types include rational, complex, vector, matrix, tensor, interval, probability, and algebraic-number families.
+
+Units and dimensionality are first-class semantic information:
+
+```axiom
+masa = 5 kg
+velocidad = 9.81 m/s²
+temperatura = 25 °C
+periodo = 10 ms
+```
+
+The compiler must distinguish exact and approximate numerical operations.
+
+There is no universal `null` model. Absence and failure are semantic possibilities that must be represented explicitly by the relevant type or contract.
+
+## Resource Flow
+
+AXIOM does not make ownership, borrowing, or lifetime syntax the foundation.
+
+The compiler asks:
+
+1. What must exist?
+2. Who uses it?
+3. What operations are performed?
+4. What dependencies exist?
+5. When is the last consumer finished?
+6. Which representation satisfies the constraints at acceptable cost?
+
+This applies to memory, files, sockets, GPU buffers, devices, processes, handles, connections, energy, time, and information.
+
+The compiler may select copy, alias, view, move, sharing, local storage, GPU storage, or reuse when semantics permit it.
+
+Explicit restrictions take priority.
+
+## Effects, capabilities, and resources
+
+These are three separate concepts:
+
+```text
+RESOURCE   = what an operation acts on
+CAPABILITY = what it is allowed to do
+EFFECT     = what it actually does
+```
+
+Effects are inferred and propagated through calls.
+
+Examples include:
+
+```text
+filesystem.read
+filesystem.write
+network.read
+network.write
+camera.read
+gpu
+clock.read
+secure_randomness
+hardware.raw_memory
+```
+
+Capability provenance must remain explainable.
+
+## Information Flow
+
+Resource Flow and Information Flow are separate analyses.
+
+A program may have permission to write to a network resource without being allowed to send every category of information through that resource.
+
+Information classifications and policies can be domain-defined. The compiler must identify prohibited flows and show their provenance.
+
+## Concurrency
+
+Concurrency is an execution-plan property.
+
+The compiler can identify independent operations, choose parallel execution, select CPU/SIMD/GPU/NPU/QPU/process/machine execution, and insert only the synchronization required by the semantic dependencies.
+
+The language does not require `async/await`, `thread`, `mutex`, or `spawn` as foundational syntax.
+
+Sequential execution remains expressible:
+
+```axiom
+restringir:
+    ejecución = secuencial
+```
+
+## Time and real-time behavior
+
+Time distinguishes:
+
+- instant;
+- duration;
+- clock;
+- period;
+- deadline;
+- latency;
+- jitter;
+- priority.
+
+Hard guarantees are restrictions. Soft goals are preferences.
+
+```axiom
+modo:
+    tiempo_real
+
+restringir:
+    periodo = 10 ms
+    deadline = 5 ms
+```
+
+The compiler must report whether a timing requirement is proven, possible, not demonstrable, or impossible under known constraints.
+
+## Fault tolerance
+
+Failure is a normal semantic possibility.
+
+Relevant actions include retry, timeout, fallback, restart, isolate, degrade, replace, propagate, recover, and cancel.
+
+Retries must respect idempotency and effect contracts.
+
+## Distribution
+
+Local and distributed execution use the same semantic model.
+
+The compiler and runtime must account for:
+
+- nodes;
+- network communication;
+- serialization;
+- latency;
+- partitions;
+- consistency;
+- atomicity;
+- idempotency;
+- retries;
+- timeouts;
+- recovery.
+
+RPC, queues, sockets, and shared memory are implementation mechanisms rather than separate language models.
+
+## Modules and packages
+
+The conceptual hierarchy is:
+
+```text
+PROJECT → PACKAGE → MODULE → SEMANTIC SPACE → ENTITY
+```
+
+`usar` expresses semantic dependency. `ofrecer` defines the public semantic interface.
+
+Name resolution must be deterministic and must not search arbitrary project state merely to guess what the programmer meant.
+
+## Explainability
+
+The compiler should be able to explain:
+
+- what a program does;
+- resources it uses;
+- capabilities it needs;
+- effects it produces;
+- concurrency decisions;
+- memory placement;
+- optimization decisions;
+- proof/evidence status;
+- target selection;
+- restrictions that prevented alternatives.
+
+This explanation is a compiler capability, not an external AI service.
+
+## Compatibility with the historical prototype
+
+The repository still contains the earlier `fn/struct/if` syntax because the historical implementation is being used as transition infrastructure.
+
+That syntax is **not** the canonical AXIOM 0.1 language definition.
+
+The canonical implementation is introduced incrementally and will be accepted through executable conformance tests before historical syntax is retired.
