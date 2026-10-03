@@ -1,12 +1,16 @@
+pub mod backend;
 pub mod ir;
 pub mod parser;
 pub mod runtime;
 pub mod semantic;
+pub mod toolchain;
 pub mod vm;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
     Fn,
+    Import,
+    Module,
     Let,
     Return,
     If,
@@ -216,6 +220,8 @@ pub fn lex(source: &str) -> Result<Vec<Token>, LexError> {
 fn keyword(value: &str) -> TokenKind {
     match value {
         "fn" => TokenKind::Fn,
+        "import" => TokenKind::Import,
+        "module" => TokenKind::Module,
         "let" => TokenKind::Let,
         "return" => TokenKind::Return,
         "if" => TokenKind::If,

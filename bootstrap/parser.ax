@@ -1,0 +1,383 @@
+fn token_kind(token: String) -> String {
+    let parts: String[] = split(token, "|")
+    if len(parts) == 0 { return "" }
+    return parts[0]
+}
+
+fn token_text(token: String) -> String {
+    let parts: String[] = split(token, "|")
+    if len(parts) > 1 { return parts[1] }
+    return ""
+}
+
+fn is_kind(tokens: String[], index: Int, kind: String) -> Bool {
+    return index < len(tokens) && token_kind(tokens[index]) == kind
+}
+
+fn print_error(message: String) {
+    print("PARSE_ERROR: " + message)
+}
+
+fn parse_type(tokens: String[], index: Int) -> Int {
+    if index >= len(tokens) || token_kind(tokens[index]) != "IDENT" {
+        print_error("expected type")
+        return index
+    }
+    print("Type: " + token_text(tokens[index]))
+    index = index + 1
+    while is_kind(tokens, index, "LBRACKET") {
+        if !is_kind(tokens, index + 1, "RBRACKET") {
+            print_error("expected ']' in array type")
+            return index
+        }
+        print("  Array")
+        index = index + 2
+    }
+    return index
+}
+
+fn parse_expression(tokens: String[], index: Int) -> Int {
+    print("ExprEnter")
+    index = parse_or(tokens, index)
+    print("ExprExit")
+    return index
+}
+
+fn parse_or(tokens: String[], index: Int) -> Int {
+    index = parse_and(tokens, index)
+    while is_kind(tokens, index, "OR") {
+        print("Binary: ||")
+        index = parse_and(tokens, index + 1)
+    }
+    return index
+}
+
+fn parse_and(tokens: String[], index: Int) -> Int {
+    index = parse_equality(tokens, index)
+    while is_kind(tokens, index, "AND") {
+        print("Binary: &&")
+        index = parse_equality(tokens, index + 1)
+    }
+    return index
+}
+
+fn parse_equality(tokens: String[], index: Int) -> Int {
+    index = parse_comparison(tokens, index)
+    while is_kind(tokens, index, "EQUAL") || is_kind(tokens, index, "NOT_EQUAL") {
+        if token_kind(tokens[index]) == "EQUAL" { print("Binary: ==") } else { print("Binary: !=") }
+        index = parse_comparison(tokens, index + 1)
+    }
+    return index
+}
+
+fn parse_comparison(tokens: String[], index: Int) -> Int {
+    index = parse_term(tokens, index)
+    while is_kind(tokens, index, "GREATER") || is_kind(tokens, index, "GREATER_EQUAL") || is_kind(tokens, index, "LESS") || is_kind(tokens, index, "LESS_EQUAL") {
+        if token_kind(tokens[index]) == "GREATER" { print("Binary: >") }
+        if token_kind(tokens[index]) == "GREATER_EQUAL" { print("Binary: >=") }
+        if token_kind(tokens[index]) == "LESS" { print("Binary: <") }
+        if token_kind(tokens[index]) == "LESS_EQUAL" { print("Binary: <=") }
+        index = parse_term(tokens, index + 1)
+    }
+    return index
+}
+
+fn parse_term(tokens: String[], index: Int) -> Int {
+    index = parse_factor(tokens, index)
+    while is_kind(tokens, index, "PLUS") || is_kind(tokens, index, "MINUS") {
+        if token_kind(tokens[index]) == "PLUS" { print("Binary: +") } else { print("Binary: -") }
+        index = parse_factor(tokens, index + 1)
+    }
+    return index
+}
+
+fn parse_factor(tokens: String[], index: Int) -> Int {
+    index = parse_unary(tokens, index)
+    while is_kind(tokens, index, "STAR") || is_kind(tokens, index, "SLASH") || is_kind(tokens, index, "PERCENT") {
+        if token_kind(tokens[index]) == "STAR" { print("Binary: *") }
+        if token_kind(tokens[index]) == "SLASH" { print("Binary: /") }
+        if token_kind(tokens[index]) == "PERCENT" { print("Binary: %") }
+        index = parse_unary(tokens, index + 1)
+    }
+    return index
+}
+
+fn parse_unary(tokens: String[], index: Int) -> Int {
+    if is_kind(tokens, index, "NOT") || is_kind(tokens, index, "MINUS") {
+        if token_kind(tokens[index]) == "NOT" { print("Unary: !") } else { print("Unary: -") }
+        return parse_unary(tokens, index + 1)
+    }
+    return parse_postfix(tokens, index)
+}
+
+fn parse_postfix(tokens: String[], index: Int) -> Int {
+    index = parse_primary(tokens, index)
+    while index < len(tokens) {
+        if is_kind(tokens, index, "LBRACKET") {
+            print("Index")
+            index = parse_expression(tokens, index + 1)
+            if is_kind(tokens, index, "RBRACKET") { index = index + 1 } else { print_error("expected ']'") }
+        } else if is_kind(tokens, index, "DOT") {
+            if is_kind(tokens, index + 1, "IDENT") {
+                print("Field: " + token_text(tokens[index + 1]))
+                index = index + 2
+            } else {
+                print_error("expected field name")
+                return index
+            }
+        } else {
+            return index
+        }
+    }
+    return index
+}
+
+fn parse_arguments(tokens: String[], index: Int) -> Int {
+    if is_kind(tokens, index, "RPAREN") { return index + 1 }
+    index = parse_expression(tokens, index)
+    while is_kind(tokens, index, "COMMA") {
+        index = parse_expression(tokens, index + 1)
+    }
+    if is_kind(tokens, index, "RPAREN") { return index + 1 }
+    print_error("expected ')'")
+    return index
+}
+fn parse_primary(tokens: String[], index: Int) -> Int {
+    if index >= len(tokens) { print_error("unexpected end of input"); return index }
+    let kind: String = token_kind(tokens[index])
+    if kind == "PRINT" {
+        print("Call: print")
+        return parse_arguments(tokens, index + 2)
+    }
+    if kind == "STRING" {
+        print("String: " + token_text(tokens[index]))
+        return index + 1
+    }
+    if kind == "INTEGER" {
+        print("Integer: " + token_text(tokens[index]))
+        return index + 1
+    }
+    if kind == "FLOAT" {
+        print("Float: " + token_text(tokens[index]))
+        return index + 1
+    }
+    if kind == "TRUE" || kind == "FALSE" {
+        print("Boolean: " + token_text(tokens[index]))
+        return index + 1
+    }
+    if kind == "LBRACKET" {
+        print("Array")
+        index = index + 1
+        if is_kind(tokens, index, "RBRACKET") { return index + 1 }
+        index = parse_expression(tokens, index)
+        while is_kind(tokens, index, "COMMA") {
+            index = parse_expression(tokens, index + 1)
+        }
+        if is_kind(tokens, index, "RBRACKET") { return index + 1 }
+        print_error("expected ']'")
+        return index
+    }
+    if kind == "LPAREN" {
+        index = parse_expression(tokens, index + 1)
+        if is_kind(tokens, index, "RPAREN") { return index + 1 }
+        print_error("expected ')'")
+        return index
+    }
+    if kind == "IDENT" {
+        let name: String = token_text(tokens[index])
+        if is_kind(tokens, index + 1, "LPAREN") {
+            print("Call: " + name)
+            return parse_arguments(tokens, index + 2)
+        }
+        if is_kind(tokens, index + 1, "LBRACE") {
+            print("StructLiteral: " + name)
+            index = index + 2
+            while index < len(tokens) && !is_kind(tokens, index, "RBRACE") {
+                if is_kind(tokens, index, "IDENT") {
+                    print("  Field: " + token_text(tokens[index]))
+                    index = index + 1
+                    if is_kind(tokens, index, "COLON") {
+                        index = parse_expression(tokens, index + 1)
+                    } else {
+                        print_error("expected ':'")
+                        return index
+                    }
+                } else {
+                    print_error("expected struct field")
+                    return index
+                }
+                if is_kind(tokens, index, "COMMA") { index = index + 1 }
+            }
+            if is_kind(tokens, index, "RBRACE") { return index + 1 }
+            print_error("expected '}'")
+            return index
+        }
+        print("Variable: " + name)
+        return index + 1
+    }
+    print_error("unexpected token " + kind)
+    return index + 1
+}
+
+fn parse_statement(tokens: String[], index: Int) -> Int {
+    if is_kind(tokens, index, "LET") {
+        print("Let")
+        index = index + 1
+        if !is_kind(tokens, index, "IDENT") { print_error("expected variable name"); return index }
+        print("  Name: " + token_text(tokens[index]))
+        index = index + 1
+        if is_kind(tokens, index, "COLON") {
+            index = parse_type(tokens, index + 1)
+        }
+        if is_kind(tokens, index, "ASSIGN") {
+            index = parse_expression(tokens, index + 1)
+        } else {
+            print_error("expected '='")
+        }
+        return index
+    }
+    if is_kind(tokens, index, "RETURN") {
+        print("Return")
+        index = index + 1
+        if !is_kind(tokens, index, "RBRACE") && !is_kind(tokens, index, "SEMICOLON") {
+            return parse_expression(tokens, index)
+        }
+        return index
+    }
+    if is_kind(tokens, index, "BREAK") { print("Break"); return index + 1 }
+    if is_kind(tokens, index, "CONTINUE") { print("Continue"); return index + 1 }
+    if is_kind(tokens, index, "IF") {
+        print("If")
+        index = parse_expression(tokens, index + 1)
+        index = parse_block(tokens, index)
+        if is_kind(tokens, index, "ELSE") {
+            print("Else")
+            index = index + 1
+            index = parse_block(tokens, index)
+        }
+        return index
+    }
+    if is_kind(tokens, index, "WHILE") {
+        print("While")
+        index = parse_expression(tokens, index + 1)
+        return parse_block(tokens, index)
+    }
+    if is_kind(tokens, index, "FOR") {
+        print("For")
+        return parse_block(tokens, index + 1)
+    }
+    let start: Int = index
+    index = parse_expression(tokens, index)
+    if is_kind(tokens, index, "ASSIGN") {
+        print("Assign")
+        return parse_expression(tokens, index + 1)
+    }
+    if (index == start) { return index + 1 }
+    return index
+}
+fn parse_block(tokens: String[], index: Int) -> Int {
+    if !is_kind(tokens, index, "LBRACE") {
+        print_error("expected '{'")
+        return index
+    }
+    print("ScopeEnter")
+    index = index + 1
+    while index < len(tokens) && !is_kind(tokens, index, "RBRACE") {
+        if is_kind(tokens, index, "SEMICOLON") {
+            index = index + 1
+        } else {
+            index = parse_statement(tokens, index)
+        }
+    }
+    if is_kind(tokens, index, "RBRACE") {
+        print("ScopeExit")
+        return index + 1
+    }
+    print_error("expected '}'")
+    return index
+}
+
+fn parse_function(tokens: String[], index: Int) -> Int {
+    if !is_kind(tokens, index, "FN") {
+        print_error("expected 'fn'")
+        return index + 1
+    }
+    index = index + 1
+    if !is_kind(tokens, index, "IDENT") {
+        print_error("expected function name")
+        return index
+    }
+    print("Function: " + token_text(tokens[index]))
+    index = index + 1
+    if !is_kind(tokens, index, "LPAREN") {
+        print_error("expected '('")
+        return index
+    }
+    index = index + 1
+    while index < len(tokens) && !is_kind(tokens, index, "RPAREN") {
+        if is_kind(tokens, index, "IDENT") {
+            print("  Parameter: " + token_text(tokens[index]))
+            index = index + 1
+            if is_kind(tokens, index, "COLON") {
+                index = parse_type(tokens, index + 1)
+            }
+            if is_kind(tokens, index, "COMMA") { index = index + 1 }
+        } else {
+            print_error("expected parameter")
+            return index
+        }
+    }
+    if is_kind(tokens, index, "RPAREN") { index = index + 1 } else { print_error("expected ')'"); return index }
+    if is_kind(tokens, index, "ARROW") {
+        print("ReturnType")
+        index = parse_type(tokens, index + 1)
+    }
+    return parse_block(tokens, index)
+}
+
+fn parse_struct(tokens: String[], index: Int) -> Int {
+    print("Struct: " + token_text(tokens[index + 1]))
+    index = index + 3
+    while index < len(tokens) && !is_kind(tokens, index, "RBRACE") {
+        if is_kind(tokens, index, "IDENT") {
+            print("  Field: " + token_text(tokens[index]))
+            index = index + 1
+            if is_kind(tokens, index, "COLON") {
+                index = parse_type(tokens, index + 1)
+            }
+        } else {
+            index = index + 1
+        }
+        if is_kind(tokens, index, "COMMA") || is_kind(tokens, index, "SEMICOLON") { index = index + 1 }
+    }
+    if is_kind(tokens, index, "RBRACE") { return index + 1 }
+    print_error("expected '}'")
+    return index
+}
+
+fn parse_program(tokens: String[]) {
+    let index: Int = 0
+    print("Program")
+    while index < len(tokens) {
+        let kind: String = token_kind(tokens[index])
+        if kind == "" || kind == "SEMICOLON" {
+            index = index + 1
+        } else if kind == "FN" {
+            index = parse_function(tokens, index)
+        } else if kind == "STRUCT" {
+            index = parse_struct(tokens, index)
+        } else if kind == "MODULE" || kind == "IMPORT" {
+            print(kind + ": " + token_text(tokens[index + 1]))
+            index = index + 2
+        } else {
+            print_error("unexpected top-level " + kind)
+            index = index + 1
+        }
+    }
+}
+
+fn main() {
+    let source: String = read_file("bootstrap/lexer_tokens.txt")
+    let tokens: String[] = split_lines(source)
+    parse_program(tokens)
+}

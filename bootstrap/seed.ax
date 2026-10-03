@@ -1,0 +1,36 @@
+struct Token {
+    kind: Int
+    text: String
+}
+
+struct Program {
+    message: String
+}
+
+fn parse_print(tokens: Token[]) -> Program {
+    let message: String = tokens[3].text
+    return Program { message: message }
+}
+
+fn emit_program(program: Program) {
+    print("AXIOM_ARTIFACT_V1")
+    print("FUNCTION:main")
+    print("PARAMS:0")
+    print("INSTR:PushString:" + program.message + "|Print")
+}
+
+fn compile(tokens: Token[]) {
+    let program: Program = parse_print(tokens)
+    emit_program(program)
+}
+
+fn main() {
+    let tokens: Token[] = [
+        Token { kind: 1 text: "print" },
+        Token { kind: 2 text: "(" },
+        Token { kind: 3 text: "string" },
+        Token { kind: 4 text: "Hello from bootstrap" },
+        Token { kind: 5 text: ")" }
+    ]
+    compile(tokens)
+}

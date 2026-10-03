@@ -219,6 +219,86 @@ fn remainder_runs_in_source_and_compiled_artifact() {
 }
 
 #[test]
+fn standard_library_runs_in_source_and_compiled_artifact() {
+    let source_path = temp_path("standard_library_source.ax");
+    let artifact_path = temp_path("standard_library_output.axm");
+    std::fs::write(
+        &source_path,
+        r#"fn main() { print(len("axiom")); print(abs(-7)); print(min(3, 5)); print(max(3.0, 5.0)) }"#,
+    )
+    .unwrap();
+    let expected = "5
+7
+3
+5.0
+";
+
+    let source_run = run_axiom(&["run", source_path.to_str().unwrap()]);
+    assert!(
+        source_run.status.success(),
+        "source run failed: {}",
+        String::from_utf8_lossy(&source_run.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&source_run.stdout), expected);
+
+    let build = run_axiom(&[
+        "build",
+        source_path.to_str().unwrap(),
+        artifact_path.to_str().unwrap(),
+    ]);
+    assert!(build.status.success());
+
+    let artifact_run = run_axiom(&["run", artifact_path.to_str().unwrap()]);
+    assert!(artifact_run.status.success());
+    assert_eq!(String::from_utf8_lossy(&artifact_run.stdout), expected);
+
+    let _ = std::fs::remove_file(source_path);
+    let _ = std::fs::remove_file(artifact_path);
+}
+
+#[test]
+fn struct_field_assignment_runs_in_source_and_compiled_artifact() {
+    let source_path = temp_path("struct_assignment_source.ax");
+    let artifact_path = temp_path("struct_assignment_output.axm");
+    std::fs::write(
+        &source_path,
+        "struct Point { x: Int, y: Int } fn main() { let point: Point = Point { x: 10, y: 20 }; point.x = 42; print(point.x) }",
+    )
+    .unwrap();
+    let expected = "42\n";
+
+    let source_run = run_axiom(&["run", source_path.to_str().unwrap()]);
+    assert!(
+        source_run.status.success(),
+        "source run failed: {}",
+        String::from_utf8_lossy(&source_run.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&source_run.stdout), expected);
+
+    let build = run_axiom(&[
+        "build",
+        source_path.to_str().unwrap(),
+        artifact_path.to_str().unwrap(),
+    ]);
+    assert!(
+        build.status.success(),
+        "build failed: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    let artifact_run = run_axiom(&["run", artifact_path.to_str().unwrap()]);
+    assert!(
+        artifact_run.status.success(),
+        "artifact run failed: {}",
+        String::from_utf8_lossy(&artifact_run.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&artifact_run.stdout), expected);
+
+    let _ = std::fs::remove_file(source_path);
+    let _ = std::fs::remove_file(artifact_path);
+}
+
+#[test]
 fn structs_run_in_source_and_compiled_artifact() {
     let source_path = temp_path("struct_source.ax");
     let artifact_path = temp_path("struct_output.axm");

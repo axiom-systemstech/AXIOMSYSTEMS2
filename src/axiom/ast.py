@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 class Program:
     functions: list["Function"]
     structs: list["StructDefinition"] = field(default_factory=list)
+    module_name: str | None = None
+    imports: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

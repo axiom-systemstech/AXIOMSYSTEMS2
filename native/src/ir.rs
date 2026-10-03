@@ -33,6 +33,7 @@ pub enum Instruction {
     Index,
     StoreIndex,
     GetField(String),
+    StoreField(String),
     Print,
     Return,
     If {
@@ -166,6 +167,18 @@ fn lower_assignment(
     match target {
         Expression::Variable(name) => {
             let mut body = lower_expression(value);
+            body.push(Instruction::StoreVariable(name.clone()));
+            body
+        }
+        Expression::FieldAccess { target, field } => {
+            let Expression::Variable(name) = target.as_ref() else {
+                let mut body = lower_expression(value);
+                body.push(Instruction::StoreVariable("_tmp".to_string()));
+                return body;
+            };
+            let mut body = vec![Instruction::LoadVariable(name.clone())];
+            body.extend(lower_expression(value));
+            body.push(Instruction::StoreField(field.clone()));
             body.push(Instruction::StoreVariable(name.clone()));
             body
         }
@@ -309,6 +322,18 @@ fn lower_expression(expression: &Expression) -> Vec<Instruction> {
 mod tests {
     use super::*;
     use crate::parser::parse;
+
+    #[test]
+    fn lowers_struct_field_assignment() {
+        let program = parse(
+            "struct Point { x: Int } fn main() { let point: Point = Point { x: 10 }; point.x = 42 }",
+        )
+        .unwrap();
+        let lowered = lower_program(&program);
+        assert!(lowered.functions[0].instructions.iter().any(
+            |instruction| matches!(instruction, Instruction::StoreField(field) if field == "x")
+        ));
+    }
 
     #[test]
     fn lowers_main_function() {

@@ -18,12 +18,31 @@ class Parser:
     def parse(self) -> Program:
         functions = []
         structs = []
+        module_name = None
+        imports = []
         while not self._check(TokenKind.EOF):
-            if self._check(TokenKind.STRUCT):
+            if self._check(TokenKind.MODULE):
+                if module_name is not None:
+                    self._error(self._current(), "duplicate module declaration")
+                self.position += 1
+                module_name = self._qualified_name()
+            elif self._check(TokenKind.IMPORT):
+                self.position += 1
+                imports.append(self._qualified_name())
+            elif self._check(TokenKind.STRUCT):
                 structs.append(self._struct())
             else:
                 functions.append(self._function())
-        return Program(functions, structs)
+            if self._check(TokenKind.SEMICOLON):
+                self.position += 1
+        return Program(functions, structs, module_name, imports)
+
+    def _qualified_name(self) -> str:
+        parts = [self._consume(TokenKind.IDENTIFIER, "expected module name").lexeme]
+        while self._check(TokenKind.DOT):
+            self.position += 1
+            parts.append(self._consume(TokenKind.IDENTIFIER, "expected name after '.'").lexeme)
+        return ".".join(parts)
 
     def _struct(self) -> StructDefinition:
         self._consume(TokenKind.STRUCT, "expected 'struct'")
@@ -333,4 +352,7 @@ class Parser:
 
 
 def parse(source: str) -> Program:
+    from .new_parser import looks_like_new_syntax, parse_new
+    if looks_like_new_syntax(source):
+        return parse_new(source)
     return Parser(lex(source)).parse()

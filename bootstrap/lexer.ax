@@ -1,0 +1,129 @@
+fn kind(word: String) -> String {
+    if word == "fn" { return "FN" }
+    if word == "print" { return "PRINT" }
+    if word == "let" { return "LET" }
+    if word == "return" { return "RETURN" }
+    if word == "if" { return "IF" }
+    if word == "else" { return "ELSE" }
+    if word == "while" { return "WHILE" }
+    if word == "for" { return "FOR" }
+    if word == "break" { return "BREAK" }
+    if word == "continue" { return "CONTINUE" }
+    if word == "true" { return "TRUE" }
+    if word == "false" { return "FALSE" }
+    if word == "struct" { return "STRUCT" }
+    if word == "module" { return "MODULE" }
+    if word == "import" { return "IMPORT" }
+    return "IDENT"
+}
+
+fn emit(kind_name: String, text: String) {
+    print(kind_name + "|" + text)
+}
+
+fn is_letter(code: Int) -> Bool {
+    return (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code == 95
+}
+
+fn is_digit(code: Int) -> Bool {
+    return code >= 48 && code <= 57
+}
+
+fn lex(source: String) {
+    let index: Int = 0
+    while index < len(source) {
+        let current: String = char_at(source, index)
+        let code: Int = char_code(current)
+        if code == 32 || code == 9 || code == 10 || code == 13 {
+            index = index + 1
+        } else if is_letter(code) {
+            let word: String = ""
+            while index < len(source) && (is_letter(char_code(char_at(source, index))) || is_digit(char_code(char_at(source, index)))) {
+                word = word + char_at(source, index)
+                index = index + 1
+            }
+            emit(kind(word), word)
+        } else if is_digit(code) {
+            let number: String = ""
+            while index < len(source) && is_digit(char_code(char_at(source, index))) {
+                number = number + char_at(source, index)
+                index = index + 1
+            }
+            if index < len(source) && char_at(source, index) == "." && index + 1 < len(source) && is_digit(char_code(char_at(source, index + 1))) {
+                number = number + "."
+                index = index + 1
+                while index < len(source) && is_digit(char_code(char_at(source, index))) {
+                    number = number + char_at(source, index)
+                    index = index + 1
+                }
+                emit("FLOAT", number)
+            } else {
+                emit("INTEGER", number)
+            }
+        } else if code == 34 {
+            index = index + 1
+            let value: String = ""
+            while index < len(source) && char_code(char_at(source, index)) != 34 {
+                value = value + char_at(source, index)
+                index = index + 1
+            }
+            if index < len(source) { index = index + 1 }
+            emit("STRING", value)
+        } else if current == "(" { emit("LPAREN", current); index = index + 1
+        } else if current == ")" { emit("RPAREN", current); index = index + 1
+        } else if current == "{" { emit("LBRACE", current); index = index + 1
+        } else if current == "}" { emit("RBRACE", current); index = index + 1
+        } else if current == "[" { emit("LBRACKET", current); index = index + 1
+        } else if current == "]" { emit("RBRACKET", current); index = index + 1
+        } else if current == "," { emit("COMMA", current); index = index + 1
+        } else if current == ":" { emit("COLON", current); index = index + 1
+        } else if current == ";" { emit("SEMICOLON", current); index = index + 1
+        } else if current == "." { emit("DOT", current); index = index + 1
+        } else if current == "+" { emit("PLUS", current); index = index + 1
+        } else if current == "-" {
+            if index + 1 < len(source) && char_at(source, index + 1) == ">" {
+                emit("ARROW", "->"); index = index + 2
+            } else {
+                emit("MINUS", current); index = index + 1
+            }
+        } else if current == "*" { emit("STAR", current); index = index + 1
+        } else if current == "/" { emit("SLASH", current); index = index + 1
+        } else if current == "%" { emit("PERCENT", current); index = index + 1
+        } else if current == "!" {
+            if index + 1 < len(source) && char_at(source, index + 1) == "=" {
+                emit("NOT_EQUAL", "!="); index = index + 2
+            } else {
+                emit("NOT", current); index = index + 1
+            }
+        } else if current == "=" {
+            if index + 1 < len(source) && char_at(source, index + 1) == "=" {
+                emit("EQUAL", "=="); index = index + 2
+            } else {
+                emit("ASSIGN", current); index = index + 1
+            }
+        } else if current == ">" {
+            if index + 1 < len(source) && char_at(source, index + 1) == "=" {
+                emit("GREATER_EQUAL", ">="); index = index + 2
+            } else {
+                emit("GREATER", current); index = index + 1
+            }
+        } else if current == "<" {
+            if index + 1 < len(source) && char_at(source, index + 1) == "=" {
+                emit("LESS_EQUAL", "<="); index = index + 2
+            } else {
+                emit("LESS", current); index = index + 1
+            }
+        } else if current == "&" && index + 1 < len(source) && char_at(source, index + 1) == "&" {
+            emit("AND", "&&"); index = index + 2
+        } else if current == "|" && index + 1 < len(source) && char_at(source, index + 1) == "|" {
+            emit("OR", "||"); index = index + 2
+        } else {
+            emit("CHAR", current); index = index + 1
+        }
+    }
+}
+
+fn main() {
+    let source: String = read_file("bootstrap/lexer_fixture.ax")
+    lex(source)
+}

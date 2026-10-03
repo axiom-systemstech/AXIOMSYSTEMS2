@@ -266,6 +266,9 @@ impl Machine {
         name: &str,
         arguments: Vec<Value>,
     ) -> Result<Option<Value>, VmError> {
+        if let Some(value) = call_standard_library(name, &arguments)? {
+            return Ok(Some(value));
+        }
         let function = self
             .functions
             .iter()
@@ -530,6 +533,22 @@ impl Machine {
                             message: format!("unknown field '{field}'"),
                         })?);
                 }
+                Instruction::StoreField(field) => {
+                    let value = self.pop_stack()?;
+                    let structure = self.pop_stack()?;
+                    let Value::Struct(mut fields) = structure else {
+                        return Err(VmError {
+                            message: "expected struct value".into(),
+                        });
+                    };
+                    if !fields.contains_key(field) {
+                        return Err(VmError {
+                            message: format!("unknown field '{field}'"),
+                        });
+                    }
+                    fields.insert(field.clone(), value);
+                    self.stack.push(Value::Struct(fields));
+                }
                 Instruction::StoreIndex => {
                     let value = self.pop_stack()?;
                     let index = self.pop_stack()?.as_int()?;
@@ -630,6 +649,236 @@ impl Machine {
     }
 }
 
+fn call_standard_library(name: &str, arguments: &[Value]) -> Result<Option<Value>, VmError> {
+    match name {
+        "split_lines" => {
+            if arguments.len() != 1 {
+                return Err(VmError {
+                    message: "split_lines expects one String argument".into(),
+                });
+            }
+            let value = match &arguments[0] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "split_lines expects a String".into(),
+                    })
+                }
+            };
+            Ok(Some(Value::Array(
+                value
+                    .lines()
+                    .map(|line| Value::String(line.to_owned()))
+                    .collect(),
+            )))
+        }
+        "split" => {
+            if arguments.len() != 2 {
+                return Err(VmError {
+                    message: "split expects a String value and separator".into(),
+                });
+            }
+            let value = match &arguments[0] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "split expects a String value".into(),
+                    })
+                }
+            };
+            let separator = match &arguments[1] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "split expects a String separator".into(),
+                    })
+                }
+            };
+            Ok(Some(Value::Array(
+                value
+                    .split(separator)
+                    .map(|part| Value::String(part.to_owned()))
+                    .collect(),
+            )))
+        }
+        "read_file" => {
+            if arguments.len() != 1 {
+                return Err(VmError {
+                    message: "read_file expects one argument".into(),
+                });
+            }
+            let path = match &arguments[0] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "read_file expects a String path".into(),
+                    })
+                }
+            };
+            let content = std::fs::read_to_string(path).map_err(|error| VmError {
+                message: format!("cannot read file '{path}': {error}"),
+            })?;
+            Ok(Some(Value::String(content)))
+        }
+        "write_file" => {
+            if arguments.len() != 2 {
+                return Err(VmError {
+                    message: "write_file expects a path and content".into(),
+                });
+            }
+            let path = match &arguments[0] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "write_file expects a String path".into(),
+                    })
+                }
+            };
+            let content = match &arguments[1] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "write_file expects String content".into(),
+                    })
+                }
+            };
+            std::fs::write(path, content).map_err(|error| VmError {
+                message: format!("cannot write file '{path}': {error}"),
+            })?;
+            Ok(Some(Value::Bool(true)))
+        }
+        "char_at" => {
+            if arguments.len() != 2 {
+                return Err(VmError {
+                    message: "char_at expects a String and an Int index".into(),
+                });
+            }
+            let value = match &arguments[0] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "char_at expects a String".into(),
+                    })
+                }
+            };
+            let index = arguments[1].as_int()?;
+            if index < 0 {
+                return Err(VmError {
+                    message: "char_at index must be non-negative".into(),
+                });
+            }
+            let character = value.chars().nth(index as usize).ok_or_else(|| VmError {
+                message: format!("char_at index {index} out of bounds"),
+            })?;
+            Ok(Some(Value::String(character.to_string())))
+        }
+        "char_code" => {
+            if arguments.len() != 1 {
+                return Err(VmError {
+                    message: "char_code expects one String character".into(),
+                });
+            }
+            let value = match &arguments[0] {
+                Value::String(value) => value,
+                _ => {
+                    return Err(VmError {
+                        message: "char_code expects a String".into(),
+                    })
+                }
+            };
+            let mut chars = value.chars();
+            let character = chars.next().ok_or_else(|| VmError {
+                message: "char_code expects a non-empty String".into(),
+            })?;
+            if chars.next().is_some() {
+                return Err(VmError {
+                    message: "char_code expects exactly one character".into(),
+                });
+            }
+            Ok(Some(Value::Int(character as i64)))
+        }
+        "int_to_string" => {
+            if arguments.len() != 1 {
+                return Err(VmError {
+                    message: "int_to_string expects one Int argument".into(),
+                });
+            }
+            Ok(Some(Value::String(arguments[0].as_int()?.to_string())))
+        }
+        "len" => {
+            if arguments.len() != 1 {
+                return Err(VmError {
+                    message: "len expects one argument".into(),
+                });
+            }
+            let length = match &arguments[0] {
+                Value::String(value) => value.chars().count(),
+                Value::Array(values) => values.len(),
+                _ => {
+                    return Err(VmError {
+                        message: "len expects a String or array".into(),
+                    })
+                }
+            };
+            Ok(Some(Value::Int(length as i64)))
+        }
+        "abs" => {
+            if arguments.len() != 1 {
+                return Err(VmError {
+                    message: "abs expects one argument".into(),
+                });
+            }
+            match &arguments[0] {
+                Value::Int(value) => Ok(Some(Value::Int(value.abs()))),
+                Value::Float(value) => {
+                    let value = value.parse::<f64>().map_err(|_| VmError {
+                        message: "abs expects a numeric value".into(),
+                    })?;
+                    Ok(Some(Value::Float(render_float(value.abs()))))
+                }
+                _ => Err(VmError {
+                    message: "abs expects an Int or Float".into(),
+                }),
+            }
+        }
+        "min" | "max" => {
+            if arguments.len() != 2 {
+                return Err(VmError {
+                    message: format!("{name} expects two arguments"),
+                });
+            }
+            match (&arguments[0], &arguments[1]) {
+                (Value::Int(left), Value::Int(right)) => {
+                    let value = if name == "min" {
+                        (*left).min(*right)
+                    } else {
+                        (*left).max(*right)
+                    };
+                    Ok(Some(Value::Int(value)))
+                }
+                (Value::Float(left), Value::Float(right)) => {
+                    let left = left.parse::<f64>().map_err(|_| VmError {
+                        message: "expected Float value".into(),
+                    })?;
+                    let right = right.parse::<f64>().map_err(|_| VmError {
+                        message: "expected Float value".into(),
+                    })?;
+                    let value = if name == "min" {
+                        left.min(right)
+                    } else {
+                        left.max(right)
+                    };
+                    Ok(Some(Value::Float(render_float(value))))
+                }
+                _ => Err(VmError {
+                    message: format!("{name} expects two matching numeric arguments"),
+                }),
+            }
+        }
+        _ => Ok(None),
+    }
+}
+
 fn encode_sequence(instructions: &[Instruction]) -> String {
     instructions
         .iter()
@@ -687,6 +936,7 @@ fn encode_instruction(instruction: &Instruction) -> String {
         Instruction::Index => "Index".to_string(),
         Instruction::StoreIndex => "StoreIndex".to_string(),
         Instruction::GetField(field) => format!("GetField:{}", escape_string(field)),
+        Instruction::StoreField(field) => format!("StoreField:{}", escape_string(field)),
         Instruction::Print => "Print".to_string(),
         Instruction::Return => "Return".to_string(),
         Instruction::If {
@@ -738,6 +988,9 @@ fn decode_instruction(token: &str) -> Result<Instruction, VmError> {
     }
     if let Some(field) = token.strip_prefix("GetField:") {
         return Ok(Instruction::GetField(unescape_string(field)));
+    }
+    if let Some(field) = token.strip_prefix("StoreField:") {
+        return Ok(Instruction::StoreField(unescape_string(field)));
     }
     if token == "Break" {
         return Ok(Instruction::Break);
@@ -1088,6 +1341,35 @@ mod tests {
     }
 
     #[test]
+    fn executes_compiled_struct_field_assignment() {
+        let program = parse(
+            "struct Point { x: Int, y: Int } fn main() { let point: Point = Point { x: 10, y: 20 }; point.x = 42; print(point.x) }",
+        )
+        .unwrap();
+        let artifact = compile_program(&program);
+        let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
+        assert_eq!(execute_artifact(&decoded).unwrap(), "42\n");
+    }
+
+    #[test]
+    fn executes_compiled_standard_library_calls() {
+        let program = parse(
+            r#"fn main() { print(len("axiom")); print(abs(-7)); print(min(3, 5)); print(max(3.0, 5.0)) }"#,
+        )
+        .unwrap();
+        let artifact = compile_program(&program);
+        let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
+        assert_eq!(
+            execute_artifact(&decoded).unwrap(),
+            "5
+7
+3
+5.0
+"
+        );
+    }
+
+    #[test]
     fn executes_compiled_struct_field_access() {
         let program = parse(
             "struct Point { x: Int, y: Int } fn main() { let point: Point = Point { x: 10, y: 20 }; print(point.x); print(point.y) }",
@@ -1106,6 +1388,265 @@ mod tests {
         let artifact = compile_program(&program);
         let decoded = Artifact::deserialize(&artifact.serialize()).unwrap();
         assert_eq!(execute_artifact(&decoded).unwrap(), "4.0\n2.0\n");
+    }
+
+    #[test]
+    fn executes_self_hosted_lexer() {
+        let source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/lexer.ax"
+        ))
+        .unwrap();
+        let source = source.replace(
+            "bootstrap/lexer_fixture.ax",
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../bootstrap/lexer_fixture.ax"),
+        );
+        let program = parse(&source).unwrap();
+        let output = execute_program(&program).unwrap();
+        assert!(output.contains("STRUCT|struct\n"));
+        assert!(output.contains("ARROW|->\n"));
+        assert!(output.contains("LBRACKET|[\n"));
+        assert!(output.contains("GREATER_EQUAL|>=\n"));
+        assert!(output.contains("AND|&&\n"));
+        assert!(output.contains("FLOAT|2.5\n"));
+        assert!(output.ends_with("RBRACE|}\n"));
+    }
+
+    #[test]
+    fn executes_self_hosted_parser() {
+        let lexer_source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/lexer.ax"
+        ))
+        .unwrap()
+        .replace(
+            "bootstrap/lexer_fixture.ax",
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../bootstrap/lexer_fixture.ax"),
+        );
+        let lexer_program = parse(&lexer_source).unwrap();
+        let tokens = execute_program(&lexer_program).unwrap();
+        let token_path = std::env::temp_dir().join(format!(
+            "axiom-self-hosted-parser-{}.tokens",
+            std::process::id()
+        ));
+        std::fs::write(&token_path, tokens).unwrap();
+
+        let source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/parser.ax"
+        ))
+        .unwrap()
+        .replace("bootstrap/lexer_tokens.txt", token_path.to_str().unwrap());
+        let program = parse(&source).unwrap();
+        let output = execute_program(&program).unwrap();
+        std::fs::remove_file(&token_path).unwrap();
+        assert!(output.contains("Program\n"));
+        assert!(output.contains("Struct: Point\n"));
+        assert!(output.contains("Function: calculate\n"));
+        assert!(output.contains("Array\n"));
+        assert!(output.contains("Binary: >=\n"));
+        assert!(output.contains("Else\n"));
+        assert!(output.contains("While\n"));
+        assert!(output.contains("Return\n"));
+    }
+
+    #[test]
+    fn executes_self_hosted_ast_normalizer() {
+        let parser_test = {
+            let lexer_source = std::fs::read_to_string(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../bootstrap/lexer.ax"
+            ))
+            .unwrap()
+            .replace(
+                "bootstrap/lexer_fixture.ax",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../bootstrap/lexer_fixture.ax"),
+            );
+            let lexer_program = parse(&lexer_source).unwrap();
+            let tokens = execute_program(&lexer_program).unwrap();
+
+            let token_path = std::env::temp_dir().join(format!(
+                "axiom-self-hosted-ast-{}.tokens",
+                std::process::id()
+            ));
+            let ast_input_path = std::env::temp_dir()
+                .join(format!("axiom-self-hosted-ast-{}.txt", std::process::id()));
+            std::fs::write(&token_path, tokens).unwrap();
+
+            let parser_source = std::fs::read_to_string(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../bootstrap/parser.ax"
+            ))
+            .unwrap()
+            .replace("bootstrap/lexer_tokens.txt", token_path.to_str().unwrap());
+            let parser_program = parse(&parser_source).unwrap();
+            let parser_output = execute_program(&parser_program).unwrap();
+            std::fs::write(&ast_input_path, parser_output).unwrap();
+
+            let ast_source = std::fs::read_to_string(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../bootstrap/ast.ax"
+            ))
+            .unwrap()
+            .replace("bootstrap/parser_ast.txt", ast_input_path.to_str().unwrap());
+            let ast_program = parse(&ast_source).unwrap();
+            let ast_output = execute_program(&ast_program).unwrap();
+
+            std::fs::remove_file(token_path).unwrap();
+            std::fs::remove_file(ast_input_path).unwrap();
+            ast_output
+        };
+
+        assert!(parser_test.starts_with("AXIOM_AST_V1\n"));
+        assert!(parser_test.contains("NODE|0|Program|"));
+        assert!(parser_test.contains("NODE|0|Struct|Point"));
+        assert!(parser_test.contains("NODE|0|Function|calculate"));
+        assert!(parser_test.contains("NODE|1|Return|"));
+    }
+
+    #[test]
+    fn executes_self_hosted_semantic_analysis() {
+        let lexer_source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/lexer.ax"
+        ))
+        .unwrap()
+        .replace(
+            "bootstrap/lexer_fixture.ax",
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../bootstrap/lexer_fixture.ax"),
+        );
+        let lexer_program = parse(&lexer_source).unwrap();
+        let tokens = execute_program(&lexer_program).unwrap();
+
+        let token_path = std::env::temp_dir().join(format!(
+            "axiom-self-hosted-semantic-{}.tokens",
+            std::process::id()
+        ));
+        let ast_path = std::env::temp_dir().join(format!(
+            "axiom-self-hosted-semantic-{}.ast",
+            std::process::id()
+        ));
+        std::fs::write(&token_path, tokens).unwrap();
+
+        let parser_source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/parser.ax"
+        ))
+        .unwrap()
+        .replace("bootstrap/lexer_tokens.txt", token_path.to_str().unwrap());
+        let parser_program = parse(&parser_source).unwrap();
+        let parser_output = execute_program(&parser_program).unwrap();
+        std::fs::write(&ast_path, parser_output).unwrap();
+
+        let ast_source =
+            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../bootstrap/ast.ax"))
+                .unwrap()
+                .replace("bootstrap/parser_ast.txt", ast_path.to_str().unwrap());
+        let ast_program = parse(&ast_source).unwrap();
+        let ast_output = execute_program(&ast_program).unwrap();
+
+        let semantic_source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/semantic.ax"
+        ))
+        .unwrap()
+        .replace("bootstrap/ast_output.txt", ast_path.to_str().unwrap());
+
+        let semantic_input_path = std::env::temp_dir().join(format!(
+            "axiom-self-hosted-semantic-input-{}.ast",
+            std::process::id()
+        ));
+        std::fs::write(&semantic_input_path, ast_output).unwrap();
+        let semantic_source = semantic_source.replace(
+            ast_path.to_str().unwrap(),
+            semantic_input_path.to_str().unwrap(),
+        );
+        let semantic_program = parse(&semantic_source).unwrap();
+        let semantic_output = execute_program(&semantic_program).unwrap();
+
+        std::fs::remove_file(token_path).unwrap();
+        std::fs::remove_file(ast_path).unwrap();
+        std::fs::remove_file(semantic_input_path).unwrap();
+
+        assert!(semantic_output.contains("SEMANTIC_OK\n"));
+        assert!(semantic_output.contains("STRUCTS|1\n"));
+        assert!(semantic_output.contains("FUNCTIONS|2\n"));
+    }
+
+    #[test]
+    fn self_hosted_semantic_rejects_mixed_literal_arithmetic() {
+        let ast_path = std::env::temp_dir().join(format!(
+            "axiom-self-hosted-semantic-negative-{}.ast",
+            std::process::id()
+        ));
+        let ast = "AXIOM_AST_V1\nNODE|0|Program|\nNODE|0|Function|main\nNODE|0|ScopeEnter|\nNODE|1|ExprEnter|\nNODE|2|Integer|1\nNODE|2|Binary|+\nNODE|2|Float|2.0\nNODE|1|ExprExit|\nNODE|0|ScopeExit|\n";
+        std::fs::write(&ast_path, ast).unwrap();
+        let semantic_source = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../bootstrap/semantic.ax"
+        ))
+        .unwrap()
+        .replace("bootstrap/ast_output.txt", ast_path.to_str().unwrap());
+        let program = parse(&semantic_source).unwrap();
+        let output = execute_program(&program).unwrap();
+        std::fs::remove_file(ast_path).unwrap();
+        assert!(
+            output.contains("SEMANTIC_ERROR|binary operator '+' has incompatible operand types")
+        );
+        assert!(!output.contains("SEMANTIC_OK"));
+    }
+
+    #[test]
+    fn self_hosted_compiler_rebuilds_itself_reproducibly() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap();
+        let compiler_source = std::fs::read_to_string(root.join("bootstrap/compiler.ax")).unwrap();
+        let lexer_source = std::fs::read_to_string(root.join("bootstrap/lexer.ax")).unwrap();
+        let lexer_source = lexer_source.replace(
+            "bootstrap/lexer_fixture.ax",
+            root.join("bootstrap/compiler.ax").to_str().unwrap(),
+        );
+        let lexer_program = parse(&lexer_source).unwrap();
+        let tokens = execute_program(&lexer_program).unwrap();
+
+        let token_path =
+            std::env::temp_dir().join(format!("axiom-self-build-{}.tokens", std::process::id()));
+        let ast_path =
+            std::env::temp_dir().join(format!("axiom-self-build-{}.ast", std::process::id()));
+        let compiler_input =
+            std::env::temp_dir().join(format!("axiom-self-build-{}.input", std::process::id()));
+        std::fs::write(&token_path, tokens).unwrap();
+
+        let parser_source = std::fs::read_to_string(root.join("bootstrap/parser.ax"))
+            .unwrap()
+            .replace("bootstrap/lexer_tokens.txt", token_path.to_str().unwrap());
+        let parser_program = parse(&parser_source).unwrap();
+        let parser_output = execute_program(&parser_program).unwrap();
+        std::fs::write(&ast_path, parser_output).unwrap();
+
+        let ast_source = std::fs::read_to_string(root.join("bootstrap/ast.ax"))
+            .unwrap()
+            .replace("bootstrap/parser_ast.txt", ast_path.to_str().unwrap());
+        let ast_program = parse(&ast_source).unwrap();
+        let ast_output = execute_program(&ast_program).unwrap();
+        std::fs::write(&compiler_input, ast_output).unwrap();
+
+        let compile_source =
+            compiler_source.replace("bootstrap/parser_ast.txt", compiler_input.to_str().unwrap());
+        let compile_program = parse(&compile_source).unwrap();
+        let first = execute_program(&compile_program).unwrap();
+        let second = execute_program(&compile_program).unwrap();
+
+        std::fs::remove_file(token_path).unwrap();
+        std::fs::remove_file(ast_path).unwrap();
+        std::fs::remove_file(compiler_input).unwrap();
+
+        assert_eq!(first, second);
+        assert!(first.starts_with("AXIOM_IR_V1\n"));
+        assert!(first.contains("FUNCTION|main\n"));
+        assert!(first.contains("CALL|"));
+        assert!(first.contains("EXPR_ENTER\n"));
     }
 
     #[test]

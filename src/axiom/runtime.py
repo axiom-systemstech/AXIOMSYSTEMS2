@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextvars import ContextVar
 
 from .ast import ArrayLiteral, Assign, Binary, BooleanLiteral, Break, Call, Continue, FieldAccess, FloatLiteral, For, Function, If, Index, IntegerLiteral, Let, Program, Return, StringLiteral, StructLiteral, Unary, Variable, While
 from .ir import BreakInstruction, CallInstruction, ContinueInstruction, ForInstruction, IRFunction, IRProgram, IfInstruction, LetInstruction, ReturnInstruction, SetInstruction, WhileInstruction
@@ -12,35 +13,51 @@ class RuntimeError(ValueError):
     """Raised when an AXIOM program fails during IR execution."""
 
 
-def execute(program: IRProgram, emit: Callable[[str], None] = print) -> None:
+_TRACE: ContextVar[Callable[[dict], None] | None] = ContextVar("axiom_runtime_trace", default=None)
+
+
+def _trace(event: dict) -> None:
+    callback = _TRACE.get()
+    if callback is not None:
+        callback(event)
+
+
+def execute(program: IRProgram, emit: Callable[[str], None] = print, trace: Callable[[dict], None] | None = None) -> None:
     """Execute an IR program using the host output function."""
-    functions = {function.name: function for function in program.functions}
-    main = IRFunction("main", [], program.instructions)
-    _invoke_ir(main, [], functions | {"main": main}, emit)
+    token = _TRACE.set(trace)
+    try:
+        functions = {function.name: function for function in program.functions}
+        main = IRFunction("main", [], program.instructions)
+        _invoke_ir(main, [], functions | {"main": main}, emit)
+    finally:
+        _TRACE.reset(token)
 
 
 def _invoke_ir(function, arguments, functions, emit):
+    _trace({"event": "function_enter", "function": function.name})
     variables = {name: value for name, value in zip(function.parameters, arguments)}
-    returned, value = _execute_block(function.body, variables, functions, emit)
+    returned, value = _execute_block(function.body, variables, functions, emit, function.name)
+    _trace({"event": "function_exit", "function": function.name})
     return value if returned else None
 
 
-def _execute_block(instructions, variables, functions, emit):
-    for instruction in instructions:
+def _execute_block(instructions, variables, functions, emit, function_name="main"):
+    for index, instruction in enumerate(instructions):
+        _trace({"event": "instruction", "function": function_name, "index": index, "instruction": type(instruction).__name__})
         if isinstance(instruction, LetInstruction):
             variables[instruction.name] = _evaluate(instruction.value, variables, functions, emit)
         elif isinstance(instruction, SetInstruction):
             _assign(instruction.target, _evaluate(instruction.value, variables, functions, emit), variables, functions, emit)
         elif isinstance(instruction, IfInstruction):
             branch = instruction.then_body if _evaluate(instruction.condition, variables, functions, emit) else instruction.else_body
-            status, value = _execute_block(branch, variables, functions, emit)
+            status, value = _execute_block(branch, variables, functions, emit, function_name)
             if status is _BREAK or status is _CONTINUE:
                 return status, None
             if status:
                 return True, value
         elif isinstance(instruction, WhileInstruction):
             while _evaluate(instruction.condition, variables, functions, emit):
-                status, value = _execute_block(instruction.body, variables, functions, emit)
+                status, value = _execute_block(instruction.body, variables, functions, emit, function_name)
                 if status is _BREAK: break
                 if status is _CONTINUE: continue
                 if status:
@@ -48,14 +65,14 @@ def _execute_block(instructions, variables, functions, emit):
         elif isinstance(instruction, ForInstruction):
             _execute_block(instruction.initializer, variables, functions, emit)
             while _evaluate(instruction.condition, variables, functions, emit):
-                status, value = _execute_block(instruction.body, variables, functions, emit)
+                status, value = _execute_block(instruction.body, variables, functions, emit, function_name)
                 if status is _BREAK: break
                 if status is _CONTINUE:
-                    _execute_block(instruction.update, variables, functions, emit)
+                    _execute_block(instruction.update, variables, functions, emit, function_name)
                     continue
                 if status:
                     return True, value
-                _execute_block(instruction.update, variables, functions, emit)
+                _execute_block(instruction.update, variables, functions, emit, function_name)
         elif isinstance(instruction, BreakInstruction):
             return _BREAK, None
         elif isinstance(instruction, ContinueInstruction):
@@ -250,6 +267,8 @@ def _evaluate(expression, variables, functions=None, emit=print):
         return -_evaluate(expression.operand, variables, functions, emit)
     if isinstance(expression, Call):
         arguments = [_evaluate(argument, variables, functions, emit) for argument in expression.arguments]
+        if expression.name in {"len", "abs", "min", "max"}:
+            return _standard_library_call(expression.name, arguments)
         if isinstance(functions[expression.name], IRFunction):
             return _invoke_ir(functions[expression.name], arguments, functions, emit)
         return _invoke(functions[expression.name], arguments, functions, emit)
@@ -259,6 +278,12 @@ def _evaluate(expression, variables, functions=None, emit=print):
 def _assign(target, value, variables, functions=None, emit=print):
     if isinstance(target, Variable):
         variables[target.name] = value
+        return
+    if isinstance(target, FieldAccess):
+        container = _evaluate(target.target, variables, functions, emit)
+        if not isinstance(container, dict) or target.field not in container:
+            raise RuntimeError("unknown field")
+        container[target.field] = value
         return
     if isinstance(target, Index):
         container = _evaluate(target.target, variables, functions, emit)
@@ -271,3 +296,13 @@ def _assign(target, value, variables, functions=None, emit=print):
             raise RuntimeError("index out of bounds") from None
         return
     raise RuntimeError("invalid assignment target")
+def _standard_library_call(name, arguments):
+    if name == "len":
+        return len(arguments[0])
+    if name == "abs":
+        return abs(arguments[0])
+    if name == "min":
+        return min(arguments)
+    if name == "max":
+        return max(arguments)
+    raise RuntimeError(f"unknown standard library function '{name}'")

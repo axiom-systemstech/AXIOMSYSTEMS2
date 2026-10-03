@@ -1,3 +1,7 @@
+from pathlib import Path
+import zipfile
+
+import pytest
 from axiom.cli import main
 from axiom.ast import BooleanLiteral, Call, Function, IntegerLiteral, Program, StringLiteral
 from axiom.ast import Binary
@@ -5,8 +9,61 @@ from axiom.ast import Variable
 from axiom.ir import IRProgram, IfInstruction, LetInstruction, PrintInstruction, SetInstruction, WhileInstruction, lower
 from axiom.lexer import LexError, TokenKind, lex
 from axiom.parser import ParseError, parse
-from axiom.runtime import execute
+from axiom.runtime import execute, execute_program
 from axiom.semantic import SemanticError, analyze
+from axiom.studio import check_source, complete_source, debug_source, documentation_index, git_diff, package_info, package_workspace, profile_source, run_source, run_workspace_tests, terminal_command, run_source_file, visual_ir, workspace_info
+
+
+def test_new_creates_project(tmp_path, capsys):
+    project = tmp_path / "hello"
+    assert main(["new", str(project)]) == 0
+    assert "created:" in capsys.readouterr().out
+    assert (project / "axiom.toml").exists()
+    assert (project / "src/main.ax").read_text(encoding="utf-8") == 'fn main() { print("Hello AXIOM") }\n'
+
+
+def test_test_command_runs_axiom_sources(tmp_path, capsys):
+    tests_path = tmp_path / "tests"
+    tests_path.mkdir()
+    source = tests_path / "hello.ax"
+    source.write_text('fn main() { print("ok") }', encoding="utf-8")
+    assert main(["test", str(tests_path)]) == 0
+    assert "test ok: 1 source file(s)" in capsys.readouterr().out
+
+
+def test_package_creates_archive(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "axiom.toml").write_text(
+        '[package]\nname = "demo"\nversion = "0.1.0"\n',
+        encoding="utf-8",
+    )
+    output = tmp_path / "demo.axpkg"
+    assert main(["package", "-o", str(output)]) == 0
+    assert "packaged:" in capsys.readouterr().out
+    assert output.exists()
+    with zipfile.ZipFile(output) as archive:
+        names = set(archive.namelist())
+    assert "axiom.toml" in names
+    assert all(not name.startswith(".git/") for name in names)
+
+
+def test_add_package_from_local_registry(tmp_path, monkeypatch, capsys):
+    registry = tmp_path / "registry"
+    package = registry / "networking"
+    package.mkdir(parents=True)
+    (package / "axiom.toml").write_text(
+        '[package]\nname = "networking"\nversion = "0.1.0"\n',
+        encoding="utf-8",
+    )
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.chdir(project)
+
+    assert main(["add", "networking", "--registry", str(registry)]) == 0
+    assert "added: networking 0.1.0" in capsys.readouterr().out
+    assert (project / "vendor/networking/axiom.toml").exists()
+    assert 'networking = "0.1.0"' in (project / "axiom.toml").read_text(encoding="utf-8")
+    assert '"networking": {' in (project / "axiom.lock").read_text(encoding="utf-8")
 
 
 def test_doctor_reports_environment(capsys):
@@ -93,6 +150,39 @@ def test_parser_builds_struct_literal_and_field_access():
     )
     assert program.structs[0].name == "Point"
     assert program.structs[0].fields[0].name == "x"
+
+
+def test_runtime_executes_standard_library(capsys):
+    source = 'fn main() { print(len("axiom")); print(abs(-7)); print(min(3, 5)); print(max(3.0, 5.0)) }'
+    program = parse(source)
+    analyze(program)
+    execute_program(program)
+    assert capsys.readouterr().out == "5\n7\n3\n5.0\n"
+
+
+def test_semantic_rejects_invalid_standard_library_call():
+    program = parse("fn main() { print(len(1)) }")
+    with pytest.raises(SemanticError, match="len expects a String or array"):
+        analyze(program)
+
+
+def test_runtime_executes_struct_field_assignment(tmp_path, capsys):
+    source = tmp_path / "struct_assignment.ax"
+    source.write_text(
+        "struct Point { x: Int, y: Int } fn main() { let point: Point = Point { x: 10, y: 20 }; point.x = 42; print(point.x) }",
+        encoding="utf-8",
+    )
+    assert main(["run", str(source)]) == 0
+    assert capsys.readouterr().out == "42\n"
+
+
+def test_semantic_analysis_rejects_unknown_struct_field_assignment():
+    try:
+        analyze(parse("struct Point { x: Int } fn main() { let point: Point = Point { x: 10 }; point.y = 42 }"))
+    except SemanticError as error:
+        assert str(error) == "unknown field 'y'"
+    else:
+        raise AssertionError("expected SemanticError")
 
 
 def test_runtime_executes_struct_field_access(tmp_path, capsys):
@@ -479,3 +569,148 @@ def test_runtime_executes_break_and_continue(tmp_path, capsys):
     )
     assert main(["run", str(source)]) == 0
     assert capsys.readouterr().out == "0\n1\n3\n"
+
+def test_studio_checks_source_and_reports_diagnostics():
+    assert check_source('fn main() { print("ok") }')["ok"] is True
+    result = check_source("fn main() { display(1) }")
+    assert result["ok"] is False
+    assert result["diagnostics"][0]["message"] == "unknown function 'display'"
+
+
+def test_studio_completes_language_symbols():
+    assert "print" in complete_source("fn main() { pri", "pri")
+    assert "Int" in complete_source("fn main() { let value: I", "I")
+    assert "main" in complete_source("fn main() { ma", "ma")
+
+
+def test_studio_reports_workspace_sources(tmp_path):
+    (tmp_path / "axiom.toml").write_text("[package]\nname = \"demo\"\n", encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/main.ax").write_text("fn main() {}", encoding="utf-8")
+    info = workspace_info(tmp_path)
+    assert info["manifest"] is True
+    assert info["sources"] == ["src/main.ax"]
+
+
+def test_studio_runs_source_and_captures_output():
+    result = run_source('fn main() { print("studio") }')
+    assert result == {"ok": True, "diagnostics": [], "output": "studio\n"}
+
+
+def test_studio_tests_workspace(tmp_path):
+    (tmp_path / "one.ax").write_text('fn main() { print(1) }', encoding="utf-8")
+    result = run_workspace_tests(tmp_path)
+    assert result["ok"] is True
+    assert result["count"] == 1
+
+
+def test_studio_reports_git_status(tmp_path):
+    from axiom.studio import git_status
+    result = git_status(tmp_path)
+    assert result["ok"] is False
+
+
+def test_studio_packages_workspace(tmp_path):
+    (tmp_path / "axiom.toml").write_text('[package]\nname = "demo"\nversion = "0.1.0"\n', encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/main.ax").write_text('fn main() {}', encoding="utf-8")
+    output = tmp_path / "demo.axpkg"
+    result = package_workspace(tmp_path, output)
+    assert result["ok"] is True
+    assert output.exists()
+
+
+def test_studio_debugger_traces_instructions_and_breakpoints():
+    result = debug_source('fn main() { let x: Int = 1; print(x) }', [{"function": "main", "index": 0}])
+    assert result["ok"] is True
+    assert result["events"]
+    assert result["breakpoints"][0]["index"] == 0
+
+
+def test_studio_profiler_collects_function_and_instruction_metrics():
+    result = profile_source('fn helper() -> Int { return 3 } fn main() { print(helper()) }')
+    assert result["ok"] is True
+    assert any(item["name"] == "helper" for item in result["functions"])
+    assert result["instructions"]
+
+
+def test_studio_tests_single_source(tmp_path):
+    source = tmp_path / "main.ax"
+    source.write_text('fn main() { print("ok") }', encoding="utf-8")
+    result = run_source_file(tmp_path, "main.ax")
+    assert result["ok"] is True
+
+
+def test_studio_package_info_and_docs(tmp_path):
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/guide.md").write_text("# Guide", encoding="utf-8")
+    result = documentation_index(tmp_path)
+    assert result["docs"] == ["docs/guide.md"]
+    info = package_info(tmp_path)
+    assert info["manifest"] is None
+
+
+def test_studio_terminal_is_allowlisted(tmp_path):
+    result = terminal_command(tmp_path, "git status")
+    assert result["ok"] is False
+    assert terminal_command(tmp_path, "rm -rf /")["ok"] is False
+
+
+def test_studio_visual_ir_and_git_diff(tmp_path):
+    result = visual_ir('fn main() { print("ir") }')
+    assert result["ok"] is True
+    assert "AXIOM-IR" in result["ir"]
+    diff = git_diff(tmp_path)
+    assert diff["ok"] is False
+
+
+def test_core_type_model_is_structural():
+    from axiom.types import Type, parse_type_name
+    assert parse_type_name("Int").render() == "Int"
+    assert parse_type_name("Int[][]").render() == "Int[][]"
+    assert Type.array(Type.named("Point")).render() == "Point[]"
+
+
+def test_module_imports_compile_as_one_program(tmp_path):
+    from axiom.core import Compiler
+    source_root = tmp_path / "src"
+    source_root.mkdir()
+    (source_root / "main.ax").write_text(
+        "module main\nimport math\nfn main() { print(double(21)) }\n",
+        encoding="utf-8",
+    )
+    (source_root / "math.ax").write_text(
+        "module math\nfn double(value: Int) -> Int { return value + value }\n",
+        encoding="utf-8",
+    )
+    compilation = Compiler().compile_project(tmp_path)
+    assert [unit.module for unit in compilation.units] == ["main", "math"]
+    assert "PRINT double(21)" in compilation.ir.render()
+
+
+def test_module_import_missing_is_reported(tmp_path):
+    from axiom.core import Compiler, CompilerError
+    source_root = tmp_path / "src"
+    source_root.mkdir()
+    (source_root / "main.ax").write_text(
+        "module main\nimport missing\nfn main() { print(1) }\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(CompilerError, match="module 'missing' not found"):
+        Compiler().compile_project(tmp_path)
+
+
+def test_module_import_cycle_is_reported(tmp_path):
+    from axiom.core import Compiler, CompilerError
+    source_root = tmp_path / "src"
+    source_root.mkdir()
+    (source_root / "main.ax").write_text(
+        "module main\nimport util\nfn main() { print(1) }\n",
+        encoding="utf-8",
+    )
+    (source_root / "util.ax").write_text(
+        "module util\nimport main\nfn helper() { print(2) }\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(CompilerError, match="cyclic module import"):
+        Compiler().compile_project(tmp_path)

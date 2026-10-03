@@ -1,0 +1,157 @@
+fn field(parts: String[], index: Int) -> String {
+    if index < len(parts) { return parts[index] }
+    return ""
+}
+
+fn is_builtin(name: String) -> Int {
+    if name == "print" || name == "split" || name == "split_lines" || name == "read_file" || name == "write_file" || name == "char_at" || name == "char_code" || name == "int_to_string" || name == "len" || name == "abs" || name == "min" || name == "max" {
+        return 1
+    }
+    return 0
+}
+
+fn has_named_node(lines: String[], kind_name: String, name: String) -> Int {
+    let index: Int = 0
+    let found: Int = 0
+    while index < len(lines) {
+        let marker: String = "|" + kind_name + "|" + name
+        if len(split(lines[index], marker)) > 1 { found = 1 }
+        index = index + 1
+    }
+    return found
+}
+
+fn literal_type(kind: String) -> String {
+    if kind == "Integer" { return "Int" }
+    if kind == "Float" { return "Float" }
+    if kind == "String" { return "String" }
+    if kind == "Boolean" { return "Bool" }
+    return ""
+}
+
+fn check_binary_literals(lines: String[]) -> Int {
+    let index: Int = 0
+    let valid: Int = 1
+    while index + 2 < len(lines) {
+        let current: String[] = split(lines[index], "|")
+        let next: String[] = split(lines[index + 1], "|")
+        let after: String[] = split(lines[index + 2], "|")
+        if len(current) >= 3 && len(next) >= 3 && len(after) >= 3 {
+            let left_type: String = literal_type(field(current, 2))
+            let operator_kind: String = field(next, 3)
+            let right_type: String = literal_type(field(after, 2))
+            if left_type != "" && right_type != "" && operator_kind != "" {
+                if operator_kind == "+" || operator_kind == "-" || operator_kind == "*" || operator_kind == "/" || operator_kind == "%" {
+                    if left_type != right_type || (left_type != "Int" && left_type != "Float" && left_type != "String") {
+                        print("SEMANTIC_ERROR|binary operator '" + operator_kind + "' has incompatible operand types")
+                        valid = 0
+                    }
+                }
+                if operator_kind == ">" || operator_kind == ">=" || operator_kind == "<" || operator_kind == "<=" {
+                    if left_type != right_type || (left_type != "Int" && left_type != "Float") {
+                        print("SEMANTIC_ERROR|comparison requires matching numeric operands")
+                        valid = 0
+                    }
+                }
+            }
+        }
+        index = index + 1
+    }
+    return valid
+}
+
+fn resolve_variable(lines: String[], start: Int, name: String) -> Int {
+    let index: Int = start - 1
+    let blocked: Int = 0
+    while index >= 0 {
+        let line: String = lines[index]
+        let parts: String[] = split(line, "|")
+        if len(parts) >= 3 {
+            let kind: String = field(parts, 2)
+            if kind == "ScopeExit" {
+                blocked = blocked + 1
+            }
+            if kind == "ScopeEnter" {
+                if blocked > 0 { blocked = blocked - 1 }
+            }
+            if blocked == 0 {
+                let name_marker: String = "|Name|" + name
+                let parameter_marker: String = "|Parameter|" + name
+                if len(split(line, name_marker)) > 1 || len(split(line, parameter_marker)) > 1 {
+                    return 1
+                }
+            }
+            if kind == "Function" && blocked == 0 { return 0 }
+        }
+        index = index - 1
+    }
+    return 0
+}
+
+fn analyze(source: String) {
+    let lines: String[] = split_lines(source)
+    let struct_count: Int = 0
+    let function_count: Int = 0
+    let has_main: Int = 0
+    let valid: Int = 1
+    let index: Int = 1
+
+    while index < len(lines) {
+        let line: String = lines[index]
+        if len(line) > 0 {
+            let parts: String[] = split(line, "|")
+            if len(parts) < 3 {
+                print("SEMANTIC_ERROR|malformed AST node")
+                valid = 0
+            } else {
+                let kind: String = field(parts, 2)
+                let value: String = field(parts, 3)
+                if kind == "Struct" {
+                    struct_count = struct_count + 1
+                    if value == "" { print("SEMANTIC_ERROR|struct requires a name"); valid = 0 }
+                }
+                if kind == "Function" {
+                    function_count = function_count + 1
+                    if value == "" { print("SEMANTIC_ERROR|function requires a name"); valid = 0 }
+                    if value == "main" { has_main = 1 }
+                }
+                if kind == "Variable" {
+                    if resolve_variable(lines, index, value) == 0 {
+                        print("SEMANTIC_ERROR|unknown variable '" + value + "'")
+                        valid = 0
+                    }
+                }
+                if kind == "Call" {
+                    if is_builtin(value) == 0 && has_named_node(lines, "Function", value) == 0 {
+                        print("SEMANTIC_ERROR|unknown function '" + value + "'")
+                        valid = 0
+                    }
+                }
+                if kind == "StructLiteral" {
+                    if has_named_node(lines, "Struct", value) == 0 {
+                        print("SEMANTIC_ERROR|unknown struct '" + value + "'")
+                        valid = 0
+                    }
+                }
+            }
+        }
+        index = index + 1
+    }
+
+    if check_binary_literals(lines) == 0 { valid = 0 }
+
+    if has_main == 0 {
+        print("SEMANTIC_ERROR|program must define 'main'")
+        valid = 0
+    }
+    if valid == 1 {
+        print("SEMANTIC_OK")
+        print("STRUCTS|" + int_to_string(struct_count))
+        print("FUNCTIONS|" + int_to_string(function_count))
+    }
+}
+
+fn main() {
+    let source: String = read_file("bootstrap/ast_output.txt")
+    analyze(source)
+}

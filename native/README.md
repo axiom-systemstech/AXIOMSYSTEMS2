@@ -1,28 +1,39 @@
-# AXIOM Native
+# AXIOM Native Transition Layer
 
-This crate is the first native backend component of AXIOM SYSTEMS. It mirrors
-the Python lexer and the first parser slice and is intentionally independent
-from the Python bootstrap so both implementations can be compared before
-migration. The current native pipeline covers lexing, parsing, and the first
-semantic checks.
+This crate contains the current Rust-native transition implementation of AXIOM.
 
-The native runtime can execute the initial literal-printing slice:
+It provides:
 
-```rust
-axiom_native::runtime::run("fn main() { print(\"Hello AXIOM\") }")?;
-```
+- the historical native lexer/parser;
+- semantic analysis;
+- AXIOM artifact generation;
+- the transition VM/runtime;
+- native project workflow;
+- package workflow;
+- standalone executable generation.
+
+## Important boundary
+
+Rust is currently the native implementation host.
+
+Rust is **not** the definition of AXIOM and is not the intended final language implementation foundation.
+
+The project is progressively replacing this boundary with AXIOM-owned compiler and runtime components.
+
+## Current commands
 
 ```bash
 cargo test --manifest-path native/Cargo.toml
-```
 
-Build and use the native CLI:
-
-```bash
 cargo build --manifest-path native/Cargo.toml
+
 native/target/debug/axiom check examples/hello.ax
 native/target/debug/axiom run examples/hello.ax
+native/target/debug/axiom native-build examples/hello.ax out/hello
 ```
 
-Array literals and chained indexing are supported by the native pipeline. Array
-types use postfix brackets, for example `fn first(values: Int[]) -> Int[]`.
+## Transition status
+
+The native toolchain is useful for bootstrapping the definitive compiler and validating low-level execution.
+
+It should be treated as migration infrastructure until the AXIOM-owned compiler, ABI, runtime, and backend replace its language-implementation responsibilities.
